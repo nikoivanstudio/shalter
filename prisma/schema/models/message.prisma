@@ -1,0 +1,13 @@
+model Message {
+  id        Int       @id @default(autoincrement())
+  content   String    @db.VarChar(1000)
+  status    String    @db.VarChar(20)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @map("updated_at")
+  dialogId  Int       @map("dialog_id")
+  dialog    Dialog    @relation(fields: [dialogId], references: [id])
+  authorId  Int
+  author    User      @relation(fields: [authorId], references: [id])
+
+  @@map("messages")
+}
