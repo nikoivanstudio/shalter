@@ -1,0 +1,51 @@
+import { NextResponse } from "next/server"
+
+import { registerUser } from "@/features/auth/api/auth-service"
+import { registerSchema } from "@/features/auth/model/schemas"
+import {
+  createAuthToken,
+  createSessionId,
+  setAuthCookies,
+} from "@/shared/lib/auth/session"
+
+export async function POST(request: Request) {
+  try {
+    const json = await request.json()
+    const parsed = registerSchema.safeParse(json)
+
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.flatten().fieldErrors
+      return NextResponse.json(
+        {
+          message: "Ошибка валидации",
+          fieldErrors,
+        },
+        { status: 400 }
+      )
+    }
+
+    const result = await registerUser(parsed.data)
+
+    if (!result.ok) {
+      return NextResponse.json({ message: result.message }, { status: result.status })
+    }
+
+    const sessionId = createSessionId()
+    const token = await createAuthToken({
+      userId: result.user.id,
+      email: result.user.email,
+      sid: sessionId,
+    })
+
+    const response = NextResponse.json(
+      {
+        user: result.user,
+      },
+      { status: 201 }
+    )
+    setAuthCookies(response, { token, sessionId })
+    return response
+  } catch {
+    return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
+  }
+}

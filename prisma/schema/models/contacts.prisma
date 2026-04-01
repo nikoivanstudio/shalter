@@ -1,0 +1,7 @@
+model Contact {
+  id     Int  @id @default(autoincrement())
+  userId Int  @unique @map("user_id")
+  user   User @relation(fields: [userId], references: [id])
+
+  @@map("contacts")
+}
