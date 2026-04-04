@@ -1,6 +1,5 @@
 "use client"
 
-import { MessageCircleIcon, SettingsIcon, UsersIcon } from "lucide-react"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
@@ -10,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
+import { BottomNav } from "@/features/navigation/ui/bottom-nav"
+import { buildEmblem } from "@/features/profile/lib/emblem"
 import {
   type UpdateProfileInput,
   updateProfileSchema,
@@ -25,30 +26,13 @@ type EditableUser = {
 }
 
 type FieldErrors = Record<string, string[] | undefined>
-type ActiveSection = "settings" | "contacts" | "chats"
 
 function getFieldError(errors: FieldErrors, key: string) {
   return errors[key]?.[0]
 }
 
-function buildEmblem(firstName: string, lastName: string | null) {
-  const first = firstName.trim().charAt(0).toUpperCase()
-  const last = (lastName ?? "").trim().charAt(0).toUpperCase()
-
-  if (first && last) {
-    return `${first}${last}`
-  }
-
-  if (first) {
-    return first
-  }
-
-  return "U"
-}
-
 export function ProfileHome({ user }: { user: EditableUser }) {
   const [isPending, startTransition] = useTransition()
-  const [activeSection, setActiveSection] = useState<ActiveSection>("settings")
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [serverMessage, setServerMessage] = useState("")
   const [form, setForm] = useState<UpdateProfileInput>({
@@ -122,119 +106,82 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
         <Card className="border-border/80 shadow-xl shadow-black/5">
           <CardHeader>
-            <CardTitle className="text-2xl">Личный кабинет</CardTitle>
+            <CardTitle className="text-2xl">Настройки профиля</CardTitle>
             <CardDescription>
-              Управляйте своим профилем и разделами приложения.
+              Изменения сохраняются в базе данных без смены пароля.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {activeSection === "settings" && (
-              <form className="space-y-4" onSubmit={onSaveProfile}>
-                <div className="space-y-2">
-                  <Label htmlFor="profile-first-name">Имя</Label>
-                  <Input
-                    id="profile-first-name"
-                    value={form.firstName}
-                    onChange={(e) => updateField("firstName", e.target.value)}
-                    autoComplete="given-name"
-                  />
-                  {getFieldError(fieldErrors, "firstName") && (
-                    <p className="text-sm text-destructive">{getFieldError(fieldErrors, "firstName")}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="profile-last-name">Фамилия</Label>
-                  <Input
-                    id="profile-last-name"
-                    value={form.lastName ?? ""}
-                    onChange={(e) => updateField("lastName", e.target.value)}
-                    autoComplete="family-name"
-                  />
-                  {getFieldError(fieldErrors, "lastName") && (
-                    <p className="text-sm text-destructive">{getFieldError(fieldErrors, "lastName")}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="profile-email">Email</Label>
-                  <Input
-                    id="profile-email"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => updateField("email", e.target.value)}
-                    autoComplete="email"
-                  />
-                  {getFieldError(fieldErrors, "email") && (
-                    <p className="text-sm text-destructive">{getFieldError(fieldErrors, "email")}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="profile-phone">Телефон</Label>
-                  <Input
-                    id="profile-phone"
-                    value={form.phone}
-                    onChange={(e) => updateField("phone", e.target.value)}
-                    autoComplete="tel"
-                  />
-                  {getFieldError(fieldErrors, "phone") && (
-                    <p className="text-sm text-destructive">{getFieldError(fieldErrors, "phone")}</p>
-                  )}
-                </div>
-
-                {serverMessage && (
-                  <>
-                    <Separator />
-                    <p className="text-sm text-destructive">{serverMessage}</p>
-                  </>
+            <form className="space-y-4" onSubmit={onSaveProfile}>
+              <div className="space-y-2">
+                <Label htmlFor="profile-first-name">Имя</Label>
+                <Input
+                  id="profile-first-name"
+                  value={form.firstName}
+                  onChange={(e) => updateField("firstName", e.target.value)}
+                  autoComplete="given-name"
+                />
+                {getFieldError(fieldErrors, "firstName") && (
+                  <p className="text-sm text-destructive">{getFieldError(fieldErrors, "firstName")}</p>
                 )}
+              </div>
 
-                <Button type="submit" disabled={isPending}>
-                  {isPending ? "Сохраняем..." : "Сохранить профиль"}
-                </Button>
-              </form>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="profile-last-name">Фамилия</Label>
+                <Input
+                  id="profile-last-name"
+                  value={form.lastName ?? ""}
+                  onChange={(e) => updateField("lastName", e.target.value)}
+                  autoComplete="family-name"
+                />
+                {getFieldError(fieldErrors, "lastName") && (
+                  <p className="text-sm text-destructive">{getFieldError(fieldErrors, "lastName")}</p>
+                )}
+              </div>
 
-            {activeSection === "contacts" && (
-              <p className="text-sm text-muted-foreground">Раздел контактов в разработке.</p>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="profile-email">Email</Label>
+                <Input
+                  id="profile-email"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => updateField("email", e.target.value)}
+                  autoComplete="email"
+                />
+                {getFieldError(fieldErrors, "email") && (
+                  <p className="text-sm text-destructive">{getFieldError(fieldErrors, "email")}</p>
+                )}
+              </div>
 
-            {activeSection === "chats" && (
-              <p className="text-sm text-muted-foreground">Раздел чатов в разработке.</p>
-            )}
+              <div className="space-y-2">
+                <Label htmlFor="profile-phone">Телефон</Label>
+                <Input
+                  id="profile-phone"
+                  value={form.phone}
+                  onChange={(e) => updateField("phone", e.target.value)}
+                  autoComplete="tel"
+                />
+                {getFieldError(fieldErrors, "phone") && (
+                  <p className="text-sm text-destructive">{getFieldError(fieldErrors, "phone")}</p>
+                )}
+              </div>
+
+              {serverMessage && (
+                <>
+                  <Separator />
+                  <p className="text-sm text-destructive">{serverMessage}</p>
+                </>
+              )}
+
+              <Button type="submit" disabled={isPending}>
+                {isPending ? "Сохраняем..." : "Сохранить профиль"}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border/70 bg-background/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-4xl items-center justify-around px-4 py-3">
-          <Button
-            variant={activeSection === "settings" ? "default" : "ghost"}
-            className="h-auto flex-col gap-1 px-4 py-2"
-            onClick={() => setActiveSection("settings")}
-          >
-            <SettingsIcon className="size-4" />
-            <span className="text-xs">Настройки</span>
-          </Button>
-          <Button
-            variant={activeSection === "contacts" ? "default" : "ghost"}
-            className="h-auto flex-col gap-1 px-4 py-2"
-            onClick={() => setActiveSection("contacts")}
-          >
-            <UsersIcon className="size-4" />
-            <span className="text-xs">Контакты</span>
-          </Button>
-          <Button
-            variant={activeSection === "chats" ? "default" : "ghost"}
-            className="h-auto flex-col gap-1 px-4 py-2"
-            onClick={() => setActiveSection("chats")}
-          >
-            <MessageCircleIcon className="size-4" />
-            <span className="text-xs">Чаты</span>
-          </Button>
-        </div>
-      </nav>
+      <BottomNav active="settings" />
     </main>
   )
 }
