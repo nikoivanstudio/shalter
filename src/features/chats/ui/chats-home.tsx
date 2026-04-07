@@ -30,7 +30,7 @@ type ContactUser = {
 type ChatMessage = {
   id: number
   content: string
-  status: "SENT" | "DELIVERED" | "READ"
+  status?: string | null
   createdAt: string
   dialogId: number
   author: {
@@ -88,12 +88,21 @@ function withUpdatedDialogMessage(dialogs: ChatDialog[], message: ChatMessage) {
   return next
 }
 
+function normalizeMessageStatus(status: ChatMessage["status"]): "SENT" | "DELIVERED" | "READ" {
+  const normalized = status?.toUpperCase()
+  if (normalized === "SENT" || normalized === "READ" || normalized === "DELIVERED") {
+    return normalized
+  }
+  return "DELIVERED"
+}
+
 function MessageStatusIcon({ status }: { status: ChatMessage["status"] }) {
-  if (status === "SENT") {
+  const normalized = normalizeMessageStatus(status)
+  if (normalized === "SENT") {
     return <CheckIcon className="size-3" />
   }
 
-  const toneClass = status === "READ" ? "text-sky-500" : ""
+  const toneClass = normalized === "READ" ? "text-sky-500" : ""
   return (
     <span className={`inline-flex ${toneClass}`}>
       <CheckIcon className="-mr-1 size-3" />
@@ -218,7 +227,10 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     }
 
     const unreadIncomingIds = messages
-      .filter((message) => message.author.id !== user.id && message.status !== "READ")
+      .filter(
+        (message) =>
+          message.author.id !== user.id && normalizeMessageStatus(message.status) !== "READ"
+      )
       .map((message) => message.id)
 
     if (unreadIncomingIds.length === 0) {
