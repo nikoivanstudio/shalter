@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button"
 
 type NavSection = "settings" | "contacts" | "chats"
 
-export function BottomNav({ active }: { active: NavSection }) {
+export function BottomNav({
+  active,
+  onChatsClick,
+}: {
+  active?: NavSection
+  onChatsClick?: () => void
+}) {
   const router = useRouter()
 
   return (
@@ -32,7 +38,10 @@ export function BottomNav({ active }: { active: NavSection }) {
         <Button
           variant={active === "chats" ? "default" : "ghost"}
           className="h-auto flex-col gap-1 px-4 py-2"
-          onClick={() => router.push("/chats")}
+          onClick={() => {
+            onChatsClick?.()
+            router.push("/chats")
+          }}
         >
           <MessageCircleIcon className="size-4" />
           <span className="text-xs">Чаты</span>

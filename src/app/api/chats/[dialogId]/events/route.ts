@@ -5,6 +5,11 @@ import { prisma } from "@/shared/lib/db/prisma"
 
 export const runtime = "nodejs"
 
+const MESSAGE_STATUS = {
+  DELIVERED: "DELIVERED",
+  READ: "READ",
+} as const
+
 function parseDialogId(value: string) {
   const dialogId = Number(value)
   return Number.isInteger(dialogId) && dialogId > 0 ? dialogId : null
@@ -41,6 +46,7 @@ export async function GET(
   const since = Number(request.nextUrl.searchParams.get("since") ?? "0")
   let lastSeenId = Number.isInteger(since) && since > 0 ? since : 0
   let polling = false
+  let statusCursor = new Date()
 
   const encoder = new TextEncoder()
   let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -102,6 +108,36 @@ export async function GET(
                 createdAt: message.createdAt,
                 dialogId: message.dialogId,
                 author: message.author,
+              })
+            )
+          }
+
+          const nextCursor = new Date()
+          const statusUpdates = await prisma.message.findMany({
+            where: {
+              dialogId,
+              authorId: userId,
+              status: { in: [MESSAGE_STATUS.DELIVERED, MESSAGE_STATUS.READ] },
+              updatedAt: {
+                gt: statusCursor,
+                lte: nextCursor,
+              },
+            },
+            select: {
+              id: true,
+              status: true,
+              updatedAt: true,
+            },
+            orderBy: { id: "asc" },
+          })
+          statusCursor = nextCursor
+
+          for (const update of statusUpdates) {
+            send(
+              createSseEvent("status", {
+                id: update.id,
+                status: update.status,
+                updatedAt: update.updatedAt,
               })
             )
           }

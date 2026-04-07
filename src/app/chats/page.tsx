@@ -4,63 +4,113 @@ import { ChatsHome } from "@/features/chats/ui/chats-home"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
 
-export default async function ChatsPage() {
+export default async function ChatsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ contactId?: string }>
+}) {
   const user = await getCurrentUser()
 
   if (!user) {
     redirect("/auth")
   }
 
-  const [dialogs, contacts] = await Promise.all([
-    prisma.dialog.findMany({
+  const params = await searchParams
+  const parsedContactId = Number(params.contactId)
+  const requestedContactId =
+    Number.isInteger(parsedContactId) && parsedContactId > 0 ? parsedContactId : null
+
+  const contacts = await prisma.contact.findMany({
+    where: { ownerId: user.id },
+    select: {
+      contactUser: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+    orderBy: {
+      id: "desc",
+    },
+  })
+
+  let initialDialogId: number | null = null
+
+  if (requestedContactId && contacts.some((item) => item.contactUser.id === requestedContactId)) {
+    const existingDialog = await prisma.dialog.findFirst({
       where: {
         users: {
           some: { id: user.id },
         },
+        AND: [
+          {
+            users: {
+              some: { id: requestedContactId },
+            },
+          },
+          {
+            users: {
+              every: {
+                id: { in: [user.id, requestedContactId] },
+              },
+            },
+          },
+        ],
       },
-      include: {
-        users: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
+      select: { id: true },
+    })
+
+    if (existingDialog) {
+      initialDialogId = existingDialog.id
+    } else {
+      const createdDialog = await prisma.dialog.create({
+        data: {
+          ownerId: user.id,
+          users: {
+            connect: [{ id: user.id }, { id: requestedContactId }],
           },
         },
-        Messages: {
-          orderBy: { id: "desc" },
-          take: 1,
-          include: {
-            author: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-              },
+        select: { id: true },
+      })
+      initialDialogId = createdDialog.id
+    }
+  }
+
+  const dialogs = await prisma.dialog.findMany({
+    where: {
+      users: {
+        some: { id: user.id },
+      },
+    },
+    include: {
+      users: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      Messages: {
+        orderBy: { id: "desc" },
+        take: 1,
+        include: {
+          author: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
             },
           },
         },
       },
-      orderBy: { id: "desc" },
-    }),
-    prisma.contact.findMany({
-      where: { ownerId: user.id },
-      select: {
-        contactUser: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-          },
-        },
-      },
-      orderBy: {
-        id: "desc",
-      },
-    }),
-  ])
+    },
+    orderBy: { id: "desc" },
+  })
 
   return (
     <ChatsHome
@@ -70,6 +120,7 @@ export default async function ChatsPage() {
         lastName: user.lastName,
         email: user.email,
       }}
+      initialDialogId={initialDialogId}
       contacts={contacts.map((item) => item.contactUser)}
       dialogs={dialogs.map((dialog) => ({
         id: dialog.id,

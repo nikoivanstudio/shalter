@@ -4,6 +4,11 @@ import { sendMessageSchema } from "@/features/chats/model/schemas"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 
+const MESSAGE_STATUS = {
+  SENT: "SENT",
+  DELIVERED: "DELIVERED",
+} as const
+
 function parseDialogId(value: string) {
   const dialogId = Number(value)
   return Number.isInteger(dialogId) && dialogId > 0 ? dialogId : null
@@ -37,6 +42,18 @@ export async function GET(
   if (!hasAccess) {
     return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
   }
+
+  await prisma.message.updateMany({
+    where: {
+      dialogId,
+      authorId: { not: userId },
+      status: MESSAGE_STATUS.SENT,
+    },
+    data: {
+      status: MESSAGE_STATUS.DELIVERED,
+      updatedAt: new Date(),
+    },
+  })
 
   const messages = await prisma.message.findMany({
     where: { dialogId },
@@ -102,7 +119,7 @@ export async function POST(
   const message = await prisma.message.create({
     data: {
       content: parsed.data.content,
-      status: "sent",
+      status: MESSAGE_STATUS.SENT,
       dialogId,
       authorId: userId,
     },

@@ -1,7 +1,13 @@
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
 model Message {
   id        Int       @id @default(autoincrement())
   content   String    @db.VarChar(1000)
-  status    String    @db.VarChar(20)
+  status    MessageStatus @default(SENT)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime? @map("updated_at")
   dialogId  Int       @map("dialog_id")

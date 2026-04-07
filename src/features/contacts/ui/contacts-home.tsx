@@ -1,6 +1,7 @@
 "use client"
 
 import { useDeferredValue, useEffect, useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ type ContactsHomeProps = {
 }
 
 export function ContactsHome({ user, contacts: initialContacts }: ContactsHomeProps) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
@@ -196,9 +198,10 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
                 <p className="text-sm text-muted-foreground">Контактов пока нет.</p>
               )}
               {contacts.map((contact) => (
-                <div
+                <button
                   key={contact.id}
-                  className="rounded-lg border border-border/70 p-3"
+                  className="w-full rounded-lg border border-border/70 p-3 text-left transition-colors hover:bg-muted/40"
+                  onClick={() => router.push(`/chats?contactId=${contact.id}`)}
                 >
                   <p className="font-medium">
                     {contact.firstName} {contact.lastName}
@@ -206,7 +209,7 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
                   <p className="text-sm text-muted-foreground">
                     {contact.phone} · {contact.email}
                   </p>
-                </div>
+                </button>
               ))}
             </div>
           </CardContent>
