@@ -7,7 +7,7 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate && npx prisma migrate deploy && npm run build
+RUN npx prisma generate && npm run build
 
 FROM node:24-alpine AS runner
 WORKDIR /app
@@ -24,4 +24,4 @@ RUN chown -R nextjs:nodejs /app
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start", "--", "-p", "3000", "-H", "0.0.0.0"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start -- -p 3000 -H 0.0.0.0"]
