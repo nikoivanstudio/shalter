@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
   const participantIds = Array.from(
     new Set(parsed.data.participantIds.filter((id) => id !== userId))
   )
+  const title = parsed.data.title?.trim() || null
 
   if (participantIds.length === 0) {
     return NextResponse.json(
@@ -48,23 +49,76 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const dialog = await prisma.dialog.create({
-    data: {
-      ownerId: userId,
-      users: {
-        connect: [{ id: userId }, ...participantIds.map((id) => ({ id }))],
+  const isPrivateChat = participantIds.length === 1
+  if (isPrivateChat) {
+    const otherUserId = participantIds[0]
+    const existingDialog = await prisma.dialog.findFirst({
+      where: {
+        users: {
+          some: { id: userId },
+        },
+        AND: [
+          { users: { some: { id: otherUserId } } },
+          {
+            users: {
+              every: {
+                id: { in: [userId, otherUserId] },
+              },
+            },
+          },
+        ],
       },
-    },
-    include: {
-      users: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
+      select: { id: true },
+    })
+
+    if (existingDialog) {
+      return NextResponse.json(
+        {
+          existing: true,
+          dialogId: existingDialog.id,
+        },
+        { status: 200 }
+      )
+    }
+  }
+
+  const isGroupChat = participantIds.length >= 2
+  if (isGroupChat && !title) {
+    return NextResponse.json(
+      { message: "Для группового чата укажите название" },
+      { status: 400 }
+    )
+  }
+
+  const dialog = await prisma.$transaction(async (tx) => {
+    const created = await tx.dialog.create({
+      data: {
+        ownerId: userId,
+        users: {
+          connect: [{ id: userId }, ...participantIds.map((id) => ({ id }))],
         },
       },
-    },
+      include: {
+        users: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    })
+
+    if (title) {
+      await tx.$executeRaw`
+        UPDATE "dialogs"
+        SET "title" = ${title}
+        WHERE "id" = ${created.id}
+      `
+    }
+
+    return created
   })
 
   return NextResponse.json(
@@ -72,6 +126,7 @@ export async function POST(request: NextRequest) {
       dialog: {
         id: dialog.id,
         ownerId: dialog.ownerId,
+        title,
         users: dialog.users,
         lastMessage: null,
       },

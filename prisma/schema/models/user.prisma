@@ -11,6 +11,7 @@ model User {
   updatedAt    DateTime  @map("updated_at")
   ownedContacts Contact[] @relation("OwnedContacts")
   inContacts    Contact[] @relation("UserInContacts")
+  pushSubscriptions PushSubscription[]
   dialogs      Dialog[]
   messages     Message[]
 

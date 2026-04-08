@@ -1,17 +1,11 @@
 "use client"
 
-import { ThemeProvider } from "next-themes"
-
 import { Toaster } from "@/components/ui/sonner"
+import { ThemeProvider } from "@/features/theme/model/theme-provider"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
+    <ThemeProvider>
       {children}
       <Toaster richColors position="top-right" />
     </ThemeProvider>

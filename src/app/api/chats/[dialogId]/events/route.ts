@@ -54,11 +54,16 @@ export async function GET(
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      let stopped = false
       const send = (payload: string) => {
         controller.enqueue(encoder.encode(payload))
       }
 
       const stop = () => {
+        if (stopped) {
+          return
+        }
+        stopped = true
         if (pollTimer) {
           clearInterval(pollTimer)
           pollTimer = null
@@ -72,15 +77,27 @@ export async function GET(
         } catch {
           // Stream may already be closed by runtime.
         }
+        request.signal.removeEventListener("abort", stop)
       }
 
       const poll = async () => {
-        if (polling) {
+        if (polling || stopped) {
           return
         }
 
         polling = true
         try {
+          const stillHasAccess = await prisma.dialog.findFirst({
+            where: { id: dialogId, users: { some: { id: userId } } },
+            select: { id: true },
+          })
+
+          if (!stillHasAccess) {
+            send(createSseEvent("chat-deleted", { dialogId }))
+            stop()
+            return
+          }
+
           const messages = await prisma.message.findMany({
             where: {
               dialogId,

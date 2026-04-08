@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sendMessageSchema } from "@/features/chats/model/schemas"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { sendPushToDialogRecipients } from "@/shared/lib/notifications/push"
 
 const MESSAGE_STATUS = {
   SENT: "SENT",
@@ -132,6 +133,13 @@ export async function POST(
         },
       },
     },
+  })
+
+  void sendPushToDialogRecipients({
+    dialogId,
+    authorId: userId,
+    authorName: `${message.author.firstName} ${message.author.lastName ?? ""}`.trim(),
+    content: message.content,
   })
 
   return NextResponse.json(

@@ -1,14 +1,21 @@
 "use client"
 
-import { ArrowLeftIcon, CheckIcon } from "lucide-react"
+import { ArrowLeftIcon, CheckIcon, EllipsisVerticalIcon } from "lucide-react"
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
+import { PushToggle } from "@/features/notifications/ui/push-toggle"
 import { buildEmblem } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 
@@ -43,11 +50,13 @@ type ChatMessage = {
 type ChatDialog = {
   id: number
   ownerId: number
+  title: string | null
   users: UserShort[]
+  unreadCount: number
   lastMessage: ChatMessage | null
 }
 
-type ChatsHomeProps = {
+export type ChatsHomeProps = {
   user: UserShort
   dialogs: ChatDialog[]
   contacts: ContactUser[]
@@ -65,12 +74,25 @@ function formatTime(value: string) {
   })
 }
 
-function getDialogTitle(dialog: ChatDialog, currentUserId: number) {
-  const otherUsers = dialog.users.filter((item) => item.id !== currentUserId)
-  if (otherUsers.length === 0) {
-    return "Личный чат"
+function getDialogTitle(dialog: ChatDialog) {
+  const title = dialog.title?.trim()
+  if (title) {
+    return title
   }
-  return otherUsers.map((item) => getUserName(item)).join(", ")
+
+  return "Без названия"
+}
+
+function getDialogMembersSubtitle(dialog: ChatDialog, currentUserId: number) {
+  const names = dialog.users
+    .filter((item) => item.id !== currentUserId)
+    .map((item) => getUserName(item))
+
+  if (names.length === 0) {
+    return "Только вы"
+  }
+
+  return names.join(", ")
 }
 
 function withUpdatedDialogMessage(dialogs: ChatDialog[], message: ChatMessage) {
@@ -115,21 +137,29 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const [dialogs, setDialogs] = useState(initialDialogs)
   const [selectedDialogId, setSelectedDialogId] = useState<number | null>(
-    initialDialogId ?? initialDialogs[0]?.id ?? null
+    initialDialogId ?? null
   )
   const [isDialogView, setIsDialogView] = useState(Boolean(initialDialogId))
   const [messages, setMessages] = useState<ChatMessage[] | null>(null)
+  const [messagesReloadKey, setMessagesReloadKey] = useState(0)
   const [sseSince, setSseSince] = useState(0)
   const [messageText, setMessageText] = useState("")
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
   const [editingText, setEditingText] = useState("")
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [selectedContactIds, setSelectedContactIds] = useState<number[]>([])
+  const [newChatTitle, setNewChatTitle] = useState("")
+  const [openDialogMenuId, setOpenDialogMenuId] = useState<number | null>(null)
   const [isCreating, startCreating] = useTransition()
   const [isSending, startSending] = useTransition()
   const [isEditing, startEditing] = useTransition()
   const [isDeleting, startDeleting] = useTransition()
+  const [isDeletingDialog, startDeletingDialog] = useTransition()
   const emblem = buildEmblem(user.firstName, user.lastName)
+  const unreadDialogsCount = useMemo(
+    () => dialogs.filter((dialog) => dialog.unreadCount > 0).length,
+    [dialogs]
+  )
 
   const activeDialogId = useMemo(() => {
     if (selectedDialogId && dialogs.some((item) => item.id === selectedDialogId)) {
@@ -145,7 +175,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const isMessageListReady = messages !== null
 
   useEffect(() => {
-    if (!activeDialogId) {
+    if (!isDialogView || !activeDialogId) {
       return
     }
 
@@ -153,6 +183,11 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     fetch(`/api/chats/${activeDialogId}/messages`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) {
+          if (response.status === 404) {
+            const error = new Error("CHAT_DELETED")
+            ;(error as Error & { code?: string }).code = "CHAT_DELETED"
+            throw error
+          }
           const data = await response.json().catch(() => null)
           throw new Error(data?.message ?? "Не удалось получить сообщения")
         }
@@ -164,16 +199,27 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       })
       .catch((error: Error) => {
         if (error.name !== "AbortError") {
+          const code = (error as Error & { code?: string }).code
+          if (code === "CHAT_DELETED") {
+            setDialogs((prev) => prev.filter((item) => item.id !== activeDialogId))
+            setIsDialogView(false)
+            setSelectedDialogId(null)
+            setMessages([])
+            setSseSince(0)
+            toast.error("Чат удалён владельцем")
+            return
+          }
+
           toast.error(error.message)
           setMessages([])
         }
       })
 
     return () => controller.abort()
-  }, [activeDialogId])
+  }, [activeDialogId, isDialogView, messagesReloadKey])
 
   useEffect(() => {
-    if (!activeDialogId || !isMessageListReady) {
+    if (!isDialogView || !activeDialogId || !isMessageListReady) {
       return
     }
 
@@ -189,7 +235,18 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         }
         return [...prev, nextMessage]
       })
-      setDialogs((prev) => withUpdatedDialogMessage(prev, nextMessage))
+      setDialogs((prev) => {
+        const updated = withUpdatedDialogMessage(prev, nextMessage)
+        if (nextMessage.author.id === user.id || isDialogView) {
+          return updated
+        }
+
+        return updated.map((dialog) =>
+          dialog.id === nextMessage.dialogId
+            ? { ...dialog, unreadCount: dialog.unreadCount + 1 }
+            : dialog
+        )
+      })
     })
 
     eventSource.addEventListener("chat-error", (event) => {
@@ -218,11 +275,45 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       )
     })
 
+    eventSource.addEventListener("chat-deleted", () => {
+      setDialogs((prev) => prev.filter((item) => item.id !== activeDialogId))
+      setIsDialogView(false)
+      setSelectedDialogId(null)
+      setMessages([])
+      setSseSince(0)
+      toast.error("Чат удалён владельцем")
+      eventSource.close()
+    })
+
     return () => eventSource.close()
-  }, [activeDialogId, isMessageListReady, sseSince])
+  }, [activeDialogId, isDialogView, isMessageListReady, sseSince, user.id])
 
   useEffect(() => {
-    if (!activeDialogId || !messages || messages.length === 0) {
+    const eventSource = new EventSource("/api/chats/unread/events")
+
+    eventSource.addEventListener("unread", (event) => {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as {
+        unreadByDialog?: Record<string, number>
+      }
+      const unreadByDialog = payload.unreadByDialog ?? {}
+
+      setDialogs((prev) =>
+        prev.map((dialog) => ({
+          ...dialog,
+          unreadCount: unreadByDialog[String(dialog.id)] ?? 0,
+        }))
+      )
+    })
+
+    eventSource.addEventListener("chat-error", () => {
+      // Keep UI functional even if unread stream has temporary issues.
+    })
+
+    return () => eventSource.close()
+  }, [])
+
+  useEffect(() => {
+    if (!isDialogView || !activeDialogId || !messages || messages.length === 0) {
       return
     }
 
@@ -259,14 +350,21 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         )
         setDialogs((prev) =>
           prev.map((dialog) =>
-            dialog.id === activeDialogId && dialog.lastMessage && readSet.has(dialog.lastMessage.id)
-              ? { ...dialog, lastMessage: { ...dialog.lastMessage, status: "READ" } }
+            dialog.id === activeDialogId
+              ? {
+                  ...dialog,
+                  unreadCount: 0,
+                  lastMessage:
+                    dialog.lastMessage && readSet.has(dialog.lastMessage.id)
+                      ? { ...dialog.lastMessage, status: "READ" }
+                      : dialog.lastMessage,
+                }
               : dialog
           )
         )
       })
       .catch(() => null)
-  }, [activeDialogId, messages, user.id])
+  }, [activeDialogId, isDialogView, messages, user.id])
 
   useEffect(() => {
     if (!isMessageListReady || !isDialogView) {
@@ -279,8 +377,15 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   }, [activeDialogId, isDialogView, isMessageListReady, messages])
 
   function openDialog(dialogId: number) {
+    setOpenDialogMenuId(null)
+    setDialogs((prev) =>
+      prev.map((dialog) =>
+        dialog.id === dialogId ? { ...dialog, unreadCount: 0 } : dialog
+      )
+    )
     setSelectedDialogId(dialogId)
     setMessages(null)
+    setMessagesReloadKey((prev) => prev + 1)
     setSseSince(0)
     setIsDialogView(true)
     setShowCreateForm(false)
@@ -299,11 +404,20 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       return
     }
 
+    const isGroupChat = selectedContactIds.length >= 2
+    if (isGroupChat && !newChatTitle.trim()) {
+      toast.error("Для группового чата укажите название")
+      return
+    }
+
     startCreating(async () => {
       const response = await fetch("/api/chats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participantIds: selectedContactIds }),
+        body: JSON.stringify({
+          participantIds: selectedContactIds,
+          title: newChatTitle.trim(),
+        }),
       })
 
       const data = await response.json().catch(() => null)
@@ -312,9 +426,18 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         return
       }
 
+      if (data?.existing && typeof data.dialogId === "number") {
+        openDialog(data.dialogId)
+        setShowCreateForm(false)
+        setSelectedContactIds([])
+        setNewChatTitle("")
+        return
+      }
+
       const dialog = data.dialog as ChatDialog
-      setDialogs((prev) => [dialog, ...prev])
+      setDialogs((prev) => [{ ...dialog, unreadCount: 0 }, ...prev])
       setSelectedContactIds([])
+      setNewChatTitle("")
       openDialog(dialog.id)
       toast.success("Чат создан")
     })
@@ -393,9 +516,9 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       )
       setDialogs((prev) =>
         prev.map((dialog) =>
-          dialog.id === activeDialogId && dialog.lastMessage?.id === updated.id
-            ? { ...dialog, lastMessage: { ...dialog.lastMessage, content: updated.content } }
-            : dialog
+            dialog.id === activeDialogId && dialog.lastMessage?.id === updated.id
+              ? { ...dialog, lastMessage: { ...dialog.lastMessage, content: updated.content } }
+              : dialog
         )
       )
       setEditingMessageId(null)
@@ -441,6 +564,30 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     })
   }
 
+  function removeDialog(dialogId: number) {
+    setOpenDialogMenuId(null)
+    startDeletingDialog(async () => {
+      const response = await fetch(`/api/chats/${dialogId}`, {
+        method: "DELETE",
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось удалить чат")
+        return
+      }
+
+      setDialogs((prev) => prev.filter((item) => item.id !== dialogId))
+      if (activeDialogId === dialogId) {
+        setIsDialogView(false)
+        setSelectedDialogId(null)
+        setMessages([])
+        setSseSince(0)
+      }
+      toast.success("Чат удалён")
+    })
+  }
+
   const showListPanel = !isDialogView
   const showDialogPanel = isDialogView
 
@@ -458,21 +605,22 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <PushToggle />
             <ThemeToggle />
             <LogoutButton />
           </div>
         </div>
       </header>
 
-      <section className="mx-auto flex h-[calc(100dvh-156px)] w-full max-w-5xl min-h-0 px-4 py-4 pb-20">
+      <section className="mx-auto flex h-[calc(100dvh-72px)] w-full max-w-5xl min-h-0 px-4 py-4 pb-20">
         <Card className="flex min-h-0 w-full flex-col border-border/80 shadow-xl shadow-black/5">
-          <CardHeader className="shrink-0 gap-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle className="text-2xl">Чаты</CardTitle>
-                <CardDescription>Общайтесь с пользователями из ваших контактов.</CardDescription>
-              </div>
-              {showListPanel && (
+          {showListPanel && (
+            <CardHeader className="shrink-0 gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-2xl">Чаты</CardTitle>
+                  <CardDescription>Общайтесь с пользователями из ваших контактов.</CardDescription>
+                </div>
                 <div className="space-y-1">
                   <Button
                     onClick={() => setShowCreateForm((prev) => !prev)}
@@ -486,11 +634,11 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                     </p>
                   )}
                 </div>
-              )}
-            </div>
-          </CardHeader>
+              </div>
+            </CardHeader>
+          )}
 
-          <CardContent className="flex min-h-0 flex-1 flex-col space-y-4">
+          <CardContent className={`flex min-h-0 flex-1 flex-col ${showDialogPanel ? "p-0" : "space-y-4"}`}>
             {showListPanel && showCreateForm && contacts.length > 0 && (
               <div className="space-y-3 rounded-xl border border-border/70 p-3">
                 <p className="text-sm font-medium">Выберите пользователей для нового чата</p>
@@ -509,6 +657,13 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                     </label>
                   ))}
                 </div>
+                {selectedContactIds.length >= 2 && (
+                  <Input
+                    value={newChatTitle}
+                    onChange={(event) => setNewChatTitle(event.target.value)}
+                    placeholder="Название группового чата"
+                  />
+                )}
                 <Button onClick={createChat} disabled={isCreating || selectedContactIds.length === 0}>
                   {isCreating ? "Создаём..." : "Создать"}
                 </Button>
@@ -523,16 +678,49 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   </div>
                 )}
                 {dialogs.map((dialog) => (
-                  <button
-                    key={dialog.id}
-                    className="w-full rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
-                    onClick={() => openDialog(dialog.id)}
-                  >
-                    <p className="truncate text-sm font-medium">{getDialogTitle(dialog, user.id)}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {dialog.lastMessage?.content ?? "Сообщений пока нет"}
-                    </p>
-                  </button>
+                  <div key={dialog.id} className="flex items-start gap-2 rounded-lg border border-transparent p-1">
+                    <button
+                      className="relative w-full rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
+                      onClick={() => openDialog(dialog.id)}
+                    >
+                      {dialog.unreadCount > 0 && (
+                        <span className="absolute right-3 top-3 inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
+                          {dialog.unreadCount > 99 ? "99+" : dialog.unreadCount}
+                        </span>
+                      )}
+                      <p className="truncate text-sm font-medium">{getDialogTitle(dialog)}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {dialog.lastMessage?.content ?? "Сообщений пока нет"}
+                      </p>
+                    </button>
+
+                    {dialog.ownerId === user.id && (
+                      <div className="relative mt-2">
+                        <button
+                          type="button"
+                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground hover:bg-muted"
+                          aria-label="Действия с чатом"
+                          onClick={() =>
+                            setOpenDialogMenuId((prev) => (prev === dialog.id ? null : dialog.id))
+                          }
+                        >
+                          <EllipsisVerticalIcon className="size-4" />
+                        </button>
+                        {openDialogMenuId === dialog.id && (
+                          <div className="absolute right-0 top-9 z-20 min-w-40 rounded-md border border-border bg-popover p-1 shadow-md">
+                            <button
+                              type="button"
+                              className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => removeDialog(dialog.id)}
+                              disabled={isDeletingDialog}
+                            >
+                              Удалить чат
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -541,9 +729,14 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
               <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/70">
                 <div className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {selectedDialog ? getDialogTitle(selectedDialog, user.id) : "Выберите чат"}
+                    <p className="truncate text-sm font-semibold">
+                      {selectedDialog ? getDialogTitle(selectedDialog) : "Выберите чат"}
                     </p>
+                    {selectedDialog && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {getDialogMembersSubtitle(selectedDialog, user.id)}
+                      </p>
+                    )}
                   </div>
                   <Button size="sm" variant="outline" onClick={() => setIsDialogView(false)}>
                     <ArrowLeftIcon className="size-4" />
@@ -551,7 +744,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   </Button>
                 </div>
 
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 pb-24">
                   {!activeDialogId && (
                     <p className="text-sm text-muted-foreground">Сначала выберите или создайте чат.</p>
                   )}
@@ -570,67 +763,72 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       const isEditingMessage = editingMessageId === message.id
                       return (
                         <div key={message.id} className={`flex ${mine ? "justify-start" : "justify-end"}`}>
-                          <div
-                            className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                              mine
-                                ? "bg-primary/15 text-foreground"
-                                : "bg-secondary text-secondary-foreground"
-                            }`}
-                          >
-                            {isEditingMessage ? (
-                              <div className="space-y-2">
-                                <Input
-                                  value={editingText}
-                                  onChange={(event) => setEditingText(event.target.value)}
-                                  disabled={isEditing}
-                                />
-                                <div className="flex items-center gap-2">
-                                  <Button size="sm" onClick={() => saveEdit(message.id)} disabled={isEditing}>
-                                    Сохранить
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setEditingMessageId(null)
-                                      setEditingText("")
-                                    }}
-                                  >
-                                    Отмена
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <p>{message.content}</p>
-                                <p className="mt-1 text-[11px] opacity-70">
-                                  {getUserName(message.author)} · {formatTime(message.createdAt)}
-                                  {mine && (
-                                    <span className="ml-2 inline-flex align-middle">
-                                      <MessageStatusIcon status={message.status} />
-                                    </span>
-                                  )}
-                                </p>
-                                {mine && (
-                                  <div className="mt-2 flex gap-2">
-                                    <button
-                                      type="button"
-                                      className="text-xs underline opacity-80"
-                                      onClick={() => beginEdit(message)}
+                          <div className="flex items-start gap-2">
+                            <div
+                              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                                mine
+                                  ? "bg-primary/15 text-foreground"
+                                  : "bg-secondary text-secondary-foreground"
+                              }`}
+                            >
+                              {isEditingMessage ? (
+                                <div className="space-y-2">
+                                  <Input
+                                    value={editingText}
+                                    onChange={(event) => setEditingText(event.target.value)}
+                                    disabled={isEditing}
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <Button size="sm" onClick={() => saveEdit(message.id)} disabled={isEditing}>
+                                      Сохранить
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEditingMessageId(null)
+                                        setEditingText("")
+                                      }}
                                     >
-                                      Редактировать
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="text-xs underline opacity-80"
-                                      onClick={() => removeMessage(message.id)}
-                                      disabled={isDeleting}
-                                    >
-                                      Удалить
-                                    </button>
+                                      Отмена
+                                    </Button>
                                   </div>
-                                )}
-                              </>
+                                </div>
+                              ) : (
+                                <>
+                                  <p>{message.content}</p>
+                                  <p className="mt-1 text-[11px] opacity-70">
+                                    {getUserName(message.author)} · {formatTime(message.createdAt)}
+                                    {mine && (
+                                      <span className="ml-2 inline-flex align-middle">
+                                        <MessageStatusIcon status={message.status} />
+                                      </span>
+                                    )}
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                            {mine && !isEditingMessage && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  className="inline-flex size-7 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground hover:bg-muted"
+                                  aria-label="Действия с сообщением"
+                                >
+                                  <EllipsisVerticalIcon className="size-4" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-40">
+                                  <DropdownMenuItem onClick={() => beginEdit(message)}>
+                                    Редактировать
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => removeMessage(message.id)}
+                                    disabled={isDeleting}
+                                  >
+                                    Удалить
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </div>
                         </div>
@@ -639,7 +837,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="shrink-0 border-t border-border/70 p-3">
+                <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background p-3">
                   <div className="flex items-center gap-2">
                     <Input
                       value={messageText}
@@ -666,6 +864,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
       <BottomNav
         active={isDialogView ? undefined : "chats"}
+        chatsBadgeCount={unreadDialogsCount}
         onChatsClick={() => {
           setIsDialogView(false)
           setShowCreateForm(false)

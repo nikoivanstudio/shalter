@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation"
 
-import { ChatsHome } from "@/features/chats/ui/chats-home"
+import { ChatsHomeClient } from "@/features/chats/ui/chats-home-client"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
 
 export default async function ChatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ contactId?: string }>
+  searchParams: Promise<{ contactId?: string; dialogId?: string }>
 }) {
   const user = await getCurrentUser()
 
@@ -17,8 +17,11 @@ export default async function ChatsPage({
 
   const params = await searchParams
   const parsedContactId = Number(params.contactId)
+  const parsedDialogId = Number(params.dialogId)
   const requestedContactId =
     Number.isInteger(parsedContactId) && parsedContactId > 0 ? parsedContactId : null
+  const requestedDialogId =
+    Number.isInteger(parsedDialogId) && parsedDialogId > 0 ? parsedDialogId : null
 
   const contacts = await prisma.contact.findMany({
     where: { ownerId: user.id },
@@ -40,7 +43,27 @@ export default async function ChatsPage({
 
   let initialDialogId: number | null = null
 
-  if (requestedContactId && contacts.some((item) => item.contactUser.id === requestedContactId)) {
+  if (requestedDialogId) {
+    const allowedDialog = await prisma.dialog.findFirst({
+      where: {
+        id: requestedDialogId,
+        users: {
+          some: { id: user.id },
+        },
+      },
+      select: { id: true },
+    })
+
+    if (allowedDialog) {
+      initialDialogId = allowedDialog.id
+    }
+  }
+
+  if (
+    !initialDialogId &&
+    requestedContactId &&
+    contacts.some((item) => item.contactUser.id === requestedContactId)
+  ) {
     const existingDialog = await prisma.dialog.findFirst({
       where: {
         users: {
@@ -112,8 +135,27 @@ export default async function ChatsPage({
     orderBy: { id: "desc" },
   })
 
+  const unreadGroups = await prisma.message.groupBy({
+    by: ["dialogId"],
+    where: {
+      authorId: { not: user.id },
+      status: { not: "READ" },
+      dialog: {
+        users: {
+          some: { id: user.id },
+        },
+      },
+    },
+    _count: {
+      _all: true,
+    },
+  })
+  const unreadByDialog = new Map(
+    unreadGroups.map((item) => [item.dialogId, item._count._all] as const)
+  )
+
   return (
-    <ChatsHome
+    <ChatsHomeClient
       user={{
         id: user.id,
         firstName: user.firstName,
@@ -125,7 +167,9 @@ export default async function ChatsPage({
       dialogs={dialogs.map((dialog) => ({
         id: dialog.id,
         ownerId: dialog.ownerId,
+        title: dialog.title,
         users: dialog.users,
+        unreadCount: unreadByDialog.get(dialog.id) ?? 0,
         lastMessage: dialog.Messages[0]
           ? {
               id: dialog.Messages[0].id,
