@@ -51,7 +51,7 @@ export async function DELETE(
     await tx.message.deleteMany({
       where: { dialogId },
     })
-    await tx.dialog.delete({
+    await tx.dialog.deleteMany({
       where: { id: dialogId },
     })
   })

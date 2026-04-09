@@ -74,10 +74,23 @@ function formatTime(value: string) {
   })
 }
 
-function getDialogTitle(dialog: ChatDialog) {
+function getDialogTitle(dialog: ChatDialog, currentUserId: number) {
+  const participantsCount = dialog.users.length
+
+  if (participantsCount === 2) {
+    const otherUser = dialog.users.find((item) => item.id !== currentUserId)
+    if (otherUser) {
+      return getUserName(otherUser)
+    }
+  }
+
   const title = dialog.title?.trim()
   if (title) {
     return title
+  }
+
+  if (participantsCount > 2) {
+    return dialog.users.map((item) => getUserName(item)).join(", ")
   }
 
   return "Без названия"
@@ -160,6 +173,13 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     () => dialogs.filter((dialog) => dialog.unreadCount > 0).length,
     [dialogs]
   )
+  const orderedDialogs = useMemo(() => {
+    return [...dialogs].sort((left, right) => {
+      const leftHasUnread = left.unreadCount > 0 ? 1 : 0
+      const rightHasUnread = right.unreadCount > 0 ? 1 : 0
+      return rightHasUnread - leftHasUnread
+    })
+  }, [dialogs])
 
   const activeDialogId = useMemo(() => {
     if (selectedDialogId && dialogs.some((item) => item.id === selectedDialogId)) {
@@ -672,12 +692,12 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
             {showListPanel && (
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl border border-border/70 p-2">
-                {dialogs.length === 0 && (
+                {orderedDialogs.length === 0 && (
                   <div className="rounded-xl border border-dashed border-border/80 p-6 text-sm text-muted-foreground">
                     Чаты отсутствуют. Создайте новый чат с пользователем из контактов.
                   </div>
                 )}
-                {dialogs.map((dialog) => (
+                {orderedDialogs.map((dialog) => (
                   <div key={dialog.id} className="flex items-start gap-2 rounded-lg border border-transparent p-1">
                     <button
                       className="relative w-full rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
@@ -688,7 +708,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                           {dialog.unreadCount > 99 ? "99+" : dialog.unreadCount}
                         </span>
                       )}
-                      <p className="truncate text-sm font-medium">{getDialogTitle(dialog)}</p>
+                      <p className="truncate text-sm font-medium">{getDialogTitle(dialog, user.id)}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {dialog.lastMessage?.content ?? "Сообщений пока нет"}
                       </p>
@@ -730,7 +750,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                 <div className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">
-                      {selectedDialog ? getDialogTitle(selectedDialog) : "Выберите чат"}
+                      {selectedDialog ? getDialogTitle(selectedDialog, user.id) : "Выберите чат"}
                     </p>
                     {selectedDialog && (
                       <p className="truncate text-xs text-muted-foreground">

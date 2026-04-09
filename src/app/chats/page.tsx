@@ -1,21 +1,21 @@
 import { redirect } from "next/navigation"
-import { Prisma } from "@prisma/client"
 
 import { ChatsHomeClient } from "@/features/chats/ui/chats-home-client"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
 
-function isDialogTitleColumnMissing(error: unknown) {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
-    return false
-  }
+async function hasDialogTitleColumn(db: Pick<typeof prisma, "$queryRaw">) {
+  const result = await db.$queryRaw<Array<{ exists: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'dialogs'
+        AND column_name = 'title'
+    ) AS "exists"
+  `
 
-  if (error.code !== "P2022") {
-    return false
-  }
-
-  const message = String(error.message ?? "").toLowerCase()
-  return message.includes("dialogs.title") || message.includes("column")
+  return Boolean(result[0]?.exists)
 }
 
 export default async function ChatsPage({
@@ -141,7 +141,9 @@ export default async function ChatsPage({
     }>
   }>
 
-  try {
+  const dialogTitleColumnExists = await hasDialogTitleColumn(prisma)
+
+  if (dialogTitleColumnExists) {
     dialogs = await prisma.dialog.findMany({
       where: {
         users: {
@@ -176,11 +178,7 @@ export default async function ChatsPage({
       },
       orderBy: { id: "desc" },
     })
-  } catch (error) {
-    if (!isDialogTitleColumnMissing(error)) {
-      throw error
-    }
-
+  } else {
     const dialogsWithoutTitle = await prisma.dialog.findMany({
       where: {
         users: {
