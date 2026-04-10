@@ -309,6 +309,14 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   }, [activeDialogId, isDialogView, isMessageListReady, sseSince, user.id])
 
   useEffect(() => {
+    if (!isDialogView || !activeDialogId) {
+      return
+    }
+
+    void fetch(`/api/chats/${activeDialogId}/messages/read`, { method: "POST" }).catch(() => null)
+  }, [activeDialogId, isDialogView])
+
+  useEffect(() => {
     const eventSource = new EventSource("/api/chats/unread/events")
 
     eventSource.addEventListener("unread", (event) => {
