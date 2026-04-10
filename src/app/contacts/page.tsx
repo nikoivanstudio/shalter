@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation"
 
+import { Providers } from "@/app/providers"
+import { PwaRegisterClient } from "@/app/pwa-register-client"
 import { ContactsHome } from "@/features/contacts/ui/contacts-home"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
@@ -28,14 +30,17 @@ export default async function ContactsPage() {
   })
 
   return (
-    <ContactsHome
-      user={{
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-      }}
-      contacts={contacts.map((item) => item.contactUser)}
-    />
+    <Providers>
+      <PwaRegisterClient />
+      <ContactsHome
+        user={{
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        }}
+        contacts={contacts.map((item) => item.contactUser)}
+      />
+    </Providers>
   )
 }

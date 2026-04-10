@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation"
 
+import { Providers } from "@/app/providers"
+import { PwaRegisterClient } from "@/app/pwa-register-client"
 import { ChatsHomeClient } from "@/features/chats/ui/chats-home-client"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
@@ -125,9 +127,7 @@ export default async function ChatsPage({
         lastName: string | null
       }
     }>
-  }>
-
-  dialogs = await prisma.dialog.findMany({
+  }> = await prisma.dialog.findMany({
     where: {
       users: {
         some: { id: user.id },
@@ -182,32 +182,35 @@ export default async function ChatsPage({
   )
 
   return (
-    <ChatsHomeClient
-      user={{
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-      }}
-      initialDialogId={initialDialogId}
-      contacts={contacts.map((item) => item.contactUser)}
-      dialogs={dialogs.map((dialog) => ({
-        id: dialog.id,
-        ownerId: dialog.ownerId,
-        title: dialog.title,
-        users: dialog.users,
-        unreadCount: unreadByDialog.get(dialog.id) ?? 0,
-        lastMessage: dialog.Messages[0]
-          ? {
-              id: dialog.Messages[0].id,
-              content: dialog.Messages[0].content,
-              status: dialog.Messages[0].status,
-              createdAt: dialog.Messages[0].createdAt.toISOString(),
-              dialogId: dialog.Messages[0].dialogId,
-              author: dialog.Messages[0].author,
-            }
-          : null,
-      }))}
-    />
+    <Providers>
+      <PwaRegisterClient />
+      <ChatsHomeClient
+        user={{
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+        }}
+        initialDialogId={initialDialogId}
+        contacts={contacts.map((item) => item.contactUser)}
+        dialogs={dialogs.map((dialog) => ({
+          id: dialog.id,
+          ownerId: dialog.ownerId,
+          title: dialog.title,
+          users: dialog.users,
+          unreadCount: unreadByDialog.get(dialog.id) ?? 0,
+          lastMessage: dialog.Messages[0]
+            ? {
+                id: dialog.Messages[0].id,
+                content: dialog.Messages[0].content,
+                status: dialog.Messages[0].status,
+                createdAt: dialog.Messages[0].createdAt.toISOString(),
+                dialogId: dialog.Messages[0].dialogId,
+                author: dialog.Messages[0].author,
+              }
+            : null,
+        }))}
+      />
+    </Providers>
   )
 }
