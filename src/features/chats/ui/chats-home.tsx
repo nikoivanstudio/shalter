@@ -16,6 +16,10 @@ import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { PushToggle } from "@/features/notifications/ui/push-toggle"
+import {
+  getDialogDisplayTitle,
+  getDialogUserName,
+} from "@/features/chats/lib/dialog-title"
 import { buildEmblem } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 
@@ -63,10 +67,6 @@ export type ChatsHomeProps = {
   initialDialogId: number | null
 }
 
-function getUserName(user: { firstName: string; lastName: string | null }) {
-  return `${user.firstName} ${user.lastName ?? ""}`.trim()
-}
-
 function formatTime(value: string) {
   return new Date(value).toLocaleTimeString("ru-RU", {
     hour: "2-digit",
@@ -74,38 +74,33 @@ function formatTime(value: string) {
   })
 }
 
-function getDialogTitle(dialog: ChatDialog, currentUserId: number) {
-  const participantsCount = dialog.users.length
-
-  if (participantsCount === 2) {
-    const otherUser = dialog.users.find((item) => item.id !== currentUserId)
-    if (otherUser) {
-      return getUserName(otherUser)
-    }
-  }
-
-  const title = dialog.title?.trim()
-  if (title) {
-    return title
-  }
-
-  if (participantsCount > 2) {
-    return dialog.users.map((item) => getUserName(item)).join(", ")
-  }
-
-  return "Без названия"
-}
-
 function getDialogMembersSubtitle(dialog: ChatDialog, currentUserId: number) {
   const names = dialog.users
     .filter((item) => item.id !== currentUserId)
-    .map((item) => getUserName(item))
+    .map((item) => getDialogUserName(item))
 
   if (names.length === 0) {
     return "Только вы"
   }
 
   return names.join(", ")
+}
+
+function canLeaveDialog(dialog: ChatDialog, currentUserId: number) {
+  return dialog.users.length > 2 && dialog.users.some((item) => item.id === currentUserId)
+}
+
+function canBlockParticipant(
+  dialog: ChatDialog,
+  currentUserId: number,
+  participantId: number
+) {
+  return (
+    dialog.ownerId === currentUserId &&
+    dialog.users.length > 2 &&
+    participantId !== currentUserId &&
+    participantId !== dialog.ownerId
+  )
 }
 
 function withUpdatedDialogMessage(dialogs: ChatDialog[], message: ChatMessage) {
@@ -163,11 +158,14 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const [selectedContactIds, setSelectedContactIds] = useState<number[]>([])
   const [newChatTitle, setNewChatTitle] = useState("")
   const [openDialogMenuId, setOpenDialogMenuId] = useState<number | null>(null)
+  const [showParticipants, setShowParticipants] = useState(false)
   const [isCreating, startCreating] = useTransition()
   const [isSending, startSending] = useTransition()
   const [isEditing, startEditing] = useTransition()
   const [isDeleting, startDeleting] = useTransition()
   const [isDeletingDialog, startDeletingDialog] = useTransition()
+  const [isLeavingDialog, startLeavingDialog] = useTransition()
+  const [isBlockingParticipant, startBlockingParticipant] = useTransition()
   const emblem = buildEmblem(user.firstName, user.lastName)
   const unreadDialogsCount = useMemo(
     () => dialogs.filter((dialog) => dialog.unreadCount > 0).length,
@@ -406,6 +404,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
   function openDialog(dialogId: number) {
     setOpenDialogMenuId(null)
+    setShowParticipants(false)
     setDialogs((prev) =>
       prev.map((dialog) =>
         dialog.id === dialogId ? { ...dialog, unreadCount: 0 } : dialog
@@ -611,8 +610,78 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         setSelectedDialogId(null)
         setMessages([])
         setSseSince(0)
+        setShowParticipants(false)
       }
       toast.success("Чат удалён")
+    })
+  }
+
+  function leaveDialog(dialogId: number) {
+    setOpenDialogMenuId(null)
+    startLeavingDialog(async () => {
+      const response = await fetch(`/api/chats/${dialogId}/leave`, {
+        method: "POST",
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось покинуть чат")
+        return
+      }
+
+      setDialogs((prev) => prev.filter((item) => item.id !== dialogId))
+      if (activeDialogId === dialogId) {
+        setIsDialogView(false)
+        setSelectedDialogId(null)
+        setMessages([])
+        setSseSince(0)
+        setShowParticipants(false)
+      }
+      toast.success("Вы покинули чат")
+    })
+  }
+
+  function blockParticipant(dialogId: number, participantId: number) {
+    startBlockingParticipant(async () => {
+      const response = await fetch(`/api/chats/${dialogId}/block`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: participantId }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось заблокировать участника")
+        return
+      }
+
+      const nextMessage = data?.message as ChatMessage | undefined
+
+      setDialogs((prev) =>
+        prev.map((dialog) =>
+          dialog.id === dialogId
+            ? {
+                ...dialog,
+                users: dialog.users.filter((item) => item.id !== participantId),
+                lastMessage: nextMessage ?? dialog.lastMessage,
+              }
+            : dialog
+        )
+      )
+
+      if (nextMessage) {
+        setMessages((prev) => {
+          if (!prev) {
+            return [nextMessage]
+          }
+          if (prev.some((item) => item.id === nextMessage.id)) {
+            return prev
+          }
+          return [...prev, nextMessage]
+        })
+      }
+
+      toast.success("Участник заблокирован")
     })
   }
 
@@ -628,7 +697,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
               {emblem}
             </div>
             <div className="min-w-0">
-              <p className="truncate font-medium">{getUserName(user)}</p>
+              <p className="truncate font-medium">{getDialogUserName(user)}</p>
               <p className="truncate text-sm text-muted-foreground">{user.email}</p>
             </div>
           </div>
@@ -681,7 +750,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         checked={selectedContactIds.includes(contact.id)}
                         onChange={() => toggleContact(contact.id)}
                       />
-                      <span className="truncate">{getUserName(contact)}</span>
+                      <span className="truncate">{getDialogUserName(contact)}</span>
                     </label>
                   ))}
                 </div>
@@ -716,13 +785,15 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                           {dialog.unreadCount > 99 ? "99+" : dialog.unreadCount}
                         </span>
                       )}
-                      <p className="truncate text-sm font-medium">{getDialogTitle(dialog, user.id)}</p>
+                      <p className="truncate text-sm font-medium">
+                        {getDialogDisplayTitle(dialog, user.id)}
+                      </p>
                       <p className="truncate text-xs text-muted-foreground">
                         {dialog.lastMessage?.content ?? "Сообщений пока нет"}
                       </p>
                     </button>
 
-                    {dialog.ownerId === user.id && (
+                    {(dialog.ownerId === user.id || canLeaveDialog(dialog, user.id)) && (
                       <div className="relative mt-2">
                         <button
                           type="button"
@@ -736,6 +807,16 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         </button>
                         {openDialogMenuId === dialog.id && (
                           <div className="absolute right-0 top-9 z-20 min-w-40 rounded-md border border-border bg-popover p-1 shadow-md">
+                            {canLeaveDialog(dialog, user.id) && (
+                              <button
+                                type="button"
+                                className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                                onClick={() => leaveDialog(dialog.id)}
+                                disabled={isLeavingDialog}
+                              >
+                                Покинуть группу
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
@@ -758,7 +839,9 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                 <div className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">
-                      {selectedDialog ? getDialogTitle(selectedDialog, user.id) : "Выберите чат"}
+                      {selectedDialog
+                        ? getDialogDisplayTitle(selectedDialog, user.id)
+                        : "Выберите чат"}
                     </p>
                     {selectedDialog && (
                       <p className="truncate text-xs text-muted-foreground">
@@ -766,11 +849,111 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       </p>
                     )}
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => setIsDialogView(false)}>
-                    <ArrowLeftIcon className="size-4" />
-                    Список
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {selectedDialog && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowParticipants((prev) => !prev)}
+                      >
+                        {showParticipants ? "Скрыть участников" : "Участники"}
+                      </Button>
+                    )}
+                    {selectedDialog &&
+                      (selectedDialog.ownerId === user.id ||
+                        canLeaveDialog(selectedDialog, user.id)) && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground hover:bg-muted"
+                            aria-label="Действия с чатом"
+                            onClick={() =>
+                              setOpenDialogMenuId((prev) =>
+                                prev === selectedDialog.id ? null : selectedDialog.id
+                              )
+                            }
+                          >
+                            <EllipsisVerticalIcon className="size-4" />
+                          </button>
+                          {openDialogMenuId === selectedDialog.id && (
+                            <div className="absolute right-0 top-9 z-20 min-w-40 rounded-md border border-border bg-popover p-1 shadow-md">
+                              {canLeaveDialog(selectedDialog, user.id) && (
+                                <button
+                                  type="button"
+                                  className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                                  onClick={() => leaveDialog(selectedDialog.id)}
+                                  disabled={isLeavingDialog}
+                                >
+                                  Покинуть группу
+                                </button>
+                              )}
+                              {selectedDialog.ownerId === user.id && (
+                                <button
+                                  type="button"
+                                  className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                  onClick={() => removeDialog(selectedDialog.id)}
+                                  disabled={isDeletingDialog}
+                                >
+                                  Удалить чат
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    <Button size="sm" variant="outline" onClick={() => setIsDialogView(false)}>
+                      <ArrowLeftIcon className="size-4" />
+                      Список
+                    </Button>
+                  </div>
                 </div>
+                {selectedDialog && showParticipants && (
+                  <div className="border-b border-border/70 bg-muted/20 px-3 py-3">
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Участники: {selectedDialog.users.length}
+                      </p>
+                      <div className="space-y-2">
+                        {selectedDialog.users.map((participant) => {
+                          const isCurrentUser = participant.id === user.id
+                          const isOwner = participant.id === selectedDialog.ownerId
+
+                          return (
+                            <div
+                              key={participant.id}
+                              className="rounded-lg border border-border/70 bg-background px-3 py-2"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-medium">
+                                    {getDialogUserName(participant)}
+                                    {isCurrentUser ? " (Вы)" : ""}
+                                    {isOwner ? " • владелец" : ""}
+                                  </p>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {participant.email}
+                                  </p>
+                                </div>
+                                {canBlockParticipant(selectedDialog, user.id, participant.id) && (
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    disabled={isBlockingParticipant}
+                                    onClick={() =>
+                                      blockParticipant(selectedDialog.id, participant.id)
+                                    }
+                                  >
+                                    Заблокировать
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 pb-24">
                   {!activeDialogId && (
@@ -826,7 +1009,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                 <>
                                   <p>{message.content}</p>
                                   <p className="mt-1 text-[11px] opacity-70">
-                                    {getUserName(message.author)} · {formatTime(message.createdAt)}
+                                    {getDialogUserName(message.author)} · {formatTime(message.createdAt)}
                                     {mine && (
                                       <span className="ml-2 inline-flex align-middle">
                                         <MessageStatusIcon status={message.status} />

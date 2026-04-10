@@ -27,7 +27,10 @@ export async function POST(request: Request) {
     const result = await registerUser(parsed.data)
 
     if (!result.ok) {
-      return NextResponse.json({ message: result.message }, { status: result.status })
+      return NextResponse.json(
+        { message: result.message, fieldErrors: result.fieldErrors ?? {} },
+        { status: result.status }
+      )
     }
 
     const sessionId = createSessionId()
@@ -45,7 +48,8 @@ export async function POST(request: Request) {
     )
     setAuthCookies(response, { token, sessionId })
     return response
-  } catch {
+  } catch (error) {
+    console.error("POST /api/auth/register failed", error)
     return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
   }
 }

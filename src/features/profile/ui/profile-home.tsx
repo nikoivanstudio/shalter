@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
@@ -32,7 +33,9 @@ function getFieldError(errors: FieldErrors, key: string) {
 }
 
 export function ProfileHome({ user }: { user: EditableUser }) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [isDeletingAccount, startDeletingAccount] = useTransition()
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [serverMessage, setServerMessage] = useState("")
   const [form, setForm] = useState<UpdateProfileInput>({
@@ -82,6 +85,32 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       })
       setEmblem(buildEmblem(data.user.firstName, data.user.lastName))
       toast.success("Профиль сохранён")
+    })
+  }
+
+  function deleteAccount() {
+    const confirmed = window.confirm(
+      "Удалить аккаунт без возможности восстановления? Вы будете автоматически разлогинены."
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    startDeletingAccount(async () => {
+      const response = await fetch("/api/profile", {
+        method: "DELETE",
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось удалить аккаунт")
+        return
+      }
+
+      toast.success("Аккаунт удалён")
+      router.replace("/auth")
+      router.refresh()
     })
   }
 
@@ -177,6 +206,26 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                 {isPending ? "Сохраняем..." : "Сохранить профиль"}
               </Button>
             </form>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-medium text-destructive">Удаление аккаунта</p>
+                <p className="text-sm text-muted-foreground">
+                  Аккаунт, ваши сообщения и доступ к приложению будут удалены без возможности
+                  восстановления.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={isDeletingAccount}
+                onClick={deleteAccount}
+              >
+                {isDeletingAccount ? "Удаляем аккаунт..." : "Удалить аккаунт"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

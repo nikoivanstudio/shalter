@@ -4,20 +4,6 @@ import { createChatSchema } from "@/features/chats/model/schemas"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 
-async function hasDialogTitleColumn(db: Pick<typeof prisma, "$queryRaw">) {
-  const result = await db.$queryRaw<Array<{ exists: boolean }>>`
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'dialogs'
-        AND column_name = 'title'
-    ) AS "exists"
-  `
-
-  return Boolean(result[0]?.exists)
-}
-
 export async function POST(request: NextRequest) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
@@ -104,12 +90,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const dialogTitleColumnExists = await hasDialogTitleColumn(prisma)
-
   const dialog = await prisma.$transaction(async (tx) => {
-    const created = await tx.dialog.create({
+    return tx.dialog.create({
       data: {
         ownerId: userId,
+        title,
         users: {
           connect: [{ id: userId }, ...participantIds.map((id) => ({ id }))],
         },
@@ -117,6 +102,7 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         ownerId: true,
+        title: true,
         users: {
           select: {
             id: true,
@@ -127,16 +113,6 @@ export async function POST(request: NextRequest) {
         },
       },
     })
-
-    if (title && dialogTitleColumnExists) {
-      await tx.$executeRaw`
-        UPDATE "dialogs"
-        SET "title" = ${title}
-        WHERE "id" = ${created.id}
-      `
-    }
-
-    return created
   })
 
   return NextResponse.json(
@@ -144,7 +120,7 @@ export async function POST(request: NextRequest) {
       dialog: {
         id: dialog.id,
         ownerId: dialog.ownerId,
-        title,
+        title: dialog.title,
         users: dialog.users,
         lastMessage: null,
       },

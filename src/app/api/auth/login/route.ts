@@ -45,7 +45,8 @@ export async function POST(request: Request) {
     )
     setAuthCookies(response, { token, sessionId })
     return response
-  } catch {
+  } catch (error) {
+    console.error("POST /api/auth/login failed", error)
     return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
   }
 }

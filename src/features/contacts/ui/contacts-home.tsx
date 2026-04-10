@@ -113,9 +113,33 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
     })
   }
 
+  function removeContact(contactUserId: number) {
+    startTransition(async () => {
+      const response = await fetch("/api/contacts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactUserId }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось удалить контакт")
+        return
+      }
+
+      setContacts((prev) => prev.filter((item) => item.id !== contactUserId))
+      setSearchResults((prev) =>
+        prev.map((item) =>
+          item.id === contactUserId ? { ...item, isAlreadyContact: false } : item
+        )
+      )
+      toast.success("Контакт удалён")
+    })
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-6 pb-28">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+    <main className="h-dvh overflow-hidden bg-gradient-to-b from-background to-muted/20">
+      <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 px-6 py-6 pb-28">
         <header className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex size-12 items-center justify-center rounded-full border border-border/80 bg-card text-sm font-semibold shadow-sm">
@@ -134,14 +158,14 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
           </div>
         </header>
 
-        <Card className="border-border/80 shadow-xl shadow-black/5">
+        <Card className="flex min-h-0 flex-1 flex-col border-border/80 shadow-xl shadow-black/5">
           <CardHeader>
             <CardTitle className="text-2xl">Контакты</CardTitle>
             <CardDescription>
               Поиск пользователей по имени или телефону и добавление в свои контакты.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
             <Input
               value={query}
               onChange={(e) => {
@@ -192,25 +216,39 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="flex min-h-0 flex-1 flex-col space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground">Мои контакты</h3>
-              {contacts.length === 0 && (
-                <p className="text-sm text-muted-foreground">Контактов пока нет.</p>
-              )}
-              {contacts.map((contact) => (
-                <button
-                  key={contact.id}
-                  className="w-full rounded-lg border border-border/70 p-3 text-left transition-colors hover:bg-muted/40"
-                  onClick={() => router.push(`/chats?contactId=${contact.id}`)}
-                >
-                  <p className="font-medium">
-                    {contact.firstName} {contact.lastName}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {contact.phone} · {contact.email}
-                  </p>
-                </button>
-              ))}
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                {contacts.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Контактов пока нет.</p>
+                )}
+                {contacts.map((contact) => (
+                  <div
+                    key={contact.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/70 p-3 transition-colors hover:bg-muted/40"
+                  >
+                    <button
+                      className="min-w-0 flex-1 text-left"
+                      onClick={() => router.push(`/chats?contactId=${contact.id}`)}
+                    >
+                      <p className="font-medium">
+                        {contact.firstName} {contact.lastName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {contact.phone} · {contact.email}
+                      </p>
+                    </button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={isPending}
+                      onClick={() => removeContact(contact.id)}
+                    >
+                      Удалить
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>

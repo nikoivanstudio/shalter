@@ -4,20 +4,6 @@ import { ChatsHomeClient } from "@/features/chats/ui/chats-home-client"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
 
-async function hasDialogTitleColumn(db: Pick<typeof prisma, "$queryRaw">) {
-  const result = await db.$queryRaw<Array<{ exists: boolean }>>`
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'dialogs'
-        AND column_name = 'title'
-    ) AS "exists"
-  `
-
-  return Boolean(result[0]?.exists)
-}
-
 export default async function ChatsPage({
   searchParams,
 }: {
@@ -117,7 +103,7 @@ export default async function ChatsPage({
     }
   }
 
-  let dialogs: Array<{
+  const dialogs: Array<{
     id: number
     ownerId: number
     title: string | null
@@ -141,83 +127,40 @@ export default async function ChatsPage({
     }>
   }>
 
-  const dialogTitleColumnExists = await hasDialogTitleColumn(prisma)
-
-  if (dialogTitleColumnExists) {
-    dialogs = await prisma.dialog.findMany({
-      where: {
-        users: {
-          some: { id: user.id },
+  dialogs = await prisma.dialog.findMany({
+    where: {
+      users: {
+        some: { id: user.id },
+      },
+    },
+    select: {
+      id: true,
+      ownerId: true,
+      title: true,
+      users: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
         },
       },
-      select: {
-        id: true,
-        ownerId: true,
-        title: true,
-        users: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        Messages: {
-          orderBy: { id: "desc" },
-          take: 1,
-          include: {
-            author: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-              },
+      Messages: {
+        orderBy: { id: "desc" },
+        take: 1,
+        include: {
+          author: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
             },
           },
         },
       },
-      orderBy: { id: "desc" },
-    })
-  } else {
-    const dialogsWithoutTitle = await prisma.dialog.findMany({
-      where: {
-        users: {
-          some: { id: user.id },
-        },
-      },
-      select: {
-        id: true,
-        ownerId: true,
-        users: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        Messages: {
-          orderBy: { id: "desc" },
-          take: 1,
-          include: {
-            author: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { id: "desc" },
-    })
-
-    dialogs = dialogsWithoutTitle.map((dialog) => ({
-      ...dialog,
-      title: null,
-    }))
-  }
+    },
+    orderBy: { id: "desc" },
+  })
 
   const unreadGroups = await prisma.message.groupBy({
     by: ["dialogId"],

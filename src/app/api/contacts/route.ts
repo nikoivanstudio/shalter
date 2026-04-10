@@ -69,3 +69,43 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const userId = await getAuthorizedUserIdFromRequest(request)
+    if (!userId) {
+      return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+    }
+
+    const json = await request.json().catch(() => null)
+    const parsed = addContactSchema.safeParse(json)
+
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.flatten().fieldErrors
+      return NextResponse.json(
+        {
+          message: "Ошибка валидации",
+          fieldErrors,
+        },
+        { status: 400 }
+      )
+    }
+
+    const { contactUserId } = parsed.data
+
+    const deleted = await prisma.contact.deleteMany({
+      where: {
+        ownerId: userId,
+        contactUserId,
+      },
+    })
+
+    if (deleted.count === 0) {
+      return NextResponse.json({ message: "Контакт не найден" }, { status: 404 })
+    }
+
+    return NextResponse.json({ ok: true }, { status: 200 })
+  } catch {
+    return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
+  }
+}

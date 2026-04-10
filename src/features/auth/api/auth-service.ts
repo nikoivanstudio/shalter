@@ -1,11 +1,17 @@
 import bcrypt from "bcryptjs"
+import { Prisma } from "@prisma/client"
 
 import { env } from "@/shared/config/env"
 import { prisma } from "@/shared/lib/db/prisma"
 
 type AuthResult =
   | { ok: true; user: { id: number; email: string } }
-  | { ok: false; status: number; message: string }
+  | {
+      ok: false
+      status: number
+      message: string
+      fieldErrors?: Record<string, string[]>
+    }
 
 export async function registerUser(input: {
   email: string
@@ -19,34 +25,79 @@ export async function registerUser(input: {
     return { ok: false, status: 403, message: "Неверная строка приглашения" }
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { email: input.email.toLowerCase() },
-    select: { id: true },
+  const email = input.email.toLowerCase()
+  const duplicateUser = await prisma.user.findFirst({
+    where: {
+      OR: [{ email }, { phone: input.phone }],
+    },
+    select: {
+      email: true,
+      phone: true,
+    },
   })
 
-  if (existing) {
-    return { ok: false, status: 409, message: "Пользователь уже существует" }
+  if (duplicateUser) {
+    const fieldErrors: Record<string, string[]> = {}
+
+    if (duplicateUser.email === email) {
+      fieldErrors.email = ["Пользователь с таким email уже существует"]
+    }
+
+    if (duplicateUser.phone === input.phone) {
+      fieldErrors.phone = ["Пользователь с таким телефоном уже существует"]
+    }
+
+    return {
+      ok: false,
+      status: 409,
+      message: "Пользователь уже существует",
+      fieldErrors,
+    }
   }
 
   const passwordHash = await bcrypt.hash(input.password, 12)
 
-  const user = await prisma.user.create({
-    data: {
-      email: input.email.toLowerCase(),
-      passwordHash,
-      firstName: input.firstName,
-      lastName: input.lastName || null,
-      phone: input.phone,
-      role: "user",
-      updatedAt: new Date(),
-    },
-    select: {
-      id: true,
-      email: true,
-    },
-  })
+  try {
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        firstName: input.firstName,
+        lastName: input.lastName || null,
+        phone: input.phone,
+        role: "user",
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+      },
+    })
 
-  return { ok: true, user }
+    return { ok: true, user }
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const targets = Array.isArray(error.meta?.target) ? error.meta.target : []
+      const fieldErrors: Record<string, string[]> = {}
+
+      if (targets.includes("email")) {
+        fieldErrors.email = ["Пользователь с таким email уже существует"]
+      }
+
+      if (targets.includes("phone")) {
+        fieldErrors.phone = ["Пользователь с таким телефоном уже существует"]
+      }
+
+      return {
+        ok: false,
+        status: 409,
+        message: "Пользователь уже существует",
+        fieldErrors,
+      }
+    }
+
+    throw error
+  }
 }
 
 export async function loginUser(input: {

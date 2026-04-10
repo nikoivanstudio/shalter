@@ -21,30 +21,37 @@ export function PushToggle() {
   const [supported, setSupported] = useState(false)
   const [enabled, setEnabled] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [publicKey, setPublicKey] = useState<string | null>(null)
+  const [publicKey, setPublicKey] = useState<string | null>(
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null
+  )
 
   useEffect(() => {
-    const isSupported = "serviceWorker" in navigator && "PushManager" in window
+    const isSupported =
+      "serviceWorker" in navigator &&
+      "PushManager" in window &&
+      "Notification" in window
     setSupported(isSupported)
 
     if (!isSupported) {
       return
     }
 
-    void fetch("/api/notifications/vapid-public-key")
-      .then(async (response) => {
-        if (!response.ok) {
-          return null
-        }
-        return (await response.json()) as { publicKey: string }
-      })
-      .then((data) => {
-        if (!data?.publicKey) {
-          return
-        }
-        setPublicKey(data.publicKey)
-      })
-      .catch(() => null)
+    if (!publicKey) {
+      void fetch("/api/notifications/vapid-public-key")
+        .then(async (response) => {
+          if (!response.ok) {
+            return null
+          }
+          return (await response.json()) as { publicKey: string }
+        })
+        .then((data) => {
+          if (!data?.publicKey) {
+            return
+          }
+          setPublicKey(data.publicKey)
+        })
+        .catch(() => null)
+    }
 
     void navigator.serviceWorker.ready
       .then((registration) => registration.pushManager.getSubscription())
@@ -52,7 +59,7 @@ export function PushToggle() {
         setEnabled(Boolean(subscription))
       })
       .catch(() => null)
-  }, [])
+  }, [publicKey])
 
   async function subscribe() {
     if (!publicKey) {
@@ -62,6 +69,15 @@ export function PushToggle() {
 
     setLoading(true)
     try {
+      const permission =
+        Notification.permission === "granted"
+          ? "granted"
+          : await Notification.requestPermission()
+
+      if (permission !== "granted") {
+        throw new Error("Разрешите уведомления в браузере")
+      }
+
       const registration = await navigator.serviceWorker.ready
       let subscription = await registration.pushManager.getSubscription()
       if (!subscription) {
@@ -120,11 +136,13 @@ export function PushToggle() {
   return (
     <Button
       variant={enabled ? "secondary" : "outline"}
+      size="icon"
       disabled={loading}
       onClick={() => (enabled ? void unsubscribe() : void subscribe())}
+      aria-label={enabled ? "Отключить push-уведомления" : "Включить push-уведомления"}
+      title={enabled ? "Push включены" : "Включить push"}
     >
       <BellIcon className="size-4" />
-      {enabled ? "Уведомления вкл" : "Включить push"}
     </Button>
   )
 }
