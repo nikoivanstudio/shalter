@@ -2,15 +2,22 @@ import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
 
-import { PrismaPg } from "@prisma/adapter-pg"
-import { PrismaClient } from "@prisma/client"
 import { Client } from "pg"
-import { Pool } from "pg"
 
 const FAILED_CONTACT_MIGRATION = "20260402192247_fix_contact_model"
 const CONTACTS_TABLE = "contacts"
 const FAILED_UNIQUE_PHONE_MIGRATION = "20260410110000_add_unique_phone_for_users"
 const USERS_PHONE_INDEX = "users_phone_key"
+const TABLES_TO_CLEAR_BEFORE_USER_DEDUPLICATION = [
+  "dialog_blocked_users",
+  "push_subscriptions",
+  "user_blacklist",
+  "contacts",
+  "messages",
+  "_DialogToUser",
+  "dialogs",
+  "otp",
+]
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const prismaBin = path.join(rootDir, "node_modules", ".bin", "prisma")
@@ -117,6 +124,7 @@ async function getDuplicatePhones(client) {
     `
       SELECT phone, COUNT(*)::int AS count, ARRAY_AGG(id ORDER BY id) AS user_ids
       FROM public."users"
+      WHERE phone IS NOT NULL
       GROUP BY phone
       HAVING COUNT(*) > 1
       ORDER BY COUNT(*) DESC, phone ASC
@@ -131,85 +139,34 @@ async function createUsersPhoneUniqueIndex(client) {
   await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS "users_phone_key" ON "users"("phone")`)
 }
 
-function createPrismaClient() {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-  })
+async function tableExists(client, tableName) {
+  const result = await client.query(
+    `
+      SELECT to_regclass($1) IS NOT NULL AS exists
+    `,
+    [`public."${tableName}"`]
+  )
 
-  return {
-    pool,
-    prisma: new PrismaClient({
-      adapter: new PrismaPg(pool),
-      log: ["error"],
-    }),
-  }
+  return result.rows[0]?.exists === true
 }
 
-async function deleteUserWithRelations(tx, userId) {
-  const user = await tx.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      dialogs: {
-        select: {
-          id: true,
-          ownerId: true,
-          users: {
-            select: { id: true },
-            orderBy: { id: "asc" },
-          },
-        },
-      },
-    },
-  })
-
-  if (!user) {
-    return
-  }
-
-  for (const dialog of user.dialogs) {
-    const remainingUserIds = dialog.users
-      .map((item) => item.id)
-      .filter((id) => id !== user.id)
-
-    if (remainingUserIds.length === 0) {
-      await tx.message.deleteMany({
-        where: { dialogId: dialog.id },
-      })
-
-      await tx.dialog.delete({
-        where: { id: dialog.id },
-      })
+async function clearNonUserTables(client) {
+  for (const tableName of TABLES_TO_CLEAR_BEFORE_USER_DEDUPLICATION) {
+    if (!(await tableExists(client, tableName))) {
       continue
     }
 
-    const nextOwnerId =
-      dialog.ownerId === user.id ? remainingUserIds[0] : dialog.ownerId
-
-    await tx.dialog.update({
-      where: { id: dialog.id },
-      data: {
-        ownerId: nextOwnerId,
-        users: {
-          disconnect: { id: user.id },
-        },
-      },
-    })
+    await client.query(`TRUNCATE TABLE public."${tableName}" RESTART IDENTITY CASCADE`)
   }
-
-  await tx.message.deleteMany({
-    where: { authorId: user.id },
-  })
-
-  await tx.user.delete({
-    where: { id: user.id },
-  })
 }
 
-async function removeDuplicateUsersByPhone(duplicatePhones) {
-  const { prisma, pool } = createPrismaClient()
+async function removeDuplicateUsersByPhone(client, duplicatePhones) {
+  await client.query("BEGIN")
 
   try {
+    console.warn("Clearing all application data except users before deduplicating phones.")
+    await clearNonUserTables(client)
+
     for (const row of duplicatePhones) {
       const userIds = (row.user_ids ?? [])
         .map((value) => Number(value))
@@ -225,15 +182,13 @@ async function removeDuplicateUsersByPhone(duplicatePhones) {
         `Removing duplicate users for phone ${row.phone}. Keeping user ${keepUserId}, deleting: ${deleteUserIds.join(", ")}`
       )
 
-      for (const userId of deleteUserIds) {
-        await prisma.$transaction(async (tx) => {
-          await deleteUserWithRelations(tx, userId)
-        })
-      }
+      await client.query(`DELETE FROM public."users" WHERE id = ANY($1::int[])`, [deleteUserIds])
     }
-  } finally {
-    await prisma.$disconnect()
-    await pool.end()
+
+    await client.query("COMMIT")
+  } catch (error) {
+    await client.query("ROLLBACK")
+    throw error
   }
 }
 
@@ -253,9 +208,20 @@ async function resolveFailedUniquePhoneMigrationIfPossible(client, failedMigrati
   const duplicatePhones = await getDuplicatePhones(client)
   if (duplicatePhones.length > 0) {
     console.warn(
-      `Found duplicate phone values blocking ${FAILED_UNIQUE_PHONE_MIGRATION}. Removing duplicate users and keeping the lowest user id per phone.`
+      `Found duplicate phone values blocking ${FAILED_UNIQUE_PHONE_MIGRATION}. Clearing non-user data and keeping the lowest user id per phone.`
     )
-    await removeDuplicateUsersByPhone(duplicatePhones)
+    await removeDuplicateUsersByPhone(client, duplicatePhones)
+  }
+
+  const remainingDuplicatePhones = await getDuplicatePhones(client)
+  if (remainingDuplicatePhones.length > 0) {
+    const duplicateSummary = remainingDuplicatePhones
+      .map((row) => `${row.phone} -> user_ids: ${(row.user_ids ?? []).join(",")}`)
+      .join("; ")
+
+    throw new Error(
+      `Unable to finish phone deduplication before resolving ${FAILED_UNIQUE_PHONE_MIGRATION}: ${duplicateSummary}`
+    )
   }
 
   console.warn(
