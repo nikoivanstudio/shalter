@@ -2,7 +2,10 @@ import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
 
+import { PrismaPg } from "@prisma/adapter-pg"
+import { PrismaClient } from "@prisma/client"
 import { Client } from "pg"
+import { Pool } from "pg"
 
 const FAILED_CONTACT_MIGRATION = "20260402192247_fix_contact_model"
 const CONTACTS_TABLE = "contacts"
@@ -128,6 +131,112 @@ async function createUsersPhoneUniqueIndex(client) {
   await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS "users_phone_key" ON "users"("phone")`)
 }
 
+function createPrismaClient() {
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+  })
+
+  return {
+    pool,
+    prisma: new PrismaClient({
+      adapter: new PrismaPg(pool),
+      log: ["error"],
+    }),
+  }
+}
+
+async function deleteUserWithRelations(tx, userId) {
+  const user = await tx.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      dialogs: {
+        select: {
+          id: true,
+          ownerId: true,
+          users: {
+            select: { id: true },
+            orderBy: { id: "asc" },
+          },
+        },
+      },
+    },
+  })
+
+  if (!user) {
+    return
+  }
+
+  for (const dialog of user.dialogs) {
+    const remainingUserIds = dialog.users
+      .map((item) => item.id)
+      .filter((id) => id !== user.id)
+
+    if (remainingUserIds.length === 0) {
+      await tx.message.deleteMany({
+        where: { dialogId: dialog.id },
+      })
+
+      await tx.dialog.delete({
+        where: { id: dialog.id },
+      })
+      continue
+    }
+
+    const nextOwnerId =
+      dialog.ownerId === user.id ? remainingUserIds[0] : dialog.ownerId
+
+    await tx.dialog.update({
+      where: { id: dialog.id },
+      data: {
+        ownerId: nextOwnerId,
+        users: {
+          disconnect: { id: user.id },
+        },
+      },
+    })
+  }
+
+  await tx.message.deleteMany({
+    where: { authorId: user.id },
+  })
+
+  await tx.user.delete({
+    where: { id: user.id },
+  })
+}
+
+async function removeDuplicateUsersByPhone(duplicatePhones) {
+  const { prisma, pool } = createPrismaClient()
+
+  try {
+    for (const row of duplicatePhones) {
+      const userIds = (row.user_ids ?? [])
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0)
+        .sort((left, right) => left - right)
+
+      if (userIds.length < 2) {
+        continue
+      }
+
+      const [keepUserId, ...deleteUserIds] = userIds
+      console.warn(
+        `Removing duplicate users for phone ${row.phone}. Keeping user ${keepUserId}, deleting: ${deleteUserIds.join(", ")}`
+      )
+
+      for (const userId of deleteUserIds) {
+        await prisma.$transaction(async (tx) => {
+          await deleteUserWithRelations(tx, userId)
+        })
+      }
+    }
+  } finally {
+    await prisma.$disconnect()
+    await pool.end()
+  }
+}
+
 async function resolveFailedUniquePhoneMigrationIfPossible(client, failedMigrationNames) {
   if (!failedMigrationNames.has(FAILED_UNIQUE_PHONE_MIGRATION)) {
     return
@@ -143,13 +252,10 @@ async function resolveFailedUniquePhoneMigrationIfPossible(client, failedMigrati
 
   const duplicatePhones = await getDuplicatePhones(client)
   if (duplicatePhones.length > 0) {
-    const details = duplicatePhones
-      .map((row) => `${row.phone} -> user_ids: ${row.user_ids.join(",")}`)
-      .join("; ")
-
-    throw new Error(
-      `Migration ${FAILED_UNIQUE_PHONE_MIGRATION} cannot be auto-resolved because duplicate phone values exist: ${details}`
+    console.warn(
+      `Found duplicate phone values blocking ${FAILED_UNIQUE_PHONE_MIGRATION}. Removing duplicate users and keeping the lowest user id per phone.`
     )
+    await removeDuplicateUsersByPhone(duplicatePhones)
   }
 
   console.warn(
