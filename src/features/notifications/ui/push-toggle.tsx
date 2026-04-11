@@ -24,6 +24,23 @@ export function PushToggle() {
   const [publicKey, setPublicKey] = useState<string | null>(
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null
   )
+  const [isCheckingConfig, setIsCheckingConfig] = useState(!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
+
+  async function fetchPublicKey() {
+    const response = await fetch("/api/notifications/vapid-public-key")
+    if (!response.ok) {
+      const data = await response.json().catch(() => null)
+      throw new Error(data?.message ?? "Push уведомления не настроены на сервере")
+    }
+
+    const data = (await response.json()) as { publicKey?: string }
+    if (!data.publicKey) {
+      throw new Error("Push уведомления не настроены на сервере")
+    }
+
+    setPublicKey(data.publicKey)
+    return data.publicKey
+  }
 
   useEffect(() => {
     const isSupported =
@@ -37,20 +54,13 @@ export function PushToggle() {
     }
 
     if (!publicKey) {
-      void fetch("/api/notifications/vapid-public-key")
-        .then(async (response) => {
-          if (!response.ok) {
-            return null
-          }
-          return (await response.json()) as { publicKey: string }
-        })
-        .then((data) => {
-          if (!data?.publicKey) {
-            return
-          }
-          setPublicKey(data.publicKey)
-        })
+      void fetchPublicKey()
         .catch(() => null)
+        .finally(() => {
+          setIsCheckingConfig(false)
+        })
+    } else {
+      setIsCheckingConfig(false)
     }
 
     void navigator.serviceWorker.ready
@@ -62,13 +72,10 @@ export function PushToggle() {
   }, [publicKey])
 
   async function subscribe() {
-    if (!publicKey) {
-      toast.error("Push уведомления не настроены на сервере")
-      return
-    }
-
     setLoading(true)
     try {
+      const resolvedPublicKey = publicKey ?? (await fetchPublicKey())
+
       const permission =
         Notification.permission === "granted"
           ? "granted"
@@ -83,7 +90,7 @@ export function PushToggle() {
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey),
+          applicationServerKey: urlBase64ToUint8Array(resolvedPublicKey),
         })
       }
 
@@ -137,7 +144,7 @@ export function PushToggle() {
     <Button
       variant={enabled ? "secondary" : "outline"}
       size="icon"
-      disabled={loading}
+      disabled={loading || isCheckingConfig}
       onClick={() => (enabled ? void unsubscribe() : void subscribe())}
       aria-label={enabled ? "Отключить push-уведомления" : "Включить push-уведомления"}
       title={enabled ? "Push включены" : "Включить push"}

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { updateProfileSchema } from "@/features/profile/model/schemas"
 import { prisma } from "@/shared/lib/db/prisma"
+import { touchUserActivity } from "@/shared/lib/user-activity"
 import {
   AUTH_SESSION_COOKIE,
   AUTH_TOKEN_COOKIE,
@@ -25,6 +26,8 @@ export async function PATCH(request: NextRequest) {
     if (!payload || payload.sid !== sessionId) {
       return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
     }
+
+    await touchUserActivity(payload.userId)
 
     const json = await request.json()
     const parsed = updateProfileSchema.safeParse(json)
@@ -101,6 +104,8 @@ export async function DELETE(request: NextRequest) {
     if (!payload || payload.sid !== sessionId) {
       return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
     }
+
+    await touchUserActivity(payload.userId)
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },

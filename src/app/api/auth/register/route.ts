@@ -7,6 +7,7 @@ import {
   createSessionId,
   setAuthCookies,
 } from "@/shared/lib/auth/session"
+import { touchUserActivity } from "@/shared/lib/user-activity"
 
 export async function POST(request: Request) {
   try {
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     )
+    await touchUserActivity(result.user.id, true)
     setAuthCookies(response, { token, sessionId })
     return response
   } catch (error) {

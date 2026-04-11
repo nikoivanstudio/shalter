@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { sendMessageSchema } from "@/features/chats/model/schemas"
+import { formatBlacklistUserName } from "@/shared/lib/blacklist"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 import { sendPushToDialogRecipients } from "@/shared/lib/notifications/push"
@@ -24,6 +25,15 @@ async function checkDialogAccess(dialogId: number, userId: number) {
   return Boolean(dialog)
 }
 
+async function getMissingDialogReason(dialogId: number) {
+  const existingDialog = await prisma.dialog.findUnique({
+    where: { id: dialogId },
+    select: { id: true },
+  })
+
+  return existingDialog ? "REMOVED_FROM_CHAT" : "CHAT_DELETED"
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ dialogId: string }> }
@@ -41,7 +51,14 @@ export async function GET(
 
   const hasAccess = await checkDialogAccess(dialogId, userId)
   if (!hasAccess) {
-    return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
+    const reason = await getMissingDialogReason(dialogId)
+    return NextResponse.json(
+      {
+        code: reason,
+        message: reason === "REMOVED_FROM_CHAT" ? "Вас удалили из чата" : "Чат не найден",
+      },
+      { status: 404 }
+    )
   }
 
   await prisma.message.updateMany({
@@ -102,7 +119,14 @@ export async function POST(
 
   const hasAccess = await checkDialogAccess(dialogId, userId)
   if (!hasAccess) {
-    return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
+    const reason = await getMissingDialogReason(dialogId)
+    return NextResponse.json(
+      {
+        code: reason,
+        message: reason === "REMOVED_FROM_CHAT" ? "Вас удалили из чата" : "Чат не найден",
+      },
+      { status: 404 }
+    )
   }
 
   const json = await request.json().catch(() => null)
@@ -114,6 +138,38 @@ export async function POST(
         fieldErrors: parsed.error.flatten().fieldErrors,
       },
       { status: 400 }
+    )
+  }
+
+  const blockedByUsers = await prisma.userBlacklist.findMany({
+    where: {
+      blockedUserId: userId,
+      owner: {
+        dialogs: {
+          some: {
+            id: dialogId,
+          },
+        },
+      },
+    },
+    select: {
+      owner: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+  })
+
+  if (blockedByUsers.length > 0) {
+    const names = blockedByUsers.map((item) => formatBlacklistUserName(item.owner)).join(", ")
+    return NextResponse.json(
+      {
+        message: `Вы не можете писать в этот чат. Вас добавили в чёрный список: ${names}`,
+      },
+      { status: 403 }
     )
   }
 

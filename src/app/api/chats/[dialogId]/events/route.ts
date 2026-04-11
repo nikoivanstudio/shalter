@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { touchUserActivity } from "@/shared/lib/user-activity"
 
 export const runtime = "nodejs"
 
@@ -17,6 +18,15 @@ function parseDialogId(value: string) {
 
 function createSseEvent(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
+}
+
+async function getDialogRemovalReason(dialogId: number) {
+  const existingDialog = await prisma.dialog.findUnique({
+    where: { id: dialogId },
+    select: { id: true },
+  })
+
+  return existingDialog ? "removed" : "deleted"
 }
 
 export async function GET(
@@ -40,7 +50,14 @@ export async function GET(
   })
 
   if (!hasAccess) {
-    return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
+    const reason = await getDialogRemovalReason(dialogId)
+    return NextResponse.json(
+      {
+        code: reason === "removed" ? "REMOVED_FROM_CHAT" : "CHAT_DELETED",
+        message: reason === "removed" ? "Вас удалили из чата" : "Чат не найден",
+      },
+      { status: 404 }
+    )
   }
 
   const since = Number(request.nextUrl.searchParams.get("since") ?? "0")
@@ -51,6 +68,7 @@ export async function GET(
   const encoder = new TextEncoder()
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  let activityTimer: ReturnType<typeof setInterval> | null = null
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -71,6 +89,10 @@ export async function GET(
         if (heartbeatTimer) {
           clearInterval(heartbeatTimer)
           heartbeatTimer = null
+        }
+        if (activityTimer) {
+          clearInterval(activityTimer)
+          activityTimer = null
         }
         try {
           controller.close()
@@ -93,7 +115,8 @@ export async function GET(
           })
 
           if (!stillHasAccess) {
-            send(createSseEvent("chat-deleted", { dialogId }))
+            const reason = await getDialogRemovalReason(dialogId)
+            send(createSseEvent(reason === "removed" ? "chat-removed" : "chat-deleted", { dialogId }))
             stop()
             return
           }
@@ -175,6 +198,10 @@ export async function GET(
         send(": ping\n\n")
       }, 15000)
 
+      activityTimer = setInterval(() => {
+        void touchUserActivity(userId)
+      }, 60000)
+
       request.signal.addEventListener("abort", stop)
     },
     cancel() {
@@ -183,6 +210,9 @@ export async function GET(
       }
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer)
+      }
+      if (activityTimer) {
+        clearInterval(activityTimer)
       }
     },
   })

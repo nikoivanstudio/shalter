@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import { prisma } from "@/shared/lib/db/prisma"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
+import { prisma } from "@/shared/lib/db/prisma"
+import { getBlacklistIds } from "@/shared/lib/blacklist"
 
 export async function GET(request: NextRequest) {
   const userId = await getAuthorizedUserIdFromRequest(request)
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ users: [] }, { status: 200 })
   }
 
-  const [users, ownedContacts] = await Promise.all([
+  const [users, ownedContacts, blacklistIds] = await Promise.all([
     prisma.user.findMany({
       where: {
         id: { not: userId },
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
       where: { ownerId: userId },
       select: { contactUserId: true },
     }),
+    getBlacklistIds(userId),
   ])
 
   const contactIds = new Set(ownedContacts.map((contact) => contact.contactUserId))
@@ -47,6 +49,7 @@ export async function GET(request: NextRequest) {
       users: users.map((user) => ({
         ...user,
         isAlreadyContact: contactIds.has(user.id),
+        isBlacklisted: blacklistIds.has(user.id),
       })),
     },
     { status: 200 }

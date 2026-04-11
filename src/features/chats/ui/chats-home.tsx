@@ -1,7 +1,7 @@
 "use client"
 
 import { ArrowLeftIcon, CheckIcon, EllipsisVerticalIcon } from "lucide-react"
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -28,6 +28,8 @@ type UserShort = {
   firstName: string
   lastName: string | null
   email: string
+  lastSeenAt?: string | null
+  isOnline?: boolean
 }
 
 type ContactUser = {
@@ -75,6 +77,13 @@ function formatTime(value: string) {
 }
 
 function getDialogMembersSubtitle(dialog: ChatDialog, currentUserId: number) {
+  if (dialog.users.length === 2) {
+    const otherUser = dialog.users.find((item) => item.id !== currentUserId)
+    if (otherUser) {
+      return getUserPresenceLabel(otherUser)
+    }
+  }
+
   const names = dialog.users
     .filter((item) => item.id !== currentUserId)
     .map((item) => getDialogUserName(item))
@@ -86,21 +95,55 @@ function getDialogMembersSubtitle(dialog: ChatDialog, currentUserId: number) {
   return names.join(", ")
 }
 
+function formatLastSeen(value: string) {
+  return new Date(value).toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function getUserPresenceLabel(user: UserShort) {
+  if (user.isOnline) {
+    return "Онлайн"
+  }
+
+  if (user.lastSeenAt) {
+    return `Был(а) в сети ${formatLastSeen(user.lastSeenAt)}`
+  }
+
+  return "Статус неизвестен"
+}
+
+function isGroupDialog(dialog: ChatDialog) {
+  return Boolean(dialog.title?.trim()) || dialog.users.length > 2
+}
+
 function canLeaveDialog(dialog: ChatDialog, currentUserId: number) {
   return dialog.users.length > 2 && dialog.users.some((item) => item.id === currentUserId)
 }
 
-function canBlockParticipant(
+function canManageDialogParticipants(dialog: ChatDialog, currentUserId: number) {
+  return dialog.ownerId === currentUserId && isGroupDialog(dialog)
+}
+
+function canRemoveParticipant(
   dialog: ChatDialog,
   currentUserId: number,
   participantId: number
 ) {
   return (
-    dialog.ownerId === currentUserId &&
-    dialog.users.length > 2 &&
+    canManageDialogParticipants(dialog, currentUserId) &&
     participantId !== currentUserId &&
     participantId !== dialog.ownerId
   )
+}
+
+function getAvailableContactsForDialog(dialog: ChatDialog, contacts: ContactUser[]) {
+  const participantIds = new Set(dialog.users.map((item) => item.id))
+  return contacts.filter((contact) => !participantIds.has(contact.id))
 }
 
 function withUpdatedDialogMessage(dialogs: ChatDialog[], message: ChatMessage) {
@@ -159,13 +202,16 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const [newChatTitle, setNewChatTitle] = useState("")
   const [openDialogMenuId, setOpenDialogMenuId] = useState<number | null>(null)
   const [showParticipants, setShowParticipants] = useState(false)
+  const [showAddParticipants, setShowAddParticipants] = useState(false)
+  const [selectedParticipantIdsToAdd, setSelectedParticipantIdsToAdd] = useState<number[]>([])
   const [isCreating, startCreating] = useTransition()
   const [isSending, startSending] = useTransition()
   const [isEditing, startEditing] = useTransition()
   const [isDeleting, startDeleting] = useTransition()
   const [isDeletingDialog, startDeletingDialog] = useTransition()
   const [isLeavingDialog, startLeavingDialog] = useTransition()
-  const [isBlockingParticipant, startBlockingParticipant] = useTransition()
+  const [isAddingParticipants, startAddingParticipants] = useTransition()
+  const [isRemovingParticipant, startRemovingParticipant] = useTransition()
   const emblem = buildEmblem(user.firstName, user.lastName)
   const unreadDialogsCount = useMemo(
     () => dialogs.filter((dialog) => dialog.unreadCount > 0).length,
@@ -190,7 +236,32 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     () => dialogs.find((item) => item.id === activeDialogId) ?? null,
     [activeDialogId, dialogs]
   )
+  const selectedDialogAvailableContacts = useMemo(
+    () => (selectedDialog ? getAvailableContactsForDialog(selectedDialog, contacts) : []),
+    [contacts, selectedDialog]
+  )
   const isMessageListReady = messages !== null
+
+  const handleDialogAccessLost = useCallback((dialogId: number, reason: "deleted" | "removed") => {
+    const hadDialog = dialogs.some((item) => item.id === dialogId)
+    setDialogs((prev) => prev.filter((item) => item.id !== dialogId))
+
+    if (!hadDialog) {
+      return
+    }
+
+    if (activeDialogId === dialogId) {
+      setIsDialogView(false)
+      setSelectedDialogId(null)
+      setMessages([])
+      setSseSince(0)
+      setShowParticipants(false)
+      setShowAddParticipants(false)
+      setSelectedParticipantIdsToAdd([])
+    }
+
+    toast.error(reason === "removed" ? "Вас удалили из чата" : "Чат удалён владельцем")
+  }, [activeDialogId, dialogs])
 
   useEffect(() => {
     if (!isDialogView || !activeDialogId) {
@@ -201,12 +272,13 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     fetch(`/api/chats/${activeDialogId}/messages`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) {
+          const data = await response.json().catch(() => null)
           if (response.status === 404) {
-            const error = new Error("CHAT_DELETED")
-            ;(error as Error & { code?: string }).code = "CHAT_DELETED"
+            const code = data?.code === "REMOVED_FROM_CHAT" ? "REMOVED_FROM_CHAT" : "CHAT_DELETED"
+            const error = new Error(data?.message ?? "Не удалось получить сообщения")
+            ;(error as Error & { code?: string }).code = code
             throw error
           }
-          const data = await response.json().catch(() => null)
           throw new Error(data?.message ?? "Не удалось получить сообщения")
         }
         return response.json()
@@ -219,12 +291,12 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         if (error.name !== "AbortError") {
           const code = (error as Error & { code?: string }).code
           if (code === "CHAT_DELETED") {
-            setDialogs((prev) => prev.filter((item) => item.id !== activeDialogId))
-            setIsDialogView(false)
-            setSelectedDialogId(null)
-            setMessages([])
-            setSseSince(0)
-            toast.error("Чат удалён владельцем")
+            handleDialogAccessLost(activeDialogId, "deleted")
+            return
+          }
+
+          if (code === "REMOVED_FROM_CHAT") {
+            handleDialogAccessLost(activeDialogId, "removed")
             return
           }
 
@@ -234,7 +306,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       })
 
     return () => controller.abort()
-  }, [activeDialogId, isDialogView, messagesReloadKey])
+  }, [activeDialogId, handleDialogAccessLost, isDialogView, messagesReloadKey])
 
   useEffect(() => {
     if (!isDialogView || !activeDialogId || !isMessageListReady) {
@@ -294,17 +366,17 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     })
 
     eventSource.addEventListener("chat-deleted", () => {
-      setDialogs((prev) => prev.filter((item) => item.id !== activeDialogId))
-      setIsDialogView(false)
-      setSelectedDialogId(null)
-      setMessages([])
-      setSseSince(0)
-      toast.error("Чат удалён владельцем")
+      handleDialogAccessLost(activeDialogId, "deleted")
+      eventSource.close()
+    })
+
+    eventSource.addEventListener("chat-removed", () => {
+      handleDialogAccessLost(activeDialogId, "removed")
       eventSource.close()
     })
 
     return () => eventSource.close()
-  }, [activeDialogId, isDialogView, isMessageListReady, sseSince, user.id])
+  }, [activeDialogId, handleDialogAccessLost, isDialogView, isMessageListReady, sseSince, user.id])
 
   useEffect(() => {
     if (!isDialogView || !activeDialogId) {
@@ -319,16 +391,47 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
     eventSource.addEventListener("unread", (event) => {
       const payload = JSON.parse((event as MessageEvent<string>).data) as {
+        dialogIds?: number[]
+        presenceByUserId?: Record<string, { lastSeenAt: string | null; isOnline: boolean }>
         unreadByDialog?: Record<string, number>
       }
       const unreadByDialog = payload.unreadByDialog ?? {}
+      const presenceByUserId = payload.presenceByUserId ?? {}
+      const hasDialogIds = Array.isArray(payload.dialogIds)
+      const allowedDialogIds = new Set(payload.dialogIds ?? [])
 
       setDialogs((prev) =>
-        prev.map((dialog) => ({
-          ...dialog,
-          unreadCount: unreadByDialog[String(dialog.id)] ?? 0,
-        }))
+        prev
+          .filter((dialog) => !hasDialogIds || allowedDialogIds.has(dialog.id))
+          .map((dialog) => ({
+            ...dialog,
+            users: dialog.users.map((dialogUser) => {
+              const presence = presenceByUserId[String(dialogUser.id)]
+              return presence
+                ? {
+                    ...dialogUser,
+                    lastSeenAt: presence.lastSeenAt,
+                    isOnline: presence.isOnline,
+                  }
+                : dialogUser
+            }),
+            unreadCount: unreadByDialog[String(dialog.id)] ?? 0,
+          }))
       )
+    })
+
+    eventSource.addEventListener("chat-deleted", (event) => {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as { dialogId?: number }
+      if (typeof payload.dialogId === "number") {
+        handleDialogAccessLost(payload.dialogId, "deleted")
+      }
+    })
+
+    eventSource.addEventListener("chat-removed", (event) => {
+      const payload = JSON.parse((event as MessageEvent<string>).data) as { dialogId?: number }
+      if (typeof payload.dialogId === "number") {
+        handleDialogAccessLost(payload.dialogId, "removed")
+      }
     })
 
     eventSource.addEventListener("chat-error", () => {
@@ -336,7 +439,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     })
 
     return () => eventSource.close()
-  }, [])
+  }, [handleDialogAccessLost])
 
   useEffect(() => {
     if (!isDialogView || !activeDialogId || !messages || messages.length === 0) {
@@ -405,6 +508,8 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   function openDialog(dialogId: number) {
     setOpenDialogMenuId(null)
     setShowParticipants(false)
+    setShowAddParticipants(false)
+    setSelectedParticipantIdsToAdd([])
     setDialogs((prev) =>
       prev.map((dialog) =>
         dialog.id === dialogId ? { ...dialog, unreadCount: 0 } : dialog
@@ -421,6 +526,12 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
   function toggleContact(contactId: number) {
     setSelectedContactIds((prev) =>
+      prev.includes(contactId) ? prev.filter((id) => id !== contactId) : [...prev, contactId]
+    )
+  }
+
+  function toggleParticipantToAdd(contactId: number) {
+    setSelectedParticipantIdsToAdd((prev) =>
       prev.includes(contactId) ? prev.filter((id) => id !== contactId) : [...prev, contactId]
     )
   }
@@ -641,17 +752,70 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     })
   }
 
-  function blockParticipant(dialogId: number, participantId: number) {
-    startBlockingParticipant(async () => {
-      const response = await fetch(`/api/chats/${dialogId}/block`, {
+  function addParticipants(dialogId: number) {
+    if (selectedParticipantIdsToAdd.length === 0) {
+      toast.error("Выберите хотя бы одного пользователя")
+      return
+    }
+
+    startAddingParticipants(async () => {
+      const response = await fetch(`/api/chats/${dialogId}/participants`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantIds: selectedParticipantIdsToAdd }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось добавить участников")
+        return
+      }
+
+      const nextMessage = data?.message as ChatMessage | undefined
+      const users = Array.isArray(data?.users) ? (data.users as UserShort[]) : []
+
+      setDialogs((prev) =>
+        prev.map((dialog) =>
+          dialog.id === dialogId
+            ? {
+                ...dialog,
+                users: [...dialog.users, ...users],
+                lastMessage: nextMessage ?? dialog.lastMessage,
+              }
+            : dialog
+        )
+      )
+
+      if (nextMessage) {
+        setMessages((prev) => {
+          if (!prev) {
+            return [nextMessage]
+          }
+          if (prev.some((item) => item.id === nextMessage.id)) {
+            return prev
+          }
+          return [...prev, nextMessage]
+        })
+      }
+
+      setShowParticipants(true)
+      setShowAddParticipants(false)
+      setSelectedParticipantIdsToAdd([])
+      toast.success("Участники добавлены")
+    })
+  }
+
+  function removeParticipant(dialogId: number, participantId: number) {
+    startRemovingParticipant(async () => {
+      const response = await fetch(`/api/chats/${dialogId}/participants`, {
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetUserId: participantId }),
       })
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось заблокировать участника")
+        toast.error(data?.message ?? "Не удалось удалить участника")
         return
       }
 
@@ -681,7 +845,8 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         })
       }
 
-      toast.success("Участник заблокирован")
+      setSelectedParticipantIdsToAdd((prev) => prev.filter((id) => id !== participantId))
+      toast.success("Участник удалён")
     })
   }
 
@@ -876,7 +1041,20 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                             <EllipsisVerticalIcon className="size-4" />
                           </button>
                           {openDialogMenuId === selectedDialog.id && (
-                            <div className="absolute right-0 top-9 z-20 min-w-40 rounded-md border border-border bg-popover p-1 shadow-md">
+                            <div className="absolute right-0 top-9 z-20 min-w-52 rounded-md border border-border bg-popover p-1 shadow-md">
+                              {canManageDialogParticipants(selectedDialog, user.id) && (
+                                <button
+                                  type="button"
+                                  className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
+                                  onClick={() => {
+                                    setOpenDialogMenuId(null)
+                                    setShowParticipants(true)
+                                    setShowAddParticipants((prev) => !prev)
+                                  }}
+                                >
+                                  Добавить участников
+                                </button>
+                              )}
                               {canLeaveDialog(selectedDialog, user.id) && (
                                 <button
                                   type="button"
@@ -910,6 +1088,60 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                 {selectedDialog && showParticipants && (
                   <div className="border-b border-border/70 bg-muted/20 px-3 py-3">
                     <div className="space-y-2">
+                      {canManageDialogParticipants(selectedDialog, user.id) && showAddParticipants && (
+                        <div className="space-y-3 rounded-lg border border-border/70 bg-background px-3 py-3">
+                          <div>
+                            <p className="text-sm font-medium">Добавить участников</p>
+                            <p className="text-xs text-muted-foreground">
+                              Доступны только пользователи из ваших контактов.
+                            </p>
+                          </div>
+                          {selectedDialogAvailableContacts.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              Нет доступных контактов для добавления.
+                            </p>
+                          ) : (
+                            <>
+                              <div className="space-y-2">
+                                {selectedDialogAvailableContacts.map((contact) => (
+                                  <label
+                                    key={contact.id}
+                                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/70 p-2 text-sm"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedParticipantIdsToAdd.includes(contact.id)}
+                                      onChange={() => toggleParticipantToAdd(contact.id)}
+                                    />
+                                    <span className="truncate">{getDialogUserName(contact)}</span>
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => addParticipants(selectedDialog.id)}
+                                  disabled={
+                                    isAddingParticipants || selectedParticipantIdsToAdd.length === 0
+                                  }
+                                >
+                                  {isAddingParticipants ? "Добавляем..." : "Добавить"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setShowAddParticipants(false)
+                                    setSelectedParticipantIdsToAdd([])
+                                  }}
+                                >
+                                  Отмена
+                                </Button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                       <p className="text-xs font-medium text-muted-foreground">
                         Участники: {selectedDialog.users.length}
                       </p>
@@ -933,17 +1165,20 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   <p className="truncate text-xs text-muted-foreground">
                                     {participant.email}
                                   </p>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {getUserPresenceLabel(participant)}
+                                  </p>
                                 </div>
-                                {canBlockParticipant(selectedDialog, user.id, participant.id) && (
+                                {canRemoveParticipant(selectedDialog, user.id, participant.id) && (
                                   <Button
                                     size="sm"
                                     variant="destructive"
-                                    disabled={isBlockingParticipant}
+                                    disabled={isRemovingParticipant}
                                     onClick={() =>
-                                      blockParticipant(selectedDialog.id, participant.id)
+                                      removeParticipant(selectedDialog.id, participant.id)
                                     }
                                   >
-                                    Заблокировать
+                                    Удалить
                                   </Button>
                                 )}
                               </div>

@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { createChatSchema } from "@/features/chats/model/schemas"
+import { findUsersWhoBlockedActor, formatBlacklistUserName } from "@/shared/lib/blacklist"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { isUserOnline } from "@/shared/lib/user-activity"
 
 export async function POST(request: NextRequest) {
   const userId = await getAuthorizedUserIdFromRequest(request)
@@ -46,6 +48,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { message: "Можно добавлять в чат только пользователей из контактов" },
       { status: 400 }
+    )
+  }
+
+  const blockedByUsers = await findUsersWhoBlockedActor(userId, participantIds)
+  if (blockedByUsers.length > 0) {
+    const names = blockedByUsers.map((item) => formatBlacklistUserName(item.owner)).join(", ")
+    return NextResponse.json(
+      {
+        message: `Нельзя добавить в чат: ${names}. Этот пользователь добавил вас в чёрный список`,
+      },
+      { status: 403 }
     )
   }
 
@@ -109,6 +122,7 @@ export async function POST(request: NextRequest) {
             firstName: true,
             lastName: true,
             email: true,
+            lastSeenAt: true,
           },
         },
       },
@@ -121,7 +135,11 @@ export async function POST(request: NextRequest) {
         id: dialog.id,
         ownerId: dialog.ownerId,
         title: dialog.title,
-        users: dialog.users,
+        users: dialog.users.map((dialogUser) => ({
+          ...dialogUser,
+          lastSeenAt: dialogUser.lastSeenAt ? dialogUser.lastSeenAt.toISOString() : null,
+          isOnline: isUserOnline(dialogUser.lastSeenAt),
+        })),
         lastMessage: null,
       },
     },

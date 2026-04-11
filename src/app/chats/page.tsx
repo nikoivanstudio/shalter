@@ -4,7 +4,9 @@ import { Providers } from "@/app/providers"
 import { PwaRegisterClient } from "@/app/pwa-register-client"
 import { ChatsHomeClient } from "@/features/chats/ui/chats-home-client"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
+import { findUsersWhoBlockedActor } from "@/shared/lib/blacklist"
 import { prisma } from "@/shared/lib/db/prisma"
+import { isUserOnline } from "@/shared/lib/user-activity"
 
 export default async function ChatsPage({
   searchParams,
@@ -92,6 +94,11 @@ export default async function ChatsPage({
     if (existingDialog) {
       initialDialogId = existingDialog.id
     } else {
+      const blockedBy = await findUsersWhoBlockedActor(user.id, [requestedContactId])
+      if (blockedBy.length > 0) {
+        redirect("/chats")
+      }
+
       const createdDialog = await prisma.dialog.create({
         data: {
           ownerId: user.id,
@@ -114,6 +121,7 @@ export default async function ChatsPage({
       firstName: string
       lastName: string | null
       email: string
+      lastSeenAt: Date | null
     }>
     Messages: Array<{
       id: number
@@ -143,6 +151,7 @@ export default async function ChatsPage({
           firstName: true,
           lastName: true,
           email: true,
+          lastSeenAt: true,
         },
       },
       Messages: {
@@ -197,7 +206,11 @@ export default async function ChatsPage({
           id: dialog.id,
           ownerId: dialog.ownerId,
           title: dialog.title,
-          users: dialog.users,
+          users: dialog.users.map((dialogUser) => ({
+            ...dialogUser,
+            lastSeenAt: dialogUser.lastSeenAt ? dialogUser.lastSeenAt.toISOString() : null,
+            isOnline: isUserOnline(dialogUser.lastSeenAt),
+          })),
           unreadCount: unreadByDialog.get(dialog.id) ?? 0,
           lastMessage: dialog.Messages[0]
             ? {

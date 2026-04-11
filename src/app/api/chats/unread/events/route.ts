@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { isUserOnline, touchUserActivity } from "@/shared/lib/user-activity"
 
 export const runtime = "nodejs"
 
@@ -10,6 +11,24 @@ function createSseEvent(event: string, data: unknown) {
 }
 
 async function getUnreadSnapshot(userId: number) {
+  const dialogs = await prisma.dialog.findMany({
+    where: {
+      users: {
+        some: { id: userId },
+      },
+    },
+    select: {
+      id: true,
+      users: {
+        select: {
+          id: true,
+          lastSeenAt: true,
+        },
+      },
+    },
+    orderBy: { id: "asc" },
+  })
+
   const unread = await prisma.message.groupBy({
     by: ["dialogId"],
     where: {
@@ -31,6 +50,18 @@ async function getUnreadSnapshot(userId: number) {
   )
 
   return {
+    dialogIds: dialogs.map((item) => item.id),
+    presenceByUserId: Object.fromEntries(
+      dialogs
+        .flatMap((dialog) => dialog.users)
+        .map((dialogUser) => [
+          String(dialogUser.id),
+          {
+            lastSeenAt: dialogUser.lastSeenAt ? dialogUser.lastSeenAt.toISOString() : null,
+            isOnline: isUserOnline(dialogUser.lastSeenAt),
+          },
+        ])
+    ),
     unreadByDialog,
     dialogsWithUnread: unread.length,
   }
@@ -44,8 +75,10 @@ export async function GET(request: NextRequest) {
 
   const encoder = new TextEncoder()
   let timer: ReturnType<typeof setInterval> | null = null
+  let activityTimer: ReturnType<typeof setInterval> | null = null
   let polling = false
   let previousSerialized = ""
+  let previousDialogIds = new Set<number>()
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -55,6 +88,10 @@ export async function GET(request: NextRequest) {
         if (timer) {
           clearInterval(timer)
           timer = null
+        }
+        if (activityTimer) {
+          clearInterval(activityTimer)
+          activityTimer = null
         }
         try {
           controller.close()
@@ -71,6 +108,25 @@ export async function GET(request: NextRequest) {
         polling = true
         try {
           const snapshot = await getUnreadSnapshot(userId)
+          const nextDialogIds = new Set(snapshot.dialogIds)
+
+          if (previousDialogIds.size > 0) {
+            const missingDialogIds = Array.from(previousDialogIds).filter((id) => !nextDialogIds.has(id))
+
+            for (const dialogId of missingDialogIds) {
+              const existingDialog = await prisma.dialog.findUnique({
+                where: { id: dialogId },
+                select: { id: true },
+              })
+              send(
+                createSseEvent(existingDialog ? "chat-removed" : "chat-deleted", {
+                  dialogId,
+                })
+              )
+            }
+          }
+
+          previousDialogIds = nextDialogIds
           const serialized = JSON.stringify(snapshot)
           if (serialized !== previousSerialized) {
             previousSerialized = serialized
@@ -88,11 +144,18 @@ export async function GET(request: NextRequest) {
         void emitSnapshot()
       }, 1500)
 
+      activityTimer = setInterval(() => {
+        void touchUserActivity(userId)
+      }, 60000)
+
       request.signal.addEventListener("abort", stop)
     },
     cancel() {
       if (timer) {
         clearInterval(timer)
+      }
+      if (activityTimer) {
+        clearInterval(activityTimer)
       }
     },
   })

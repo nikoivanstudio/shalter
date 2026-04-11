@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { sendMessageSchema } from "@/features/chats/model/schemas"
+import { formatBlacklistUserName } from "@/shared/lib/blacklist"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 
@@ -61,6 +62,38 @@ export async function PATCH(
         fieldErrors: parsed.error.flatten().fieldErrors,
       },
       { status: 400 }
+    )
+  }
+
+  const blockedByUsers = await prisma.userBlacklist.findMany({
+    where: {
+      blockedUserId: userId,
+      owner: {
+        dialogs: {
+          some: {
+            id: dialogId,
+          },
+        },
+      },
+    },
+    select: {
+      owner: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+  })
+
+  if (blockedByUsers.length > 0) {
+    const names = blockedByUsers.map((item) => formatBlacklistUserName(item.owner)).join(", ")
+    return NextResponse.json(
+      {
+        message: `Вы не можете писать в этот чат. Вас добавили в чёрный список: ${names}`,
+      },
+      { status: 403 }
     )
   }
 

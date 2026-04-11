@@ -29,6 +29,22 @@ export default async function ContactsPage() {
     orderBy: { id: "desc" },
   })
 
+  const blacklist = await prisma.userBlacklist.findMany({
+    where: { ownerId: user.id },
+    select: {
+      blockedUser: {
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+        },
+      },
+    },
+    orderBy: { id: "desc" },
+  })
+
   return (
     <Providers>
       <PwaRegisterClient />
@@ -40,6 +56,7 @@ export default async function ContactsPage() {
           lastName: user.lastName,
         }}
         contacts={contacts.map((item) => item.contactUser)}
+        blacklist={blacklist.map((item) => item.blockedUser)}
       />
     </Providers>
   )

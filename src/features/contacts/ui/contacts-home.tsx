@@ -29,20 +29,27 @@ type ContactUser = {
 
 type SearchUser = ContactUser & {
   isAlreadyContact: boolean
+  isBlacklisted: boolean
 }
 
 type ContactsHomeProps = {
   user: ProfileUser
   contacts: ContactUser[]
+  blacklist: ContactUser[]
 }
 
-export function ContactsHome({ user, contacts: initialContacts }: ContactsHomeProps) {
+export function ContactsHome({
+  user,
+  contacts: initialContacts,
+  blacklist: initialBlacklist,
+}: ContactsHomeProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
   const [searchResults, setSearchResults] = useState<SearchUser[]>([])
   const [contacts, setContacts] = useState<ContactUser[]>(initialContacts)
+  const [blacklist, setBlacklist] = useState<ContactUser[]>(initialBlacklist)
   const [lastCompletedQuery, setLastCompletedQuery] = useState("")
   const emblem = buildEmblem(user.firstName, user.lastName)
 
@@ -137,6 +144,61 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
     })
   }
 
+  function addToBlacklist(blockedUserId: number) {
+    startTransition(async () => {
+      const response = await fetch("/api/blacklist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blockedUserId }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось добавить пользователя в чёрный список")
+        return
+      }
+
+      const blockedUser = data.blockedUser as ContactUser
+      setBlacklist((prev) => {
+        if (prev.some((item) => item.id === blockedUser.id)) {
+          return prev
+        }
+
+        return [blockedUser, ...prev]
+      })
+      setSearchResults((prev) =>
+        prev.map((item) =>
+          item.id === blockedUserId ? { ...item, isBlacklisted: true } : item
+        )
+      )
+      toast.success("Пользователь добавлен в чёрный список")
+    })
+  }
+
+  function removeFromBlacklist(blockedUserId: number) {
+    startTransition(async () => {
+      const response = await fetch("/api/blacklist", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blockedUserId }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось удалить пользователя из чёрного списка")
+        return
+      }
+
+      setBlacklist((prev) => prev.filter((item) => item.id !== blockedUserId))
+      setSearchResults((prev) =>
+        prev.map((item) =>
+          item.id === blockedUserId ? { ...item, isBlacklisted: false } : item
+        )
+      )
+      toast.success("Пользователь удалён из чёрного списка")
+    })
+  }
+
   return (
     <main className="h-dvh overflow-hidden bg-gradient-to-b from-background to-muted/20">
       <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 px-6 py-6 pb-28">
@@ -205,13 +267,26 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
                             {item.phone} · {item.email}
                           </p>
                         </div>
-                        <Button
-                          variant={item.isAlreadyContact ? "secondary" : "default"}
-                          disabled={item.isAlreadyContact || isPending}
-                          onClick={() => addContact(item.id)}
-                        >
-                          {item.isAlreadyContact ? "Добавлен" : "Добавить"}
-                        </Button>
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            variant={item.isAlreadyContact ? "secondary" : "default"}
+                            disabled={item.isAlreadyContact || isPending}
+                            onClick={() => addContact(item.id)}
+                          >
+                            {item.isAlreadyContact ? "Добавлен" : "Добавить"}
+                          </Button>
+                          <Button
+                            variant={item.isBlacklisted ? "secondary" : "destructive"}
+                            disabled={isPending}
+                            onClick={() =>
+                              item.isBlacklisted
+                                ? removeFromBlacklist(item.id)
+                                : addToBlacklist(item.id)
+                            }
+                          >
+                            {item.isBlacklisted ? "Убрать из ЧС" : "В ЧС"}
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -220,6 +295,36 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
             )}
 
             <div className="flex min-h-0 flex-1 flex-col space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Чёрный список</h3>
+              <div className="max-h-[22dvh] space-y-2 overflow-y-auto pr-1">
+                {blacklist.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Чёрный список пуст.</p>
+                )}
+                {blacklist.map((blockedUser) => (
+                  <div
+                    key={blockedUser.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/70 p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">
+                        {blockedUser.firstName} {blockedUser.lastName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {blockedUser.phone} · {blockedUser.email}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isPending}
+                      onClick={() => removeFromBlacklist(blockedUser.id)}
+                    >
+                      Убрать
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
               <h3 className="text-sm font-medium text-muted-foreground">Мои контакты</h3>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                 {contacts.length === 0 && (
@@ -248,6 +353,18 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
                       onClick={() => removeContact(contact.id)}
                     >
                       Удалить
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={blacklist.some((item) => item.id === contact.id) ? "secondary" : "outline"}
+                      disabled={isPending}
+                      onClick={() =>
+                        blacklist.some((item) => item.id === contact.id)
+                          ? removeFromBlacklist(contact.id)
+                          : addToBlacklist(contact.id)
+                      }
+                    >
+                      {blacklist.some((item) => item.id === contact.id) ? "Убрать из ЧС" : "В ЧС"}
                     </Button>
                   </div>
                 ))}

@@ -5,6 +5,10 @@ export const createChatSchema = z.object({
   title: z.string().trim().max(80, "Название слишком длинное").optional().or(z.literal("")),
 })
 
+export const updateDialogParticipantsSchema = z.object({
+  participantIds: z.array(z.number().int().positive()).min(1, "Выберите хотя бы одного пользователя"),
+})
+
 export const sendMessageSchema = z.object({
   content: z
     .string()
@@ -14,4 +18,5 @@ export const sendMessageSchema = z.object({
 })
 
 export type CreateChatInput = z.infer<typeof createChatSchema>
+export type UpdateDialogParticipantsInput = z.infer<typeof updateDialogParticipantsSchema>
 export type SendMessageInput = z.infer<typeof sendMessageSchema>
