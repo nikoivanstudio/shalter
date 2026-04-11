@@ -6,6 +6,8 @@ import { Client } from "pg"
 
 const FAILED_CONTACT_MIGRATION = "20260402192247_fix_contact_model"
 const CONTACTS_TABLE = "contacts"
+const FAILED_UNIQUE_PHONE_MIGRATION = "20260410110000_add_unique_phone_for_users"
+const USERS_PHONE_INDEX = "users_phone_key"
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const prismaBin = path.join(rootDir, "node_modules", ".bin", "prisma")
@@ -25,7 +27,7 @@ function runPrismaCommand(args) {
   })
 }
 
-async function shouldResolveFailedContactMigration() {
+async function connectClient() {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set")
   }
@@ -35,48 +37,142 @@ async function shouldResolveFailedContactMigration() {
   })
 
   await client.connect()
+  return client
+}
 
+async function shouldResolveFailedContactMigrationWithClient(client) {
+  const tableExists = await client.query(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = $1
+      ) AS exists
+    `,
+    [CONTACTS_TABLE]
+  )
+
+  if (!tableExists.rows[0]?.exists) {
+    return false
+  }
+
+  const failedMigration = await client.query(
+    `
+      SELECT 1
+      FROM public."_prisma_migrations"
+      WHERE migration_name = $1
+        AND finished_at IS NULL
+        AND rolled_back_at IS NULL
+      LIMIT 1
+    `,
+    [FAILED_CONTACT_MIGRATION]
+  )
+
+  return failedMigration.rowCount > 0
+}
+
+async function getFailedMigrationNames(client) {
   try {
-    const tableExists = await client.query(
+    const failedMigrations = await client.query(
       `
-        SELECT EXISTS (
-          SELECT 1
-          FROM information_schema.tables
-          WHERE table_schema = 'public'
-            AND table_name = $1
-        ) AS exists
+        SELECT migration_name
+        FROM public."_prisma_migrations"
+        WHERE finished_at IS NULL
+          AND rolled_back_at IS NULL
       `,
-      [CONTACTS_TABLE]
+      []
     )
 
-    if (!tableExists.rows[0]?.exists) {
-      return false
+    return new Set(failedMigrations.rows.map((row) => row.migration_name))
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error
     }
 
-    const failedMigration = await client.query(
-      `
-        SELECT 1
-        FROM public."_prisma_migrations"
-        WHERE migration_name = $1
-          AND finished_at IS NULL
-          AND rolled_back_at IS NULL
-        LIMIT 1
-      `,
-      [FAILED_CONTACT_MIGRATION]
-    )
-
-    return failedMigration.rowCount > 0
-  } finally {
-    await client.end()
+    throw new Error("Unable to inspect failed migrations")
   }
 }
 
-async function main() {
-  if (await shouldResolveFailedContactMigration()) {
+async function hasUsersPhoneUniqueIndex(client) {
+  const result = await client.query(
+    `
+      SELECT 1
+      FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND indexname = $1
+      LIMIT 1
+    `,
+    [USERS_PHONE_INDEX]
+  )
+
+  return result.rowCount > 0
+}
+
+async function getDuplicatePhones(client) {
+  const result = await client.query(
+    `
+      SELECT phone, COUNT(*)::int AS count, ARRAY_AGG(id ORDER BY id) AS user_ids
+      FROM public."users"
+      GROUP BY phone
+      HAVING COUNT(*) > 1
+      ORDER BY COUNT(*) DESC, phone ASC
+      LIMIT 10
+    `
+  )
+
+  return result.rows
+}
+
+async function createUsersPhoneUniqueIndex(client) {
+  await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS "users_phone_key" ON "users"("phone")`)
+}
+
+async function resolveFailedUniquePhoneMigrationIfPossible(client, failedMigrationNames) {
+  if (!failedMigrationNames.has(FAILED_UNIQUE_PHONE_MIGRATION)) {
+    return
+  }
+
+  if (await hasUsersPhoneUniqueIndex(client)) {
     console.warn(
-      `Resolving failed migration ${FAILED_CONTACT_MIGRATION} because the ${CONTACTS_TABLE} table already exists.`
+      `Resolving failed migration ${FAILED_UNIQUE_PHONE_MIGRATION} because the ${USERS_PHONE_INDEX} index already exists.`
     )
-    runPrismaCommand(["migrate", "resolve", "--applied", FAILED_CONTACT_MIGRATION])
+    runPrismaCommand(["migrate", "resolve", "--applied", FAILED_UNIQUE_PHONE_MIGRATION])
+    return
+  }
+
+  const duplicatePhones = await getDuplicatePhones(client)
+  if (duplicatePhones.length > 0) {
+    const details = duplicatePhones
+      .map((row) => `${row.phone} -> user_ids: ${row.user_ids.join(",")}`)
+      .join("; ")
+
+    throw new Error(
+      `Migration ${FAILED_UNIQUE_PHONE_MIGRATION} cannot be auto-resolved because duplicate phone values exist: ${details}`
+    )
+  }
+
+  console.warn(
+    `Creating ${USERS_PHONE_INDEX} manually and resolving failed migration ${FAILED_UNIQUE_PHONE_MIGRATION}.`
+  )
+  await createUsersPhoneUniqueIndex(client)
+  runPrismaCommand(["migrate", "resolve", "--applied", FAILED_UNIQUE_PHONE_MIGRATION])
+}
+
+async function main() {
+  const client = await connectClient()
+  try {
+    if (await shouldResolveFailedContactMigrationWithClient(client)) {
+      console.warn(
+        `Resolving failed migration ${FAILED_CONTACT_MIGRATION} because the ${CONTACTS_TABLE} table already exists.`
+      )
+      runPrismaCommand(["migrate", "resolve", "--applied", FAILED_CONTACT_MIGRATION])
+    }
+
+    const failedMigrationNames = await getFailedMigrationNames(client)
+    await resolveFailedUniquePhoneMigrationIfPossible(client, failedMigrationNames)
+  } finally {
+    await client.end()
   }
 
   runPrismaCommand(["migrate", "deploy"])
