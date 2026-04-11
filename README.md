@@ -24,12 +24,18 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Production notes
 
-Do not run Prisma migrations inside the app runtime command. The runtime `start` script only performs safe idempotent schema guards and then boots Next.js.
-
-Apply migrations as a separate deployment step:
+Containerized production startup runs database preparation before booting Next.js:
 
 ```bash
-npm run db:migrate:deploy
+npm run start:prod
+```
+
+That command applies Prisma migrations and then runs the existing idempotent schema guard for `dialogs.title`.
+
+If you prefer to prepare the database as a separate deployment step, run:
+
+```bash
+npm run db:prepare
 ```
 
 If Prisma reports a failed historical migration `20260402192247_fix_contact_model`, and the `contacts` table/constraints already exist in the database, mark that migration as applied once:

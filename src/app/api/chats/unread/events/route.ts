@@ -68,13 +68,14 @@ async function getUnreadSnapshot(userId: number) {
 }
 
 export async function GET(request: NextRequest) {
-  const userId = await getAuthorizedUserIdFromRequest(request)
+  const userId = await getAuthorizedUserIdFromRequest(request, { touchActivity: false })
   if (!userId) {
     return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
   }
 
   const encoder = new TextEncoder()
   let timer: ReturnType<typeof setInterval> | null = null
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
   let activityTimer: ReturnType<typeof setInterval> | null = null
   let polling = false
   let previousSerialized = ""
@@ -82,12 +83,27 @@ export async function GET(request: NextRequest) {
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (payload: string) => controller.enqueue(encoder.encode(payload))
+      let stopped = false
+      const send = (payload: string) => {
+        if (stopped) {
+          return
+        }
+
+        controller.enqueue(encoder.encode(payload))
+      }
 
       const stop = () => {
+        if (stopped) {
+          return
+        }
+        stopped = true
         if (timer) {
           clearInterval(timer)
           timer = null
+        }
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer)
+          heartbeatTimer = null
         }
         if (activityTimer) {
           clearInterval(activityTimer)
@@ -98,10 +114,11 @@ export async function GET(request: NextRequest) {
         } catch {
           // stream can already be closed
         }
+        request.signal.removeEventListener("abort", stop)
       }
 
       const emitSnapshot = async () => {
-        if (polling) {
+        if (polling || stopped) {
           return
         }
 
@@ -139,10 +156,17 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      send("retry: 15000\n\n")
+      send(createSseEvent("ready", { ok: true }))
+      void touchUserActivity(userId)
       void emitSnapshot()
       timer = setInterval(() => {
         void emitSnapshot()
       }, 1500)
+
+      heartbeatTimer = setInterval(() => {
+        send(": ping\n\n")
+      }, 15000)
 
       activityTimer = setInterval(() => {
         void touchUserActivity(userId)
@@ -153,6 +177,9 @@ export async function GET(request: NextRequest) {
     cancel() {
       if (timer) {
         clearInterval(timer)
+      }
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer)
       }
       if (activityTimer) {
         clearInterval(activityTimer)

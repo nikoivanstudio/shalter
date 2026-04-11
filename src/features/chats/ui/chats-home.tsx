@@ -212,6 +212,8 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const [isLeavingDialog, startLeavingDialog] = useTransition()
   const [isAddingParticipants, startAddingParticipants] = useTransition()
   const [isRemovingParticipant, startRemovingParticipant] = useTransition()
+  const dialogsRef = useRef(initialDialogs)
+  const activeDialogIdRef = useRef<number | null>(initialDialogId ?? null)
   const emblem = buildEmblem(user.firstName, user.lastName)
   const unreadDialogsCount = useMemo(
     () => dialogs.filter((dialog) => dialog.unreadCount > 0).length,
@@ -242,15 +244,23 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   )
   const isMessageListReady = messages !== null
 
+  useEffect(() => {
+    dialogsRef.current = dialogs
+  }, [dialogs])
+
+  useEffect(() => {
+    activeDialogIdRef.current = activeDialogId
+  }, [activeDialogId])
+
   const handleDialogAccessLost = useCallback((dialogId: number, reason: "deleted" | "removed") => {
-    const hadDialog = dialogs.some((item) => item.id === dialogId)
+    const hadDialog = dialogsRef.current.some((item) => item.id === dialogId)
     setDialogs((prev) => prev.filter((item) => item.id !== dialogId))
 
     if (!hadDialog) {
       return
     }
 
-    if (activeDialogId === dialogId) {
+    if (activeDialogIdRef.current === dialogId) {
       setIsDialogView(false)
       setSelectedDialogId(null)
       setMessages([])
@@ -261,7 +271,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     }
 
     toast.error(reason === "removed" ? "Вас удалили из чата" : "Чат удалён владельцем")
-  }, [activeDialogId, dialogs])
+  }, [])
 
   useEffect(() => {
     if (!isDialogView || !activeDialogId) {
@@ -1088,6 +1098,28 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                 {selectedDialog && showParticipants && (
                   <div className="border-b border-border/70 bg-muted/20 px-3 py-3">
                     <div className="space-y-2">
+                      {canManageDialogParticipants(selectedDialog, user.id) && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-2">
+                          <div>
+                            <p className="text-sm font-medium">Управление участниками</p>
+                            <p className="text-xs text-muted-foreground">
+                              Только админ чата может добавлять и удалять участников.
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant={showAddParticipants ? "secondary" : "outline"}
+                            onClick={() => {
+                              setShowAddParticipants((prev) => !prev)
+                              if (showAddParticipants) {
+                                setSelectedParticipantIdsToAdd([])
+                              }
+                            }}
+                          >
+                            {showAddParticipants ? "Скрыть форму" : "Добавить участников"}
+                          </Button>
+                        </div>
+                      )}
                       {canManageDialogParticipants(selectedDialog, user.id) && showAddParticipants && (
                         <div className="space-y-3 rounded-lg border border-border/70 bg-background px-3 py-3">
                           <div>
@@ -1160,7 +1192,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   <p className="truncate text-sm font-medium">
                                     {getDialogUserName(participant)}
                                     {isCurrentUser ? " (Вы)" : ""}
-                                    {isOwner ? " • владелец" : ""}
+                                    {isOwner ? " • админ" : ""}
                                   </p>
                                   <p className="truncate text-xs text-muted-foreground">
                                     {participant.email}

@@ -71,7 +71,7 @@ export async function POST(
 
   if (dialog.ownerId !== userId) {
     return NextResponse.json(
-      { message: "Управлять участниками может только владелец чата" },
+      { message: "Управлять участниками может только админ чата" },
       { status: 403 }
     )
   }
@@ -221,7 +221,7 @@ export async function DELETE(
 
   if (dialog.ownerId !== userId) {
     return NextResponse.json(
-      { message: "Управлять участниками может только владелец чата" },
+      { message: "Управлять участниками может только админ чата" },
       { status: 403 }
     )
   }
@@ -241,7 +241,7 @@ export async function DELETE(
 
   if (targetUserId === userId || targetUserId === dialog.ownerId) {
     return NextResponse.json(
-      { message: "Владелец не может удалить самого себя" },
+      { message: "Админ не может удалить самого себя" },
       { status: 400 }
     )
   }

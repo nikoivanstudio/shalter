@@ -24,4 +24,4 @@ RUN chown -R nextjs:nodejs /app
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npm run start -- -p ${PORT:-3000} -H 0.0.0.0"]
+CMD ["sh", "-c", "npm run start:prod -- -p ${PORT:-3000} -H 0.0.0.0"]
