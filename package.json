@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "NODE_ENV=production next build --webpack",
     "db:ensure-dialog-title": "prisma db execute --file prisma/migrations/20260408013000_add_dialog_title/migration.sql",
-    "start": "npm run db:ensure-dialog-title && prisma migrate deploy && next start",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:resolve:fix-contact-model": "prisma migrate resolve --applied 20260402192247_fix_contact_model",
+    "start": "npm run db:ensure-dialog-title && next start",
     "lint": "eslint"
   },
   "dependencies": {
