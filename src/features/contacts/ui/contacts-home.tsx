@@ -181,7 +181,7 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
             />
 
             {query.trim().length > 0 && (
-              <div className="space-y-2">
+              <div className="min-h-0 space-y-2">
                 {isSearching && (
                   <p className="text-sm text-muted-foreground">Ищем пользователей...</p>
                 )}
@@ -190,29 +190,32 @@ export function ContactsHome({ user, contacts: initialContacts }: ContactsHomePr
                   <p className="text-sm text-muted-foreground">По вашему запросу ничего не найдено.</p>
                 )}
 
-                {!isSearching &&
-                  searchResults.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between rounded-lg border border-border/70 p-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">
-                          {item.firstName} {item.lastName}
-                        </p>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {item.phone} · {item.email}
-                        </p>
-                      </div>
-                      <Button
-                        variant={item.isAlreadyContact ? "secondary" : "default"}
-                        disabled={item.isAlreadyContact || isPending}
-                        onClick={() => addContact(item.id)}
+                {!isSearching && (
+                  <div className="max-h-[32dvh] space-y-2 overflow-y-auto pr-1">
+                    {searchResults.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between rounded-lg border border-border/70 p-3"
                       >
-                        {item.isAlreadyContact ? "Добавлен" : "Добавить"}
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">
+                            {item.firstName} {item.lastName}
+                          </p>
+                          <p className="truncate text-sm text-muted-foreground">
+                            {item.phone} · {item.email}
+                          </p>
+                        </div>
+                        <Button
+                          variant={item.isAlreadyContact ? "secondary" : "default"}
+                          disabled={item.isAlreadyContact || isPending}
+                          onClick={() => addContact(item.id)}
+                        >
+                          {item.isAlreadyContact ? "Добавлен" : "Добавить"}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

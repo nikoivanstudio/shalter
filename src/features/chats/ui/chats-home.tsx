@@ -739,7 +739,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
             {showListPanel && showCreateForm && contacts.length > 0 && (
               <div className="space-y-3 rounded-xl border border-border/70 p-3">
                 <p className="text-sm font-medium">Выберите пользователей для нового чата</p>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid max-h-[28dvh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                   {contacts.map((contact) => (
                     <label
                       key={contact.id}
