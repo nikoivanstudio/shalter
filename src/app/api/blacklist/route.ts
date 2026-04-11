@@ -47,11 +47,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Пользователь не найден" }, { status: 404 })
     }
 
-    await prisma.userBlacklist.create({
-      data: {
-        ownerId: userId,
-        blockedUserId,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.userBlacklist.create({
+        data: {
+          ownerId: userId,
+          blockedUserId,
+        },
+      })
+
+      await tx.contact.deleteMany({
+        where: {
+          ownerId: userId,
+          contactUserId: blockedUserId,
+        },
+      })
     })
 
     return NextResponse.json({ blockedUser }, { status: 201 })

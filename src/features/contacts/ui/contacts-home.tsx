@@ -1,5 +1,6 @@
 "use client"
 
+import { EllipsisVerticalIcon } from "lucide-react"
 import { useDeferredValue, useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -51,6 +52,7 @@ export function ContactsHome({
   const [contacts, setContacts] = useState<ContactUser[]>(initialContacts)
   const [blacklist, setBlacklist] = useState<ContactUser[]>(initialBlacklist)
   const [lastCompletedQuery, setLastCompletedQuery] = useState("")
+  const [openContactMenuId, setOpenContactMenuId] = useState<number | null>(null)
   const emblem = buildEmblem(user.firstName, user.lastName)
 
   useEffect(() => {
@@ -134,6 +136,7 @@ export function ContactsHome({
         return
       }
 
+      setOpenContactMenuId(null)
       setContacts((prev) => prev.filter((item) => item.id !== contactUserId))
       setSearchResults((prev) =>
         prev.map((item) =>
@@ -158,6 +161,7 @@ export function ContactsHome({
         return
       }
 
+      setOpenContactMenuId(null)
       const blockedUser = data.blockedUser as ContactUser
       setBlacklist((prev) => {
         if (prev.some((item) => item.id === blockedUser.id)) {
@@ -166,9 +170,12 @@ export function ContactsHome({
 
         return [blockedUser, ...prev]
       })
+      setContacts((prev) => prev.filter((item) => item.id !== blockedUserId))
       setSearchResults((prev) =>
         prev.map((item) =>
-          item.id === blockedUserId ? { ...item, isBlacklisted: true } : item
+          item.id === blockedUserId
+            ? { ...item, isBlacklisted: true, isAlreadyContact: false }
+            : item
         )
       )
       toast.success("Пользователь добавлен в чёрный список")
@@ -222,10 +229,17 @@ export function ContactsHome({
 
         <Card className="flex min-h-0 flex-1 flex-col border-border/80 shadow-xl shadow-black/5">
           <CardHeader>
-            <CardTitle className="text-2xl">Контакты</CardTitle>
-            <CardDescription>
-              Поиск пользователей по имени или телефону и добавление в свои контакты.
-            </CardDescription>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-2xl">Контакты</CardTitle>
+                <CardDescription>
+                  Поиск пользователей по имени или телефону и добавление в свои контакты.
+                </CardDescription>
+              </div>
+              <Button variant="outline" onClick={() => router.push("/blacklist")}>
+                Открыть чёрный список
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
             <Input
@@ -295,36 +309,6 @@ export function ContactsHome({
             )}
 
             <div className="flex min-h-0 flex-1 flex-col space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">Чёрный список</h3>
-              <div className="max-h-[22dvh] space-y-2 overflow-y-auto pr-1">
-                {blacklist.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Чёрный список пуст.</p>
-                )}
-                {blacklist.map((blockedUser) => (
-                  <div
-                    key={blockedUser.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border/70 p-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium">
-                        {blockedUser.firstName} {blockedUser.lastName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {blockedUser.phone} · {blockedUser.email}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isPending}
-                      onClick={() => removeFromBlacklist(blockedUser.id)}
-                    >
-                      Убрать
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
               <h3 className="text-sm font-medium text-muted-foreground">Мои контакты</h3>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                 {contacts.length === 0 && (
@@ -346,26 +330,47 @@ export function ContactsHome({
                         {contact.phone} · {contact.email}
                       </p>
                     </button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={isPending}
-                      onClick={() => removeContact(contact.id)}
-                    >
-                      Удалить
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={blacklist.some((item) => item.id === contact.id) ? "secondary" : "outline"}
-                      disabled={isPending}
-                      onClick={() =>
-                        blacklist.some((item) => item.id === contact.id)
-                          ? removeFromBlacklist(contact.id)
-                          : addToBlacklist(contact.id)
-                      }
-                    >
-                      {blacklist.some((item) => item.id === contact.id) ? "Убрать из ЧС" : "В ЧС"}
-                    </Button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-label="Действия с контактом"
+                        onClick={() =>
+                          setOpenContactMenuId((prev) =>
+                            prev === contact.id ? null : contact.id
+                          )
+                        }
+                        disabled={isPending}
+                      >
+                        <EllipsisVerticalIcon className="size-4" />
+                      </button>
+                      {openContactMenuId === contact.id && (
+                        <div className="absolute right-0 top-9 z-20 min-w-44 rounded-md border border-border bg-popover p-1 shadow-md">
+                          <button
+                            type="button"
+                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => removeContact(contact.id)}
+                            disabled={isPending}
+                          >
+                            Удалить контакт
+                          </button>
+                          <button
+                            type="button"
+                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() =>
+                              blacklist.some((item) => item.id === contact.id)
+                                ? removeFromBlacklist(contact.id)
+                                : addToBlacklist(contact.id)
+                            }
+                            disabled={isPending}
+                          >
+                            {blacklist.some((item) => item.id === contact.id)
+                              ? "Убрать из ЧС"
+                              : "Добавить в ЧС"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

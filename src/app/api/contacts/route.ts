@@ -50,6 +50,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Пользователь не найден" }, { status: 404 })
     }
 
+    const blacklistEntry = await prisma.userBlacklist.findFirst({
+      where: {
+        ownerId: userId,
+        blockedUserId: contactUserId,
+      },
+      select: { id: true },
+    })
+
+    if (blacklistEntry) {
+      return NextResponse.json(
+        { message: "Пользователь находится в чёрном списке" },
+        { status: 400 }
+      )
+    }
+
     await prisma.contact.create({
       data: {
         ownerId: userId,
