@@ -33,7 +33,7 @@ type SearchUser = ContactUser & {
   isBlacklisted: boolean
 }
 
-type ContactsHomeProps = {
+export type ContactsHomeProps = {
   user: ProfileUser
   contacts: ContactUser[]
   blacklist: ContactUser[]
