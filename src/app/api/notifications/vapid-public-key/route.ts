@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server"
 
-import { getPublicVapidKey } from "@/shared/lib/notifications/push"
+import {
+  getPublicVapidKey,
+  getPushConfigurationError,
+} from "@/shared/lib/notifications/push"
 
 export async function GET() {
   const publicKey = getPublicVapidKey()
   if (!publicKey) {
     return NextResponse.json(
-      { message: "Push уведомления не настроены на сервере" },
+      { message: getPushConfigurationError() ?? "Push уведомления не настроены на сервере" },
       { status: 503 }
     )
   }

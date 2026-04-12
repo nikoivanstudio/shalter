@@ -50,6 +50,25 @@ Then rerun:
 npm run db:migrate:deploy
 ```
 
+Push notifications require VAPID keys in the server environment:
+
+```bash
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:admin@example.com
+```
+
+The app also accepts these aliases:
+
+```bash
+VAPID_PUBLIC_KEY=...
+NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY=...
+WEB_PUSH_PUBLIC_KEY=...
+WEB_PUSH_PRIVATE_KEY=...
+WEB_PUSH_SUBJECT=...
+WEB_PUSH_EMAIL=admin@example.com
+```
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

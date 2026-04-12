@@ -13,17 +13,65 @@ type BrowserPushSubscription = {
 
 let vapidConfigured = false
 
-function getVapidConfig() {
-  const publicKey =
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? process.env.VAPID_PUBLIC_KEY ?? null
-  const privateKey = process.env.VAPID_PRIVATE_KEY ?? null
-  const subject = process.env.VAPID_SUBJECT ?? "mailto:admin@shalter.local"
+function getFirstDefinedEnv(...keys: string[]) {
+  for (const key of keys) {
+    const value = process.env[key]?.trim()
+    if (value) {
+      return value
+    }
+  }
 
-  if (!publicKey || !privateKey) {
+  return null
+}
+
+function normalizeVapidSubject(value: string | null) {
+  if (!value) {
+    return "mailto:admin@shalter.local"
+  }
+
+  return value.includes(":") ? value : `mailto:${value}`
+}
+
+function getVapidConfigState() {
+  const publicKey = getFirstDefinedEnv(
+    "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+    "VAPID_PUBLIC_KEY",
+    "NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY",
+    "WEB_PUSH_PUBLIC_KEY"
+  )
+  const privateKey = getFirstDefinedEnv("VAPID_PRIVATE_KEY", "WEB_PUSH_PRIVATE_KEY")
+  const subject = normalizeVapidSubject(
+    getFirstDefinedEnv("VAPID_SUBJECT", "WEB_PUSH_SUBJECT", "WEB_PUSH_EMAIL")
+  )
+
+  const missing: string[] = []
+  if (!publicKey) {
+    missing.push("NEXT_PUBLIC_VAPID_PUBLIC_KEY or VAPID_PUBLIC_KEY")
+  }
+  if (!privateKey) {
+    missing.push("VAPID_PRIVATE_KEY")
+  }
+
+  return {
+    publicKey,
+    privateKey,
+    subject,
+    missing,
+  }
+}
+
+function getVapidConfig() {
+  const config = getVapidConfigState()
+
+  if (!config.publicKey || !config.privateKey) {
     return null
   }
 
-  return { publicKey, privateKey, subject }
+  return {
+    publicKey: config.publicKey,
+    privateKey: config.privateKey,
+    subject: config.subject,
+  }
 }
 
 function ensureVapidConfigured() {
@@ -41,11 +89,21 @@ function ensureVapidConfigured() {
 }
 
 export function getPublicVapidKey() {
-  return getVapidConfig()?.publicKey ?? null
+  return getVapidConfigState().publicKey
 }
 
 export function isPushConfigured() {
   return Boolean(getVapidConfig())
+}
+
+export function getPushConfigurationError() {
+  const { missing } = getVapidConfigState()
+
+  if (missing.length === 0) {
+    return null
+  }
+
+  return `Push уведомления не настроены: отсутствует ${missing.join(", ")}`
 }
 
 export async function savePushSubscription(

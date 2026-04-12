@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import {
+  getPushConfigurationError,
   isPushConfigured,
   savePushSubscription,
 } from "@/shared/lib/notifications/push"
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
 
   if (!isPushConfigured()) {
     return NextResponse.json(
-      { message: "Push уведомления не настроены на сервере" },
+      { message: getPushConfigurationError() ?? "Push уведомления не настроены на сервере" },
       { status: 503 }
     )
   }
