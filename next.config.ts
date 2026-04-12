@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
+  deploymentId: process.env.DEPLOYMENT_VERSION,
 };
 
 export default nextConfig;

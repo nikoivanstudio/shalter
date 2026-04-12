@@ -117,6 +117,27 @@ function getUserPresenceLabel(user: UserShort) {
   return "Статус неизвестен"
 }
 
+function OnlineDot() {
+  return <span className="inline-block size-2 rounded-full bg-green-500 align-middle" />
+}
+
+function PresenceLabel({ user, className = "" }: { user: UserShort; className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${className}`.trim()}>
+      {user.isOnline ? <OnlineDot /> : null}
+      <span className="truncate">{getUserPresenceLabel(user)}</span>
+    </span>
+  )
+}
+
+function getDirectDialogOtherUser(dialog: ChatDialog, currentUserId: number) {
+  if (dialog.users.length !== 2) {
+    return null
+  }
+
+  return dialog.users.find((item) => item.id !== currentUserId) ?? null
+}
+
 function isGroupDialog(dialog: ChatDialog) {
   return Boolean(dialog.title?.trim()) || dialog.users.length > 2
 }
@@ -1018,11 +1039,24 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         ? getDialogDisplayTitle(selectedDialog, user.id)
                         : "Выберите чат"}
                     </p>
-                    {selectedDialog && (
-                      <p className="truncate text-xs text-muted-foreground">
-                        {getDialogMembersSubtitle(selectedDialog, user.id)}
-                      </p>
-                    )}
+                    {selectedDialog &&
+                      (() => {
+                        const otherUser = getDirectDialogOtherUser(selectedDialog, user.id)
+
+                        if (otherUser) {
+                          return (
+                            <div className="text-xs text-muted-foreground">
+                              <PresenceLabel user={otherUser} />
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {getDialogMembersSubtitle(selectedDialog, user.id)}
+                          </p>
+                        )
+                      })()}
                   </div>
                   <div className="flex items-center gap-2">
                     {selectedDialog && (
@@ -1197,9 +1231,9 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   <p className="truncate text-xs text-muted-foreground">
                                     {participant.email}
                                   </p>
-                                  <p className="truncate text-xs text-muted-foreground">
-                                    {getUserPresenceLabel(participant)}
-                                  </p>
+                                  <div className="text-xs text-muted-foreground">
+                                    <PresenceLabel user={participant} />
+                                  </div>
                                 </div>
                                 {canRemoveParticipant(selectedDialog, user.id, participant.id) && (
                                   <Button
