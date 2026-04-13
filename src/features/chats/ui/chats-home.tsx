@@ -146,6 +146,14 @@ function canLeaveDialog(dialog: ChatDialog, currentUserId: number) {
   return dialog.users.length > 2 && dialog.users.some((item) => item.id === currentUserId)
 }
 
+function canDeleteDialog(dialog: ChatDialog, currentUserId: number) {
+  if (dialog.users.length === 2) {
+    return dialog.users.some((item) => item.id === currentUserId)
+  }
+
+  return dialog.ownerId === currentUserId
+}
+
 function canManageDialogParticipants(dialog: ChatDialog, currentUserId: number) {
   return dialog.ownerId === currentUserId && isGroupDialog(dialog)
 }
@@ -989,7 +997,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       </p>
                     </button>
 
-                    {(dialog.ownerId === user.id || canLeaveDialog(dialog, user.id)) && (
+                    {(canDeleteDialog(dialog, user.id) || canLeaveDialog(dialog, user.id)) && (
                       <div className="relative mt-2">
                         <button
                           type="button"
@@ -1069,7 +1077,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       </Button>
                     )}
                     {selectedDialog &&
-                      (selectedDialog.ownerId === user.id ||
+                      (canDeleteDialog(selectedDialog, user.id) ||
                         canLeaveDialog(selectedDialog, user.id)) && (
                         <div className="relative">
                           <button
@@ -1109,7 +1117,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   Покинуть группу
                                 </button>
                               )}
-                              {selectedDialog.ownerId === user.id && (
+                              {canDeleteDialog(selectedDialog, user.id) && (
                                 <button
                                   type="button"
                                   className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1130,7 +1138,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   </div>
                 </div>
                 {selectedDialog && showParticipants && (
-                  <div className="border-b border-border/70 bg-muted/20 px-3 py-3">
+                  <div className="max-h-[45dvh] shrink-0 overflow-y-auto border-b border-border/70 bg-muted/20 px-3 py-3">
                     <div className="space-y-2">
                       {canManageDialogParticipants(selectedDialog, user.id) && (
                         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-2">
@@ -1168,7 +1176,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                             </p>
                           ) : (
                             <>
-                              <div className="space-y-2">
+                              <div className="max-h-48 space-y-2 overflow-y-auto pr-1">
                                 {selectedDialogAvailableContacts.map((contact) => (
                                   <label
                                     key={contact.id}
@@ -1211,7 +1219,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       <p className="text-xs font-medium text-muted-foreground">
                         Участники: {selectedDialog.users.length}
                       </p>
-                      <div className="space-y-2">
+                      <div className="space-y-2 pr-1">
                         {selectedDialog.users.map((participant) => {
                           const isCurrentUser = participant.id === user.id
                           const isOwner = participant.id === selectedDialog.ownerId

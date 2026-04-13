@@ -8,6 +8,14 @@ function parseDialogId(value: string) {
   return Number.isInteger(dialogId) && dialogId > 0 ? dialogId : null
 }
 
+function canDeleteDialog(dialog: { ownerId: number; users: Array<{ id: number }> }, userId: number) {
+  if (dialog.users.length === 2) {
+    return dialog.users.some((user) => user.id === userId)
+  }
+
+  return dialog.ownerId === userId
+}
+
 export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ dialogId: string }> }
@@ -33,6 +41,11 @@ export async function DELETE(
     select: {
       id: true,
       ownerId: true,
+      users: {
+        select: {
+          id: true,
+        },
+      },
     },
   })
 
@@ -40,9 +53,9 @@ export async function DELETE(
     return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
   }
 
-  if (dialog.ownerId !== userId) {
+  if (!canDeleteDialog(dialog, userId)) {
     return NextResponse.json(
-      { message: "Удалять чат может только его владелец" },
+      { message: "Удалять групповой чат может только его владелец" },
       { status: 403 }
     )
   }
