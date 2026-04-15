@@ -1,7 +1,6 @@
 import bcrypt from "bcryptjs"
 import { Prisma } from "@prisma/client"
 
-import { env } from "@/shared/config/env"
 import { prisma } from "@/shared/lib/db/prisma"
 
 type AuthResult =
@@ -19,12 +18,7 @@ export async function registerUser(input: {
   firstName: string
   lastName?: string
   phone: string
-  inviteMessage: string
 }): Promise<AuthResult> {
-  if (input.inviteMessage !== env.INVITE_MESSAGE) {
-    return { ok: false, status: 403, message: "Неверная строка приглашения" }
-  }
-
   const email = input.email.toLowerCase()
   const duplicateUser = await prisma.user.findFirst({
     where: {

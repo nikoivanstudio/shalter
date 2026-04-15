@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useMemo, useState, useTransition } from "react"
+import { useCallback, useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { loginSchema, registerSchema } from "@/features/auth/model/schemas"
+import { TurnstileWidget } from "@/features/auth/ui/turnstile-widget"
 
 type LoginForm = {
   email: string
@@ -23,7 +24,7 @@ type RegisterForm = {
   firstName: string
   lastName: string
   phone: string
-  inviteMessage: string
+  turnstileToken: string
 }
 
 type FieldErrors = Record<string, string[] | undefined>
@@ -51,6 +52,7 @@ export function AuthCard() {
   const [serverMessage, setServerMessage] = useState("")
   const [loginErrors, setLoginErrors] = useState<FieldErrors>({})
   const [registerErrors, setRegisterErrors] = useState<FieldErrors>({})
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0)
 
   const [loginForm, setLoginForm] = useState<LoginForm>({
     email: "",
@@ -64,7 +66,7 @@ export function AuthCard() {
     firstName: "",
     lastName: "",
     phone: "",
-    inviteMessage: "",
+    turnstileToken: "",
   })
 
   const isLoginDisabled = useMemo(
@@ -80,9 +82,20 @@ export function AuthCard() {
       !registerForm.confirmPassword ||
       !registerForm.firstName ||
       !registerForm.phone ||
-      !registerForm.inviteMessage,
+      !registerForm.turnstileToken,
     [isPending, registerForm]
   )
+
+  const handleTurnstileTokenChange = useCallback((token: string | null) => {
+    setRegisterErrors((prev) => ({
+      ...prev,
+      turnstileToken: undefined,
+    }))
+    setRegisterForm((prev) => ({
+      ...prev,
+      turnstileToken: token ?? "",
+    }))
+  }, [])
 
   function submitLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -125,6 +138,7 @@ export function AuthCard() {
       if (!response.ok) {
         setRegisterErrors((data?.fieldErrors ?? {}) as FieldErrors)
         setServerMessage(data?.message ?? "Ошибка регистрации")
+        setTurnstileResetKey((prev) => prev + 1)
         return
       }
 
@@ -139,7 +153,7 @@ export function AuthCard() {
       <CardHeader>
         <CardTitle className="text-2xl">Авторизация</CardTitle>
         <CardDescription>
-          Войдите в существующий аккаунт или создайте новый по приглашению.
+          Войдите в существующий аккаунт или создайте новый после проверки Turnstile.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -260,17 +274,16 @@ export function AuthCard() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="register-invite">Приглашение</Label>
-                <Input
-                  id="register-invite"
-                  value={registerForm.inviteMessage}
-                  onChange={(e) =>
-                    setRegisterForm((prev) => ({ ...prev, inviteMessage: e.target.value }))
-                  }
-                />
-                {getFieldError(registerErrors, "inviteMessage") && (
+                <p className="text-sm font-medium">Подтверждение</p>
+                <div id="register-turnstile" className="space-y-2">
+                  <TurnstileWidget
+                    resetKey={turnstileResetKey}
+                    onTokenChange={handleTurnstileTokenChange}
+                  />
+                </div>
+                {getFieldError(registerErrors, "turnstileToken") && (
                   <p className="text-sm text-destructive">
-                    {getFieldError(registerErrors, "inviteMessage")}
+                    {getFieldError(registerErrors, "turnstileToken")}
                   </p>
                 )}
               </div>

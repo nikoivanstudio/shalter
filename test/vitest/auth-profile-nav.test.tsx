@@ -7,6 +7,13 @@ import { routerMock, toastMock } from "../vitest.setup"
 vi.mock("@/features/theme/ui/theme-toggle", () => ({ ThemeToggle: () => <div>ThemeToggle</div> }))
 vi.mock("@/features/auth/ui/logout-button", () => ({ LogoutButton: () => <div>LogoutButton</div> }))
 vi.mock("@/features/navigation/ui/bottom-nav", () => ({ BottomNav: ({ active }: { active?: string }) => <div>BottomNav:{active ?? "none"}</div> }))
+vi.mock("@/features/auth/ui/turnstile-widget", () => ({
+  TurnstileWidget: ({ onTokenChange }: { onTokenChange: (token: string) => void }) => (
+    <button type="button" onClick={() => onTokenChange("turnstile-token")}>
+      Turnstile
+    </button>
+  ),
+}))
 
 import { AuthCard } from "@/features/auth/ui/auth-card"
 import { ProfileHome } from "@/features/profile/ui/profile-home"
@@ -57,7 +64,7 @@ describe("auth/profile/navigation components", () => {
     await user.type(screen.getByLabelText("Фамилия"), "Petrov")
     await user.type(screen.getByLabelText("Email"), "user@example.com")
     await user.type(screen.getByLabelText("Телефон"), "12345678")
-    await user.type(screen.getByLabelText("Приглашение"), "invite-code")
+    await user.click(screen.getByRole("button", { name: "Turnstile" }))
     await user.type(screen.getByLabelText("Пароль"), "password123")
     await user.type(screen.getByLabelText("Подтверждение пароля"), "password123")
     await user.click(screen.getByRole("button", { name: "Зарегистрироваться" }))

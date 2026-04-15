@@ -32,10 +32,10 @@ export const registerSchema = z
       .trim()
       .min(8, "Телефон слишком короткий")
       .max(20, "Телефон слишком длинный"),
-    inviteMessage: z
+    turnstileToken: z
       .string()
       .trim()
-      .min(1, "Поле Приглашение обязательно"),
+      .min(1, "Подтвердите, что вы не бот"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Пароли не совпадают",

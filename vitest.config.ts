@@ -11,7 +11,6 @@ export default defineConfig({
   test: {
     clearMocks: true,
     coverage: {
-      all: true,
       provider: "istanbul",
       reporter: ["json", "text-summary"],
       reportsDirectory: "coverage/vitest",

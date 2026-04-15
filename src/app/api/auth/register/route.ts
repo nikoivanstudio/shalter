@@ -7,6 +7,7 @@ import {
   createSessionId,
   setAuthCookies,
 } from "@/shared/lib/auth/session"
+import { verifyTurnstileToken } from "@/shared/lib/turnstile"
 import { touchUserActivity } from "@/shared/lib/user-activity"
 
 export async function POST(request: Request) {
@@ -25,7 +26,27 @@ export async function POST(request: Request) {
       )
     }
 
-    const result = await registerUser(parsed.data)
+    const forwardedFor = request.headers.get("x-forwarded-for")
+    const remoteIp = forwardedFor?.split(",")[0]?.trim() || null
+    const turnstileResult = await verifyTurnstileToken({
+      token: parsed.data.turnstileToken,
+      remoteIp,
+    })
+
+    if (!turnstileResult.ok) {
+      return NextResponse.json(
+        {
+          message: turnstileResult.message,
+          fieldErrors: {
+            turnstileToken: ["Подтвердите, что вы не бот"],
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    const { turnstileToken: _turnstileToken, ...registerInput } = parsed.data
+    const result = await registerUser(registerInput)
 
     if (!result.ok) {
       return NextResponse.json(

@@ -33,7 +33,6 @@ jest.mock("@prisma/client", () => ({
 
 async function loadAuthService() {
   jest.resetModules()
-  process.env.INVITE_MESSAGE = "invite-code"
   const module = await import("@/features/auth/api/auth-service")
   const { prisma } = jest.requireMock("@/shared/lib/db/prisma") as {
     prisma: {
@@ -64,20 +63,6 @@ describe("auth-service", () => {
   test("registerUser rejects invalid invite and duplicates", async () => {
     const { registerUser, mockPrisma } = await loadAuthService()
 
-    await expect(
-      registerUser({
-        email: "USER@example.com",
-        password: "password123",
-        firstName: "Ivan",
-        phone: "12345678",
-        inviteMessage: "bad",
-      })
-    ).resolves.toEqual({
-      ok: false,
-      status: 403,
-      message: "Неверная строка приглашения",
-    })
-
     mockPrisma.user.findFirst.mockResolvedValueOnce({
       email: "user@example.com",
       phone: "12345678",
@@ -89,7 +74,6 @@ describe("auth-service", () => {
         password: "password123",
         firstName: "Ivan",
         phone: "12345678",
-        inviteMessage: "invite-code",
       })
     ).resolves.toMatchObject({
       ok: false,
@@ -117,7 +101,6 @@ describe("auth-service", () => {
         firstName: "Ivan",
         lastName: "Petrov",
         phone: "12345678",
-        inviteMessage: "invite-code",
       })
     ).resolves.toEqual({
       ok: true,
@@ -130,7 +113,6 @@ describe("auth-service", () => {
         password: "password123",
         firstName: "Ivan",
         phone: "12345679",
-        inviteMessage: "invite-code",
       })
     ).resolves.toMatchObject({
       ok: false,

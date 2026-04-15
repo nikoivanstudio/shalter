@@ -43,18 +43,15 @@ describe("env and session", () => {
 
   test("env exports required values", async () => {
     process.env.AUTH_SECRET = "secret"
-    process.env.INVITE_MESSAGE = "invite"
 
     const { env } = await import("@/shared/config/env")
     expect(env).toEqual({
       AUTH_SECRET: "secret",
-      INVITE_MESSAGE: "invite",
     })
   })
 
   test("env throws when values are missing", async () => {
     delete process.env.AUTH_SECRET
-    process.env.INVITE_MESSAGE = "invite"
 
     await expect(import("@/shared/config/env")).rejects.toThrow("AUTH_SECRET is not set")
   })
