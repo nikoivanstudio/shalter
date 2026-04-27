@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { useI18n } from "@/features/i18n/model/i18n-provider"
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
@@ -18,6 +19,7 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export function PushToggle() {
+  const { tr } = useI18n()
   const [supported, setSupported] = useState(false)
   const [enabled, setEnabled] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -30,12 +32,12 @@ export function PushToggle() {
     const response = await fetch("/api/notifications/vapid-public-key")
     if (!response.ok) {
       const data = await response.json().catch(() => null)
-      throw new Error(data?.message ?? "Push уведомления не настроены на сервере")
+      throw new Error(tr(data?.message ?? "Push уведомления не настроены на сервере"))
     }
 
     const data = (await response.json()) as { publicKey?: string }
     if (!data.publicKey) {
-      throw new Error("Push уведомления не настроены на сервере")
+      throw new Error(tr("Push уведомления не настроены на сервере"))
     }
 
     setPublicKey(data.publicKey)
@@ -82,7 +84,7 @@ export function PushToggle() {
           : await Notification.requestPermission()
 
       if (permission !== "granted") {
-        throw new Error("Разрешите уведомления в браузере")
+        throw new Error(tr("Разрешите уведомления в браузере"))
       }
 
       const registration = await navigator.serviceWorker.ready
@@ -101,11 +103,11 @@ export function PushToggle() {
       })
       if (!response.ok) {
         const data = await response.json().catch(() => null)
-        throw new Error(data?.message ?? "Не удалось включить уведомления")
+        throw new Error(tr(data?.message ?? "Не удалось включить уведомления"))
       }
 
       setEnabled(true)
-      toast.success("Уведомления включены")
+      toast.success(tr("Уведомления включены"))
     } catch (error) {
       toast.error((error as Error).message)
     } finally {
@@ -128,9 +130,9 @@ export function PushToggle() {
       }
 
       setEnabled(false)
-      toast.success("Уведомления отключены")
+      toast.success(tr("Уведомления отключены"))
     } catch {
-      toast.error("Не удалось отключить уведомления")
+      toast.error(tr("Не удалось отключить уведомления"))
     } finally {
       setLoading(false)
     }
@@ -146,8 +148,8 @@ export function PushToggle() {
       size="icon"
       disabled={loading || isCheckingConfig}
       onClick={() => (enabled ? void unsubscribe() : void subscribe())}
-      aria-label={enabled ? "Отключить push-уведомления" : "Включить push-уведомления"}
-      title={enabled ? "Push включены" : "Включить push"}
+      aria-label={enabled ? tr("Отключить push-уведомления") : tr("Включить push-уведомления")}
+      title={enabled ? tr("Push включены") : tr("Включить push")}
     >
       <BellIcon className="size-4" />
     </Button>

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 
+import { I18nProvider } from "@/features/i18n/model/i18n-provider"
 import { ThemeProvider } from "@/features/theme/model/theme-provider"
 
 const Toaster = dynamic(
@@ -11,9 +12,11 @@ const Toaster = dynamic(
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider>
-      {children}
-      <Toaster richColors position="top-right" />
-    </ThemeProvider>
+    <I18nProvider>
+      <ThemeProvider>
+        {children}
+        <Toaster richColors position="top-right" />
+      </ThemeProvider>
+    </I18nProvider>
   )
 }

@@ -4,6 +4,7 @@ import { ArrowLeftIcon, CheckIcon, EllipsisVerticalIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { AccountStatusBadge } from "@/components/ui/account-status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -14,13 +15,15 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
+import { useI18n } from "@/features/i18n/model/i18n-provider"
+import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { PushToggle } from "@/features/notifications/ui/push-toggle"
 import {
   getDialogDisplayTitle,
   getDialogUserName,
 } from "@/features/chats/lib/dialog-title"
-import { buildEmblem } from "@/features/profile/lib/emblem"
+import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 
 type UserShort = {
@@ -28,6 +31,7 @@ type UserShort = {
   firstName: string
   lastName: string | null
   email: string
+  role: string
   lastSeenAt?: string | null
   isOnline?: boolean
 }
@@ -38,6 +42,7 @@ type ContactUser = {
   lastName: string | null
   email: string
   phone: string
+  role: string
 }
 
 type ChatMessage = {
@@ -214,6 +219,7 @@ function MessageStatusIcon({ status }: { status: ChatMessage["status"] }) {
 }
 
 export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDialogId }: ChatsHomeProps) {
+  const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const [dialogs, setDialogs] = useState(initialDialogs)
   const [selectedDialogId, setSelectedDialogId] = useState<number | null>(
@@ -244,6 +250,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const dialogsRef = useRef(initialDialogs)
   const activeDialogIdRef = useRef<number | null>(initialDialogId ?? null)
   const emblem = buildEmblem(user.firstName, user.lastName)
+  const emblemTone = getEmblemTone(user.firstName, user.lastName)
   const unreadDialogsCount = useMemo(
     () => dialogs.filter((dialog) => dialog.unreadCount > 0).length,
     [dialogs]
@@ -299,7 +306,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       setSelectedParticipantIdsToAdd([])
     }
 
-    toast.error(reason === "removed" ? "Вас удалили из чата" : "Чат удалён владельцем")
+      toast.error(tr(reason === "removed" ? "Вас удалили из чата" : "Чат удалён владельцем"))
   }, [])
 
   useEffect(() => {
@@ -897,16 +904,22 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       <header className="sticky top-0 z-20 shrink-0 border-b border-border/70 bg-background/95 px-6 py-3 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-12 items-center justify-center rounded-full border border-border/80 bg-card text-sm font-semibold shadow-sm">
+            <div
+              className={`flex size-12 items-center justify-center rounded-full border text-sm font-semibold shadow-sm ${emblemTone}`}
+            >
               {emblem}
             </div>
             <div className="min-w-0">
-              <p className="truncate font-medium">{getDialogUserName(user)}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate font-medium">{getDialogUserName(user)}</p>
+                <AccountStatusBadge role={user.role} email={user.email} />
+              </div>
               <p className="truncate text-sm text-muted-foreground">{user.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <PushToggle />
+            <LanguageToggle />
             <ThemeToggle />
             <LogoutButton />
           </div>
@@ -919,19 +932,19 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
             <CardHeader className="shrink-0 gap-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <CardTitle className="text-2xl">Чаты</CardTitle>
-                  <CardDescription>Общайтесь с пользователями из ваших контактов.</CardDescription>
+                  <CardTitle className="text-2xl">{tr("Чаты")}</CardTitle>
+                  <CardDescription>{tr("Общайтесь с пользователями из ваших контактов.")}</CardDescription>
                 </div>
                 <div className="space-y-1">
                   <Button
                     onClick={() => setShowCreateForm((prev) => !prev)}
                     disabled={contacts.length === 0}
                   >
-                    Создать чат
+                    {tr("Создать чат")}
                   </Button>
                   {contacts.length === 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Чтобы создать чат, сначала добавьте контакты.
+                      {tr("Чтобы создать чат, сначала добавьте контакты.")}
                     </p>
                   )}
                 </div>
@@ -975,7 +988,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl border border-border/70 p-2">
                 {orderedDialogs.length === 0 && (
                   <div className="rounded-xl border border-dashed border-border/80 p-6 text-sm text-muted-foreground">
-                    Чаты отсутствуют. Создайте новый чат с пользователем из контактов.
+                    {tr("Чаты отсутствуют. Создайте новый чат с пользователем из контактов.")}
                   </div>
                 )}
                 {orderedDialogs.map((dialog) => (
@@ -1045,7 +1058,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                     <p className="truncate text-sm font-semibold">
                       {selectedDialog
                         ? getDialogDisplayTitle(selectedDialog, user.id)
-                        : "Выберите чат"}
+                        : tr("Выберите чат")}
                     </p>
                     {selectedDialog &&
                       (() => {
@@ -1073,7 +1086,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         variant="outline"
                         onClick={() => setShowParticipants((prev) => !prev)}
                       >
-                        {showParticipants ? "Скрыть участников" : "Участники"}
+                        {showParticipants ? tr("Скрыть участников") : tr("Участники")}
                       </Button>
                     )}
                     {selectedDialog &&
@@ -1133,7 +1146,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       )}
                     <Button size="sm" variant="outline" onClick={() => setIsDialogView(false)}>
                       <ArrowLeftIcon className="size-4" />
-                      Список
+                      {tr("Список")}
                     </Button>
                   </div>
                 </div>
@@ -1184,10 +1197,13 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   >
                                     <input
                                       type="checkbox"
-                                      checked={selectedParticipantIdsToAdd.includes(contact.id)}
-                                      onChange={() => toggleParticipantToAdd(contact.id)}
-                                    />
-                                    <span className="truncate">{getDialogUserName(contact)}</span>
+                                    checked={selectedParticipantIdsToAdd.includes(contact.id)}
+                                    onChange={() => toggleParticipantToAdd(contact.id)}
+                                  />
+                                    <span className="flex min-w-0 flex-wrap items-center gap-2">
+                                      <span className="truncate">{getDialogUserName(contact)}</span>
+                                      <AccountStatusBadge role={contact.role} email={contact.email} />
+                                    </span>
                                   </label>
                                 ))}
                               </div>
@@ -1231,11 +1247,17 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium">
-                                    {getDialogUserName(participant)}
-                                    {isCurrentUser ? " (Вы)" : ""}
-                                    {isOwner ? " • админ" : ""}
-                                  </p>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="truncate text-sm font-medium">
+                                      {getDialogUserName(participant)}
+                                      {isCurrentUser ? " (Вы)" : ""}
+                                      {isOwner ? " • админ" : ""}
+                                    </p>
+                                    <AccountStatusBadge
+                                      role={participant.role}
+                                      email={participant.email}
+                                    />
+                                  </div>
                                   <p className="truncate text-xs text-muted-foreground">
                                     {participant.email}
                                   </p>

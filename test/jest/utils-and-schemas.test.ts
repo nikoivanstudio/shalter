@@ -8,7 +8,8 @@ import {
   updateDialogParticipantsSchema,
 } from "@/features/chats/model/schemas"
 import { addContactSchema, blacklistUserSchema } from "@/features/contacts/model/schemas"
-import { buildEmblem } from "@/features/profile/lib/emblem"
+import { getAccountStatusLabel } from "@/features/profile/lib/account-status"
+import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { updateProfileSchema } from "@/features/profile/model/schemas"
 import {
   getDialogDisplayTitle,
@@ -24,6 +25,24 @@ describe("utils and schemas", () => {
     expect(buildEmblem("John", "Smith")).toBe("JS")
     expect(buildEmblem(" John ", null)).toBe("J")
     expect(buildEmblem(" ", null)).toBe("U")
+  })
+
+  test("getEmblemTone picks a stable color from initials", () => {
+    expect(getEmblemTone("John", "Smith")).toBe(getEmblemTone(" John ", " Smith "))
+    expect(getEmblemTone("John", "Smith")).not.toBe(getEmblemTone("Anna", "Stone"))
+  })
+
+  test("getAccountStatusLabel resolves user-facing statuses", () => {
+    expect(getAccountStatusLabel({ role: "owner", email: "owner@example.com" })).toBe(
+      "Владелец мессенджера"
+    )
+    expect(getAccountStatusLabel({ role: "admin", email: "admin@example.com" })).toBe("Админ")
+    expect(getAccountStatusLabel({ role: "user", email: "matveykanico@gmail.com" })).toBe(
+      "Технический разработчик"
+    )
+    expect(getAccountStatusLabel({ role: "user", email: "user@example.com" })).toBe(
+      "Пользователь"
+    )
   })
 
   test("getDialogUserName and getDialogDisplayTitle resolve titles", () => {

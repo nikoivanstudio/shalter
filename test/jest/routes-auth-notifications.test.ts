@@ -2,6 +2,8 @@ import { NextRequest } from "next/server"
 
 jest.mock("@/features/auth/api/auth-service", () => ({
   loginUser: jest.fn(),
+  requestRecoveryCode: jest.fn(),
+  recoverUserAccount: jest.fn(),
   registerUser: jest.fn(),
 }))
 jest.mock("@/shared/lib/auth/session", () => ({
@@ -26,11 +28,17 @@ jest.mock("@/shared/lib/notifications/push", () => ({
 jest.mock("@/shared/lib/turnstile", () => ({
   verifyTurnstileToken: jest.fn(),
 }))
+jest.mock("@/shared/lib/mail", () => ({
+  getMailConfigurationError: jest.fn(),
+  isMailConfigured: jest.fn(),
+}))
 
-const { loginUser, registerUser } = jest.requireMock(
+const { loginUser, requestRecoveryCode, recoverUserAccount, registerUser } = jest.requireMock(
   "@/features/auth/api/auth-service"
 ) as {
   loginUser: jest.Mock
+  requestRecoveryCode: jest.Mock
+  recoverUserAccount: jest.Mock
   registerUser: jest.Mock
 }
 const {
@@ -67,6 +75,12 @@ const {
 }
 const { verifyTurnstileToken } = jest.requireMock("@/shared/lib/turnstile") as {
   verifyTurnstileToken: jest.Mock
+}
+const { getMailConfigurationError, isMailConfigured } = jest.requireMock(
+  "@/shared/lib/mail"
+) as {
+  getMailConfigurationError: jest.Mock
+  isMailConfigured: jest.Mock
 }
 
 function jsonRequest(body: unknown) {
@@ -113,6 +127,61 @@ describe("auth and notification routes", () => {
 
     loginUser.mockRejectedValueOnce(new Error("boom"))
     response = await POST(jsonRequest({ email: "user@example.com", password: "password123" }))
+    expect(response.status).toBe(500)
+  })
+
+  test("auth recover request-code route handles config, validation and failures", async () => {
+    const { POST } = await import("@/app/api/auth/recover/request-code/route")
+
+    isMailConfigured.mockReturnValueOnce(false)
+    getMailConfigurationError.mockReturnValueOnce("mail missing")
+    let response = await POST(jsonRequest({ phone: "12345678" }))
+    expect(response.status).toBe(503)
+    expect(await readJson(response)).toEqual({ message: "mail missing" })
+
+    isMailConfigured.mockReturnValueOnce(true)
+    response = await POST(jsonRequest({ phone: "123" }))
+    expect(response.status).toBe(400)
+
+    isMailConfigured.mockReturnValueOnce(true)
+    requestRecoveryCode.mockResolvedValueOnce({ ok: true })
+    response = await POST(jsonRequest({ phone: "12345678" }))
+    expect(response.status).toBe(200)
+    expect(await readJson(response)).toEqual({ ok: true })
+
+    isMailConfigured.mockReturnValueOnce(true)
+    requestRecoveryCode.mockRejectedValueOnce(new Error("boom"))
+    response = await POST(jsonRequest({ phone: "12345678" }))
+    expect(response.status).toBe(500)
+  })
+
+  test("auth recover route handles validation, service error, success and failure", async () => {
+    const { POST } = await import("@/app/api/auth/recover/route")
+
+    let response = await POST(jsonRequest({ phone: "123", code: "123" }))
+    expect(response.status).toBe(400)
+
+    recoverUserAccount.mockResolvedValueOnce({ ok: false, status: 401, message: "bad creds" })
+    response = await POST(jsonRequest({ phone: "12345678", code: "123456" }))
+    expect(response.status).toBe(401)
+    expect(await readJson(response)).toEqual({ message: "bad creds" })
+
+    createSessionId.mockReturnValue("sid")
+    createAuthToken.mockResolvedValue("token")
+    recoverUserAccount.mockResolvedValueOnce({
+      ok: true,
+      user: { id: 8, email: "user@example.com" },
+    })
+    response = await POST(jsonRequest({ phone: "12345678", code: "123456" }))
+    expect(response.status).toBe(200)
+    expect(await readJson(response)).toEqual({
+      user: { id: 8, email: "user@example.com" },
+    })
+    expect(touchUserActivity).toHaveBeenCalledWith(8, true)
+    expect(setAuthCookies).toHaveBeenCalled()
+
+    recoverUserAccount.mockRejectedValueOnce(new Error("boom"))
+    response = await POST(jsonRequest({ phone: "12345678", code: "123456" }))
     expect(response.status).toBe(500)
   })
 

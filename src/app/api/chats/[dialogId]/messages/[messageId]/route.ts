@@ -4,6 +4,7 @@ import { sendMessageSchema } from "@/features/chats/model/schemas"
 import { formatBlacklistUserName } from "@/shared/lib/blacklist"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { canWriteToDialog } from "@/shared/lib/direct-message-access"
 
 function parsePositiveInt(value: string) {
   const result = Number(value)
@@ -51,6 +52,16 @@ export async function PATCH(
 
   if (existing.authorId !== userId) {
     return NextResponse.json({ message: "Можно редактировать только свои сообщения" }, { status: 403 })
+  }
+
+  const writeAccess = await canWriteToDialog(dialogId, userId)
+  if (!writeAccess.ok && writeAccess.code === "CONTACT_REQUIRED") {
+    return NextResponse.json(
+      {
+        message: "Этому пользователю могут писать только люди из его контактов",
+      },
+      { status: 403 }
+    )
   }
 
   const json = await request.json().catch(() => null)

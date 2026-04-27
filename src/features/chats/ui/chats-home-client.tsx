@@ -8,7 +8,7 @@ const ChatsHomeNoSsr = dynamic(
   () => import("@/features/chats/ui/chats-home").then((module) => module.ChatsHome),
   {
     ssr: false,
-    loading: () => <div className="p-6 text-sm text-muted-foreground">Загрузка чатов...</div>,
+    loading: () => <div className="p-6 text-sm text-muted-foreground">Loading chats...</div>,
   }
 )
 

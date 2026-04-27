@@ -11,6 +11,12 @@ process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY =
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "test-public-key"
 process.env.VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY ?? "test-private-key"
 process.env.VAPID_SUBJECT = process.env.VAPID_SUBJECT ?? "admin@example.com"
+process.env.SMTP_HOST = process.env.SMTP_HOST ?? "smtp.example.com"
+process.env.SMTP_PORT = process.env.SMTP_PORT ?? "587"
+process.env.SMTP_SECURE = process.env.SMTP_SECURE ?? "false"
+process.env.SMTP_USER = process.env.SMTP_USER ?? "smtp-user"
+process.env.SMTP_PASS = process.env.SMTP_PASS ?? "smtp-pass"
+process.env.SMTP_FROM = process.env.SMTP_FROM ?? "robot@example.com"
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,

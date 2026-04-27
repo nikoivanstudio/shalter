@@ -6,6 +6,7 @@ import { ChatsHomeClient } from "@/features/chats/ui/chats-home-client"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { findUsersWhoBlockedActor } from "@/shared/lib/blacklist"
 import { prisma } from "@/shared/lib/db/prisma"
+import { canWriteToProtectedUser } from "@/shared/lib/direct-message-access"
 import { isUserOnline } from "@/shared/lib/user-activity"
 
 export default async function ChatsPage({
@@ -37,6 +38,7 @@ export default async function ChatsPage({
           lastName: true,
           email: true,
           phone: true,
+          role: true,
         },
       },
     },
@@ -99,6 +101,11 @@ export default async function ChatsPage({
         redirect("/chats")
       }
 
+      const writeAccess = await canWriteToProtectedUser(user.id, requestedContactId)
+      if (!writeAccess.ok && writeAccess.code === "CONTACT_REQUIRED") {
+        redirect("/chats")
+      }
+
       const createdDialog = await prisma.dialog.create({
         data: {
           ownerId: user.id,
@@ -121,6 +128,7 @@ export default async function ChatsPage({
       firstName: string
       lastName: string | null
       email: string
+      role: string
       lastSeenAt: Date | null
     }>
     Messages: Array<{
@@ -151,6 +159,7 @@ export default async function ChatsPage({
           firstName: true,
           lastName: true,
           email: true,
+          role: true,
           lastSeenAt: true,
         },
       },
@@ -199,6 +208,7 @@ export default async function ChatsPage({
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
+          role: user.role,
         }}
         initialDialogId={initialDialogId}
         contacts={contacts.map((item) => item.contactUser)}

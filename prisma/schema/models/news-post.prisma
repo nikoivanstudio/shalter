@@ -1,0 +1,42 @@
+model NewsPost {
+  id        Int               @id @default(autoincrement())
+  authorId  Int               @map("author_id")
+  author    User              @relation("NewsPosts", fields: [authorId], references: [id], onDelete: Cascade)
+  content   String            @db.VarChar(2000)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  likes     NewsPostLike[]
+  comments  NewsPostComment[]
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("news_posts")
+}
+
+model NewsPostLike {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  post      NewsPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    Int      @map("user_id")
+  user      User     @relation("NewsPostLikes", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@map("news_post_likes")
+}
+
+model NewsPostComment {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  post      NewsPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  Int      @map("author_id")
+  author    User     @relation("NewsPostComments", fields: [authorId], references: [id], onDelete: Cascade)
+  content   String   @db.VarChar(1000)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([postId, createdAt])
+  @@index([authorId])
+  @@map("news_post_comments")
+}

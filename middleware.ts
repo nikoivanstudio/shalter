@@ -25,7 +25,7 @@ async function isAuthorized(request: NextRequest) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const authorized = await isAuthorized(request)
-  const protectedRoutes = ["/", "/contacts", "/chats"]
+  const protectedRoutes = ["/", "/contacts", "/chats", "/channels"]
 
   if (pathname === "/auth" && authorized) {
     return NextResponse.redirect(new URL("/", request.url))
@@ -39,5 +39,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/auth", "/contacts", "/chats"],
+  matcher: ["/", "/auth", "/contacts", "/chats", "/channels"],
 }

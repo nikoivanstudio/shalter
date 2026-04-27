@@ -22,6 +22,7 @@ export default async function Home() {
           firstName: user.firstName,
           lastName: user.lastName,
           phone: user.phone,
+          role: user.role,
         }}
       />
     </Providers>

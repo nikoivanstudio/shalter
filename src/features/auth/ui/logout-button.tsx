@@ -7,20 +7,22 @@ import { useTransition } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { useI18n } from "@/features/i18n/model/i18n-provider"
 
 function LogoutButtonInner() {
   const router = useRouter()
+  const { tr } = useI18n()
   const [isPending, startTransition] = useTransition()
 
   function logout() {
     startTransition(async () => {
       const response = await fetch("/api/auth/logout", { method: "POST" })
       if (!response.ok) {
-        toast.error("Не удалось завершить сессию")
+        toast.error(tr("Не удалось завершить сессию"))
         return
       }
 
-      toast.success("Вы вышли из аккаунта")
+      toast.success(tr("Вы вышли из аккаунта"))
       router.replace("/auth")
       router.refresh()
     })
@@ -32,8 +34,8 @@ function LogoutButtonInner() {
       variant="outline"
       onClick={logout}
       disabled={isPending}
-      aria-label={isPending ? "Выходим" : "Выйти"}
-      title={isPending ? "Выходим" : "Выйти"}
+      aria-label={isPending ? tr("Выходим") : tr("Выйти")}
+      title={isPending ? tr("Выходим") : tr("Выйти")}
     >
       <LogOutIcon className="size-4" />
     </Button>

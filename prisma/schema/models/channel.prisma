@@ -1,0 +1,20 @@
+enum ChannelParticipantRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Channel {
+  id           Int                  @id @default(autoincrement())
+  title        String               @db.VarChar(80)
+  description  String?              @db.VarChar(280)
+  ownerId      Int                  @map("owner_id")
+  owner        User                 @relation("OwnedChannels", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  participants ChannelParticipant[]
+  messages     ChannelMessage[]
+
+  @@index([title])
+  @@map("channels")
+}

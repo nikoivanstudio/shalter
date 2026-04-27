@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
         lastName: true,
         phone: true,
         email: true,
+        role: true,
       },
     })
 

@@ -4,6 +4,7 @@ import { sendMessageSchema } from "@/features/chats/model/schemas"
 import { formatBlacklistUserName } from "@/shared/lib/blacklist"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { canWriteToDialog } from "@/shared/lib/direct-message-access"
 import { sendPushToDialogRecipients } from "@/shared/lib/notifications/push"
 
 const MESSAGE_STATUS = {
@@ -126,6 +127,16 @@ export async function POST(
         message: reason === "REMOVED_FROM_CHAT" ? "Вас удалили из чата" : "Чат не найден",
       },
       { status: 404 }
+    )
+  }
+
+  const writeAccess = await canWriteToDialog(dialogId, userId)
+  if (!writeAccess.ok && writeAccess.code === "CONTACT_REQUIRED") {
+    return NextResponse.json(
+      {
+        message: "Этому пользователю могут писать только люди из его контактов",
+      },
+      { status: 403 }
     )
   }
 

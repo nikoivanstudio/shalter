@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server"
+import bcrypt from "bcryptjs"
 
 class MockPrismaClientKnownRequestError extends Error {
   code: string
@@ -49,6 +50,13 @@ jest.mock("@/shared/lib/db/prisma", () => ({
       findMany: jest.fn(),
     },
     $transaction: jest.fn(),
+  },
+}))
+jest.mock("bcryptjs", () => ({
+  __esModule: true,
+  default: {
+    compare: jest.fn(),
+    hash: jest.fn(),
   },
 }))
 
@@ -337,6 +345,69 @@ describe("contacts, blacklist and profile routes", () => {
       )
     )
     expect(response.status).toBe(409)
+  })
+
+  test("profile password route handles auth, validation, wrong password and success", async () => {
+    const { PATCH } = await import("@/app/api/profile/password/route")
+
+    let response = await PATCH(nextRequest("http://localhost/api/profile/password", {}))
+    expect(response.status).toBe(401)
+
+    verifyAuthToken.mockResolvedValueOnce(null)
+    response = await PATCH(
+      nextRequest(
+        "http://localhost/api/profile/password",
+        {},
+        { [AUTH_TOKEN_COOKIE]: "token", [AUTH_SESSION_COOKIE]: "sid" }
+      )
+    )
+    expect(response.status).toBe(401)
+
+    verifyAuthToken.mockResolvedValueOnce({ userId: 5, sid: "sid" })
+    response = await PATCH(
+      nextRequest(
+        "http://localhost/api/profile/password",
+        { currentPassword: "1" },
+        { [AUTH_TOKEN_COOKIE]: "token", [AUTH_SESSION_COOKIE]: "sid" }
+      )
+    )
+    expect(response.status).toBe(400)
+
+    verifyAuthToken.mockResolvedValueOnce({ userId: 5, sid: "sid" })
+    prisma.user.findUnique.mockResolvedValueOnce({ id: 5, passwordHash: "hash" })
+    ;(bcrypt.compare as jest.Mock).mockResolvedValueOnce(false)
+    response = await PATCH(
+      nextRequest(
+        "http://localhost/api/profile/password",
+        {
+          currentPassword: "password123",
+          newPassword: "newpassword123",
+          confirmNewPassword: "newpassword123",
+        },
+        { [AUTH_TOKEN_COOKIE]: "token", [AUTH_SESSION_COOKIE]: "sid" }
+      )
+    )
+    expect(response.status).toBe(400)
+
+    verifyAuthToken.mockResolvedValueOnce({ userId: 5, sid: "sid" })
+    prisma.user.findUnique.mockResolvedValueOnce({ id: 5, passwordHash: "hash" })
+    ;(bcrypt.compare as jest.Mock).mockResolvedValueOnce(true)
+    ;(bcrypt.hash as jest.Mock).mockResolvedValueOnce("next-hash")
+    prisma.user.update.mockResolvedValueOnce({ id: 5 })
+    response = await PATCH(
+      nextRequest(
+        "http://localhost/api/profile/password",
+        {
+          currentPassword: "password123",
+          newPassword: "newpassword123",
+          confirmNewPassword: "newpassword123",
+        },
+        { [AUTH_TOKEN_COOKIE]: "token", [AUTH_SESSION_COOKIE]: "sid" }
+      )
+    )
+    expect(response.status).toBe(200)
+    expect(prisma.user.update).toHaveBeenCalled()
+    expect(touchUserActivity).toHaveBeenCalledWith(5)
   })
 
   test("profile delete route handles auth, missing user, transaction and failures", async () => {

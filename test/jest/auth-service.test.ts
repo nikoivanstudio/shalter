@@ -11,12 +11,38 @@ var MockPrismaClientKnownRequestError = class PrismaClientKnownRequestError exte
 
 jest.mock("@/shared/lib/db/prisma", () => ({
   prisma: {
+    $transaction: jest.fn(),
+    otp: {
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+      findFirst: jest.fn(),
+    },
     user: {
       findFirst: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    contact: {
+      deleteMany: jest.fn(),
+    },
+    userBlacklist: {
+      deleteMany: jest.fn(),
+    },
+    message: {
+      deleteMany: jest.fn(),
+    },
+    dialog: {
+      delete: jest.fn(),
+      update: jest.fn(),
+    },
+    pushSubscription: {
+      deleteMany: jest.fn(),
     },
   },
+}))
+jest.mock("@/shared/lib/mail", () => ({
+  sendRecoveryCodeEmail: jest.fn(),
 }))
 jest.mock("bcryptjs", () => ({
   __esModule: true,
@@ -36,10 +62,33 @@ async function loadAuthService() {
   const module = await import("@/features/auth/api/auth-service")
   const { prisma } = jest.requireMock("@/shared/lib/db/prisma") as {
     prisma: {
+      $transaction: jest.Mock
+      otp: {
+        create: jest.Mock
+        deleteMany: jest.Mock
+        findFirst: jest.Mock
+      }
       user: {
         findFirst: jest.Mock
         create: jest.Mock
         findUnique: jest.Mock
+        update: jest.Mock
+      }
+      contact: {
+        deleteMany: jest.Mock
+      }
+      userBlacklist: {
+        deleteMany: jest.Mock
+      }
+      message: {
+        deleteMany: jest.Mock
+      }
+      dialog: {
+        delete: jest.Mock
+        update: jest.Mock
+      }
+      pushSubscription: {
+        deleteMany: jest.Mock
       }
     }
   }
@@ -47,11 +96,15 @@ async function loadAuthService() {
     hash: jest.Mock
     compare: jest.Mock
   }
+  const mail = jest.requireMock("@/shared/lib/mail") as {
+    sendRecoveryCodeEmail: jest.Mock
+  }
 
   return {
     ...module,
     mockPrisma: prisma,
     bcrypt,
+    mail,
   }
 }
 
@@ -145,6 +198,73 @@ describe("auth-service", () => {
     await expect(loginUser({ email: "USER@example.com", password: "password123" })).resolves.toEqual({
       ok: true,
       user: { id: 1, email: "user@example.com" },
+    })
+  })
+
+  test("recoverUserAccount clears account data after successful login", async () => {
+    const { recoverUserAccount, mockPrisma } = await loadAuthService()
+
+    mockPrisma.otp.findFirst.mockResolvedValueOnce({
+      id: 10,
+      expiredAt: Date.now() + 60_000,
+    })
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 1, email: "user@example.com" })
+      .mockResolvedValueOnce({
+        id: 1,
+        dialogs: [
+          {
+            id: 5,
+            ownerId: 1,
+            users: [{ id: 1 }, { id: 2 }, { id: 3 }],
+          },
+          {
+            id: 6,
+            ownerId: 1,
+            users: [{ id: 1 }],
+          },
+        ],
+      })
+    mockPrisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        otp: { deleteMany: jest.fn(), create: jest.fn() },
+        contact: { deleteMany: jest.fn() },
+        userBlacklist: { deleteMany: jest.fn() },
+        message: { deleteMany: jest.fn() },
+        dialog: { delete: jest.fn(), update: jest.fn() },
+        pushSubscription: { deleteMany: jest.fn() },
+        user: { update: jest.fn() },
+      })
+    )
+
+    await expect(
+      recoverUserAccount({ phone: "12345678", code: "123456" })
+    ).resolves.toEqual({
+      ok: true,
+      user: { id: 1, email: "user@example.com" },
+    })
+    expect(mockPrisma.$transaction).toHaveBeenCalled()
+  })
+
+  test("requestRecoveryCode stores otp and sends email", async () => {
+    const { requestRecoveryCode, mockPrisma, mail } = await loadAuthService()
+
+    mockPrisma.user.findUnique.mockResolvedValueOnce({
+      id: 1,
+      email: "user@example.com",
+      phone: "12345678",
+    })
+    mockPrisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        otp: { deleteMany: jest.fn(), create: jest.fn() },
+      })
+    )
+
+    await expect(requestRecoveryCode({ phone: "12345678" })).resolves.toEqual({ ok: true })
+    expect(mockPrisma.$transaction).toHaveBeenCalled()
+    expect(mail.sendRecoveryCodeEmail).toHaveBeenCalledWith({
+      to: "user@example.com",
+      code: expect.stringMatching(/^\d{6}$/),
     })
   })
 })

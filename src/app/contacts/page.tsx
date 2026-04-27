@@ -32,6 +32,7 @@ export default async function ContactsPage() {
           firstName: true,
           lastName: true,
           phone: true,
+          role: true,
         },
       },
     },
@@ -48,6 +49,7 @@ export default async function ContactsPage() {
           firstName: true,
           lastName: true,
           phone: true,
+          role: true,
         },
       },
     },
@@ -63,6 +65,7 @@ export default async function ContactsPage() {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
+          role: user.role,
         }}
         contacts={contacts.map((item) => item.contactUser)}
         blacklist={blacklist.map((item) => item.blockedUser)}

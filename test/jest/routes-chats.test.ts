@@ -42,6 +42,10 @@ jest.mock("@/shared/lib/user-activity", () => ({
 jest.mock("@/shared/lib/notifications/push", () => ({
   sendPushToDialogRecipients: jest.fn(),
 }))
+jest.mock("@/shared/lib/direct-message-access", () => ({
+  canWriteToProtectedUser: jest.fn(),
+  canWriteToDialog: jest.fn(),
+}))
 
 const { getAuthorizedUserIdFromRequest } = jest.requireMock(
   "@/shared/lib/auth/request-user"
@@ -55,6 +59,12 @@ const { prisma } = jest.requireMock("@/shared/lib/db/prisma") as {
 const { sendPushToDialogRecipients } = jest.requireMock(
   "@/shared/lib/notifications/push"
 ) as { sendPushToDialogRecipients: jest.Mock }
+const { canWriteToProtectedUser, canWriteToDialog } = jest.requireMock(
+  "@/shared/lib/direct-message-access"
+) as {
+  canWriteToProtectedUser: jest.Mock
+  canWriteToDialog: jest.Mock
+}
 
 function nextRequest(url: string, method: string, body?: unknown) {
   return new NextRequest(url, {
@@ -71,6 +81,8 @@ async function readJson(response: Response) {
 describe("chat routes", () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    canWriteToProtectedUser.mockResolvedValue({ ok: true })
+    canWriteToDialog.mockResolvedValue({ ok: true })
   })
 
   test("create chat route handles validation, existing dialogs and creation", async () => {
@@ -97,6 +109,14 @@ describe("chat routes", () => {
 
     prisma.contact.findMany.mockResolvedValueOnce([{ contactUserId: 2 }])
     findUsersWhoBlockedActor.mockResolvedValueOnce([{ owner: { firstName: "Anna", lastName: null } }])
+    response = await POST(
+      nextRequest("http://localhost/api/chats", "POST", { participantIds: [2], title: "" })
+    )
+    expect(response.status).toBe(403)
+
+    prisma.contact.findMany.mockResolvedValueOnce([{ contactUserId: 2 }])
+    findUsersWhoBlockedActor.mockResolvedValueOnce([])
+    canWriteToProtectedUser.mockResolvedValueOnce({ ok: false, code: "CONTACT_REQUIRED" })
     response = await POST(
       nextRequest("http://localhost/api/chats", "POST", { participantIds: [2], title: "" })
     )
@@ -226,6 +246,13 @@ describe("chat routes", () => {
     expect(response.status).toBe(400)
 
     prisma.dialog.findFirst.mockResolvedValueOnce({ id: 1 })
+    canWriteToDialog.mockResolvedValueOnce({ ok: false, code: "CONTACT_REQUIRED" })
+    response = await messagesRoute.POST(nextRequest("http://localhost", "POST", { content: "hello" }), {
+      params: Promise.resolve({ dialogId: "1" }),
+    })
+    expect(response.status).toBe(403)
+
+    prisma.dialog.findFirst.mockResolvedValueOnce({ id: 1 })
     prisma.userBlacklist.findMany.mockResolvedValueOnce([{ owner: { firstName: "Anna", lastName: null } }])
     response = await messagesRoute.POST(nextRequest("http://localhost", "POST", { content: "hello" }), {
       params: Promise.resolve({ dialogId: "1" }),
@@ -260,8 +287,16 @@ describe("chat routes", () => {
       .mockResolvedValueOnce({ id: 5, authorId: 2 })
       .mockResolvedValueOnce({ id: 5, authorId: 1 })
       .mockResolvedValueOnce({ id: 5, authorId: 1 })
+      .mockResolvedValueOnce({ id: 5, authorId: 1 })
       .mockResolvedValueOnce({ id: 5, authorId: 2 })
       .mockResolvedValueOnce({ id: 5, authorId: 1 })
+    response = await messageRoute.PATCH(nextRequest("http://localhost", "PATCH", { content: "hello" }), {
+      params: Promise.resolve({ dialogId: "1", messageId: "5" }),
+    })
+    expect(response.status).toBe(403)
+
+    prisma.dialog.findFirst.mockResolvedValueOnce({ id: 1 })
+    canWriteToDialog.mockResolvedValueOnce({ ok: false, code: "CONTACT_REQUIRED" })
     response = await messageRoute.PATCH(nextRequest("http://localhost", "PATCH", { content: "hello" }), {
       params: Promise.resolve({ dialogId: "1", messageId: "5" }),
     })

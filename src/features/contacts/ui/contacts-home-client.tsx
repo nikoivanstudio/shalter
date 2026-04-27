@@ -8,7 +8,7 @@ const ContactsHomeNoSsr = dynamic(
   () => import("@/features/contacts/ui/contacts-home").then((module) => module.ContactsHome),
   {
     ssr: false,
-    loading: () => <div className="p-6 text-sm text-muted-foreground">Загрузка контактов...</div>,
+    loading: () => <div className="p-6 text-sm text-muted-foreground">Loading contacts...</div>,
   }
 )
 

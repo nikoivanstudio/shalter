@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs"
 import { Prisma } from "@prisma/client"
 
 import { prisma } from "@/shared/lib/db/prisma"
+import { sendRecoveryCodeEmail } from "@/shared/lib/mail"
 
 type AuthResult =
   | { ok: true; user: { id: number; email: string } }
@@ -11,6 +12,90 @@ type AuthResult =
       message: string
       fieldErrors?: Record<string, string[]>
     }
+
+async function clearUserAccountData(userId: number) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      dialogs: {
+        select: {
+          id: true,
+          ownerId: true,
+          users: {
+            select: { id: true },
+            orderBy: { id: "asc" },
+          },
+        },
+      },
+    },
+  })
+
+  if (!user) {
+    return false
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.contact.deleteMany({
+      where: { ownerId: userId },
+    })
+
+    await tx.userBlacklist.deleteMany({
+      where: { ownerId: userId },
+    })
+
+    for (const dialog of user.dialogs) {
+      const remainingUserIds = dialog.users
+        .map((item) => item.id)
+        .filter((id) => id !== user.id)
+
+      if (remainingUserIds.length === 0) {
+        await tx.message.deleteMany({
+          where: { dialogId: dialog.id },
+        })
+
+        await tx.dialog.delete({
+          where: { id: dialog.id },
+        })
+        continue
+      }
+
+      const nextOwnerId =
+        dialog.ownerId === user.id ? remainingUserIds[0] : dialog.ownerId
+
+      await tx.dialog.update({
+        where: { id: dialog.id },
+        data: {
+          ownerId: nextOwnerId,
+          users: {
+            disconnect: { id: user.id },
+          },
+        },
+      })
+    }
+
+    await tx.message.deleteMany({
+      where: { authorId: user.id },
+    })
+
+    await tx.pushSubscription.deleteMany({
+      where: { userId },
+    })
+
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        updatedAt: new Date(),
+      },
+    })
+  })
+
+  return true
+}
+
+function generateRecoveryCode() {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
 
 export async function registerUser(input: {
   email: string
@@ -115,6 +200,100 @@ export async function loginUser(input: {
 
   if (!passwordMatch) {
     return { ok: false, status: 401, message: "Неверный email или пароль" }
+  }
+
+  return {
+    ok: true,
+    user: {
+      id: user.id,
+      email: user.email,
+    },
+  }
+}
+
+export async function requestRecoveryCode(input: { phone: string }) {
+  const phone = input.phone.trim()
+  const user = await prisma.user.findUnique({
+    where: { phone },
+    select: {
+      id: true,
+      email: true,
+      phone: true,
+    },
+  })
+
+  if (!user) {
+    return { ok: true as const }
+  }
+
+  const code = generateRecoveryCode()
+  const expirationTime = Date.now() + 10 * 60 * 1000
+
+  await prisma.$transaction(async (tx) => {
+    await tx.otp.deleteMany({
+      where: { phone },
+    })
+
+    await tx.otp.create({
+      data: {
+        email: user.email,
+        phone,
+        code: Number(code),
+        expiredAt: expirationTime,
+      },
+    })
+  })
+
+  await sendRecoveryCodeEmail({
+    to: user.email,
+    code,
+  })
+
+  return { ok: true as const }
+}
+
+export async function recoverUserAccount(input: {
+  phone: string
+  code: string
+}): Promise<AuthResult> {
+  const phone = input.phone.trim()
+  const otp = await prisma.otp.findFirst({
+    where: {
+      phone,
+      code: Number(input.code),
+    },
+    select: {
+      id: true,
+      expiredAt: true,
+    },
+  })
+
+  if (!otp || otp.expiredAt < Date.now()) {
+    return { ok: false, status: 401, message: "Неверный или просроченный код" }
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { phone },
+    select: {
+      id: true,
+      email: true,
+    },
+  })
+
+  if (!user) {
+    await prisma.otp.deleteMany({
+      where: { phone },
+    })
+    return { ok: false, status: 404, message: "Аккаунт не найден" }
+  }
+
+  await prisma.otp.deleteMany({
+    where: { phone },
+  })
+
+  const cleared = await clearUserAccountData(user.id)
+  if (!cleared) {
+    return { ok: false, status: 404, message: "Аккаунт не найден" }
   }
 
   return {

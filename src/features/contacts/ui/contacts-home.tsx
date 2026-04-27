@@ -5,12 +5,15 @@ import { useDeferredValue, useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
+import { AccountStatusBadge } from "@/components/ui/account-status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
+import { useI18n } from "@/features/i18n/model/i18n-provider"
+import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
-import { buildEmblem } from "@/features/profile/lib/emblem"
+import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 
 type ProfileUser = {
@@ -18,6 +21,7 @@ type ProfileUser = {
   email: string
   firstName: string
   lastName: string | null
+  role: string
 }
 
 type ContactUser = {
@@ -26,6 +30,7 @@ type ContactUser = {
   firstName: string
   lastName: string | null
   phone: string
+  role: string
 }
 
 type SearchUser = ContactUser & {
@@ -45,6 +50,7 @@ export function ContactsHome({
   blacklist: initialBlacklist,
 }: ContactsHomeProps) {
   const router = useRouter()
+  const { tr } = useI18n()
   const [isPending, startTransition] = useTransition()
   const [query, setQuery] = useState("")
   const deferredQuery = useDeferredValue(query)
@@ -54,6 +60,7 @@ export function ContactsHome({
   const [lastCompletedQuery, setLastCompletedQuery] = useState("")
   const [openContactMenuId, setOpenContactMenuId] = useState<number | null>(null)
   const emblem = buildEmblem(user.firstName, user.lastName)
+  const emblemTone = getEmblemTone(user.firstName, user.lastName)
 
   useEffect(() => {
     const searchValue = deferredQuery.trim()
@@ -69,7 +76,7 @@ export function ContactsHome({
       .then(async (response) => {
         if (!response.ok) {
           const data = await response.json().catch(() => null)
-          throw new Error(data?.message ?? "Не удалось выполнить поиск")
+          throw new Error(tr(data?.message ?? "Не удалось выполнить поиск"))
         }
 
         return response.json()
@@ -81,7 +88,7 @@ export function ContactsHome({
       .catch((error: Error) => {
         if (error.name !== "AbortError") {
           setLastCompletedQuery(searchValue)
-          toast.error(error.message)
+          toast.error(tr(error.message))
         }
       })
 
@@ -101,7 +108,7 @@ export function ContactsHome({
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось добавить контакт")
+        toast.error(tr(data?.message ?? "Не удалось добавить контакт"))
         return
       }
 
@@ -118,7 +125,7 @@ export function ContactsHome({
           item.id === contactUserId ? { ...item, isAlreadyContact: true } : item
         )
       )
-      toast.success("Контакт добавлен")
+      toast.success(tr("Контакт добавлен"))
     })
   }
 
@@ -132,7 +139,7 @@ export function ContactsHome({
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось удалить контакт")
+        toast.error(tr(data?.message ?? "Не удалось удалить контакт"))
         return
       }
 
@@ -143,7 +150,7 @@ export function ContactsHome({
           item.id === contactUserId ? { ...item, isAlreadyContact: false } : item
         )
       )
-      toast.success("Контакт удалён")
+      toast.success(tr("Контакт удалён"))
     })
   }
 
@@ -157,7 +164,7 @@ export function ContactsHome({
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось добавить пользователя в чёрный список")
+        toast.error(tr(data?.message ?? "Не удалось добавить пользователя в чёрный список"))
         return
       }
 
@@ -178,7 +185,7 @@ export function ContactsHome({
             : item
         )
       )
-      toast.success("Пользователь добавлен в чёрный список")
+      toast.success(tr("Пользователь добавлен в чёрный список"))
     })
   }
 
@@ -192,7 +199,7 @@ export function ContactsHome({
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось удалить пользователя из чёрного списка")
+        toast.error(tr(data?.message ?? "Не удалось удалить пользователя из чёрного списка"))
         return
       }
 
@@ -202,7 +209,7 @@ export function ContactsHome({
           item.id === blockedUserId ? { ...item, isBlacklisted: false } : item
         )
       )
-      toast.success("Пользователь удалён из чёрного списка")
+      toast.success(tr("Пользователь удалён из чёрного списка"))
     })
   }
 
@@ -211,17 +218,23 @@ export function ContactsHome({
       <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 px-6 py-6 pb-28">
         <header className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-12 items-center justify-center rounded-full border border-border/80 bg-card text-sm font-semibold shadow-sm">
+            <div
+              className={`flex size-12 items-center justify-center rounded-full border text-sm font-semibold shadow-sm ${emblemTone}`}
+            >
               {emblem}
             </div>
             <div className="min-w-0">
-              <p className="truncate font-medium">
-                {user.firstName} {user.lastName}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate font-medium">
+                  {user.firstName} {user.lastName}
+                </p>
+                <AccountStatusBadge role={user.role} email={user.email} />
+              </div>
               <p className="truncate text-sm text-muted-foreground">{user.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <LanguageToggle />
             <ThemeToggle />
             <LogoutButton />
           </div>
@@ -231,13 +244,13 @@ export function ContactsHome({
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-2xl">Контакты</CardTitle>
+                <CardTitle className="text-2xl">{tr("Контакты")}</CardTitle>
                 <CardDescription>
-                  Поиск пользователей по имени или телефону и добавление в свои контакты.
+                  {tr("Поиск пользователей по имени или телефону и добавление в свои контакты.")}
                 </CardDescription>
               </div>
               <Button variant="outline" onClick={() => router.push("/blacklist")}>
-                Открыть чёрный список
+                {tr("Открыть чёрный список")}
               </Button>
             </div>
           </CardHeader>
@@ -253,17 +266,19 @@ export function ContactsHome({
                   setLastCompletedQuery("")
                 }
               }}
-              placeholder="Введите имя или телефон"
+              placeholder={tr("Введите имя или телефон")}
             />
 
             {query.trim().length > 0 && (
               <div className="min-h-0 space-y-2">
                 {isSearching && (
-                  <p className="text-sm text-muted-foreground">Ищем пользователей...</p>
+                  <p className="text-sm text-muted-foreground">{tr("Ищем пользователей...")}</p>
                 )}
 
                 {!isSearching && searchResults.length === 0 && (
-                  <p className="text-sm text-muted-foreground">По вашему запросу ничего не найдено.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {tr("По вашему запросу ничего не найдено.")}
+                  </p>
                 )}
 
                 {!isSearching && (
@@ -274,9 +289,12 @@ export function ContactsHome({
                         className="flex items-center justify-between rounded-lg border border-border/70 p-3"
                       >
                         <div className="min-w-0">
-                          <p className="truncate font-medium">
-                            {item.firstName} {item.lastName}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate font-medium">
+                              {item.firstName} {item.lastName}
+                            </p>
+                            <AccountStatusBadge role={item.role} email={item.email} />
+                          </div>
                           <p className="truncate text-sm text-muted-foreground">
                             {item.phone} · {item.email}
                           </p>
@@ -287,7 +305,7 @@ export function ContactsHome({
                             disabled={item.isAlreadyContact || isPending}
                             onClick={() => addContact(item.id)}
                           >
-                            {item.isAlreadyContact ? "Добавлен" : "Добавить"}
+                            {item.isAlreadyContact ? tr("Добавлен") : tr("Добавить")}
                           </Button>
                           <Button
                             variant={item.isBlacklisted ? "secondary" : "destructive"}
@@ -298,7 +316,7 @@ export function ContactsHome({
                                 : addToBlacklist(item.id)
                             }
                           >
-                            {item.isBlacklisted ? "Убрать из ЧС" : "В ЧС"}
+                            {item.isBlacklisted ? tr("Убрать из ЧС") : tr("В ЧС")}
                           </Button>
                         </div>
                       </div>
@@ -309,10 +327,10 @@ export function ContactsHome({
             )}
 
             <div className="flex min-h-0 flex-1 flex-col space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">Мои контакты</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">{tr("Мои контакты")}</h3>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                 {contacts.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Контактов пока нет.</p>
+                  <p className="text-sm text-muted-foreground">{tr("Контактов пока нет.")}</p>
                 )}
                 {contacts.map((contact) => (
                   <div
@@ -323,9 +341,12 @@ export function ContactsHome({
                       className="min-w-0 flex-1 text-left"
                       onClick={() => router.push(`/chats?contactId=${contact.id}`)}
                     >
-                      <p className="font-medium">
-                        {contact.firstName} {contact.lastName}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">
+                          {contact.firstName} {contact.lastName}
+                        </p>
+                        <AccountStatusBadge role={contact.role} email={contact.email} />
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {contact.phone} · {contact.email}
                       </p>
@@ -334,7 +355,7 @@ export function ContactsHome({
                       <button
                         type="button"
                         className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                        aria-label="Действия с контактом"
+                        aria-label={tr("Действия с контактом")}
                         onClick={() =>
                           setOpenContactMenuId((prev) =>
                             prev === contact.id ? null : contact.id
@@ -352,7 +373,7 @@ export function ContactsHome({
                             onClick={() => removeContact(contact.id)}
                             disabled={isPending}
                           >
-                            Удалить контакт
+                            {tr("Удалить контакт")}
                           </button>
                           <button
                             type="button"
@@ -365,8 +386,8 @@ export function ContactsHome({
                             disabled={isPending}
                           >
                             {blacklist.some((item) => item.id === contact.id)
-                              ? "Убрать из ЧС"
-                              : "Добавить в ЧС"}
+                              ? tr("Убрать из ЧС")
+                              : tr("Добавить в ЧС")}
                           </button>
                         </div>
                       )}

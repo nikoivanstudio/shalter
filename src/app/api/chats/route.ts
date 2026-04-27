@@ -4,6 +4,7 @@ import { createChatSchema } from "@/features/chats/model/schemas"
 import { findUsersWhoBlockedActor, formatBlacklistUserName } from "@/shared/lib/blacklist"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { canWriteToProtectedUser } from "@/shared/lib/direct-message-access"
 import { isUserOnline } from "@/shared/lib/user-activity"
 
 export async function POST(request: NextRequest) {
@@ -65,6 +66,16 @@ export async function POST(request: NextRequest) {
   const isPrivateChat = participantIds.length === 1
   if (isPrivateChat) {
     const otherUserId = participantIds[0]
+    const writeAccess = await canWriteToProtectedUser(userId, otherUserId)
+    if (!writeAccess.ok && writeAccess.code === "CONTACT_REQUIRED") {
+      return NextResponse.json(
+        {
+          message: "Этому пользователю могут писать только люди из его контактов",
+        },
+        { status: 403 }
+      )
+    }
+
     const existingDialog = await prisma.dialog.findFirst({
       where: {
         users: {
@@ -122,6 +133,7 @@ export async function POST(request: NextRequest) {
             firstName: true,
             lastName: true,
             email: true,
+            role: true,
             lastSeenAt: true,
           },
         },

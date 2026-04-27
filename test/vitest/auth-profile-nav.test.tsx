@@ -61,7 +61,7 @@ describe("auth/profile/navigation components", () => {
 
     await user.click(screen.getByText("Регистрация"))
     await user.type(screen.getByLabelText("Имя"), "Ivan")
-    await user.type(screen.getByLabelText("Фамилия"), "Petrov")
+    await user.type(screen.getByLabelText("Фамилия (необязательно)"), "Petrov")
     await user.type(screen.getByLabelText("Email"), "user@example.com")
     await user.type(screen.getByLabelText("Телефон"), "12345678")
     await user.click(screen.getByRole("button", { name: "Turnstile" }))
@@ -71,6 +71,46 @@ describe("auth/profile/navigation components", () => {
 
     await screen.findByText("Ошибка регистрации")
     expect(screen.getByText("duplicate")).toBeInTheDocument()
+  })
+
+  test("auth card opens recovery confirmation and recovers account", async () => {
+    const user = userEvent.setup()
+    ;(fetch as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ user: { id: 1 } }),
+      })
+
+    render(<AuthCard />)
+    await user.click(screen.getByRole("button", { name: "Забыли пароль?" }))
+    expect(screen.getByText("Сбросить аккаунт?")).toBeInTheDocument()
+    expect(
+      screen.getByText(/контакты, чёрный список и все чаты будут очищены/i)
+    ).toBeInTheDocument()
+    await user.type(screen.getByLabelText("Номер телефона для восстановления"), "12345678")
+    await user.click(screen.getByRole("button", { name: "Отправить код" }))
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      "/api/auth/recover/request-code",
+      expect.objectContaining({ method: "POST" })
+    ))
+    await user.type(screen.getByLabelText("Код подтверждения"), "123456")
+    await user.click(screen.getByRole("button", { name: "Да" }))
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      "/api/auth/recover",
+      expect.objectContaining({ method: "POST" })
+    ))
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Аккаунт восстановлен"))
+    expect(routerMock.replace).toHaveBeenCalledWith("/")
+    expect(routerMock.refresh).toHaveBeenCalled()
   })
 
   test("bottom nav handles external badge and event source badge", async () => {
@@ -123,6 +163,17 @@ describe("auth/profile/navigation components", () => {
         }),
       })
       .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({
+          message: "Текущий пароль введён неверно",
+          fieldErrors: { currentPassword: ["bad-password"] },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true }),
+      })
+      .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ ok: true }),
       })
@@ -135,6 +186,7 @@ describe("auth/profile/navigation components", () => {
           firstName: "Ivan",
           lastName: null,
           phone: "12345678",
+          role: "user",
         }}
       />
     )
@@ -153,6 +205,21 @@ describe("auth/profile/navigation components", () => {
 
     await user.click(screen.getByRole("button", { name: "Сохранить профиль" }))
     await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Профиль сохранён"))
+
+    await user.type(screen.getByLabelText("Текущий пароль"), "password123")
+    await user.type(screen.getByLabelText("Новый пароль"), "newpassword123")
+    await user.type(screen.getByLabelText("Подтверждение нового пароля"), "newpassword123")
+    await user.click(screen.getByRole("button", { name: "Изменить пароль" }))
+    expect(await screen.findByText("bad-password")).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText("Текущий пароль"))
+    await user.type(screen.getByLabelText("Текущий пароль"), "password123")
+    await user.clear(screen.getByLabelText("Новый пароль"))
+    await user.type(screen.getByLabelText("Новый пароль"), "newpassword123")
+    await user.clear(screen.getByLabelText("Подтверждение нового пароля"))
+    await user.type(screen.getByLabelText("Подтверждение нового пароля"), "newpassword123")
+    await user.click(screen.getByRole("button", { name: "Изменить пароль" }))
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Пароль изменён"))
 
     await user.click(screen.getByRole("button", { name: "Удалить аккаунт" }))
     await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Аккаунт удалён"))

@@ -23,6 +23,7 @@ export default async function BlacklistPage() {
           firstName: true,
           lastName: true,
           phone: true,
+          role: true,
         },
       },
     },
@@ -38,6 +39,7 @@ export default async function BlacklistPage() {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
+          role: user.role,
         }}
         blacklist={blacklist.map((item) => item.blockedUser)}
       />

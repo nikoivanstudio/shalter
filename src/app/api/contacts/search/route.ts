@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         lastName: true,
         phone: true,
         email: true,
+        role: true,
       },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
       take: 20,

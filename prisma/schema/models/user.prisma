@@ -19,6 +19,12 @@ model User {
   messages     Message[]
   blockedInDialogs DialogBlockedUser[] @relation("BlockedDialogUser")
   blockedDialogActions DialogBlockedUser[] @relation("DialogBlockedByUser")
+  ownedChannels        Channel[]            @relation("OwnedChannels")
+  channelMemberships   ChannelParticipant[] @relation("ChannelMemberships")
+  channelMessages      ChannelMessage[]     @relation("ChannelMessages")
+  newsPosts            NewsPost[]           @relation("NewsPosts")
+  newsPostLikes        NewsPostLike[]       @relation("NewsPostLikes")
+  newsPostComments     NewsPostComment[]    @relation("NewsPostComments")
 
   @@map("users")
 }

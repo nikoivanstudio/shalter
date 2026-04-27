@@ -1,0 +1,14 @@
+model ChannelMessage {
+  id        Int      @id @default(autoincrement())
+  channelId Int      @map("channel_id")
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  authorId  Int      @map("author_id")
+  author    User     @relation("ChannelMessages", fields: [authorId], references: [id], onDelete: Cascade)
+  content   String   @db.VarChar(1000)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([channelId, id])
+  @@index([authorId])
+  @@map("channel_messages")
+}
