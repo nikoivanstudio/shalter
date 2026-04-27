@@ -32,6 +32,8 @@ type UserShort = {
   lastName: string | null
   email: string
   role: string
+  avatarTone?: string | null
+  isBlocked?: boolean
   lastSeenAt?: string | null
   isOnline?: boolean
 }
@@ -43,6 +45,7 @@ type ContactUser = {
   email: string
   phone: string
   role: string
+  isBlocked?: boolean
 }
 
 type ChatMessage = {
@@ -250,7 +253,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const dialogsRef = useRef(initialDialogs)
   const activeDialogIdRef = useRef<number | null>(initialDialogId ?? null)
   const emblem = buildEmblem(user.firstName, user.lastName)
-  const emblemTone = getEmblemTone(user.firstName, user.lastName)
+  const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
   const unreadDialogsCount = useMemo(
     () => dialogs.filter((dialog) => dialog.unreadCount > 0).length,
     [dialogs]
@@ -288,26 +291,29 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     activeDialogIdRef.current = activeDialogId
   }, [activeDialogId])
 
-  const handleDialogAccessLost = useCallback((dialogId: number, reason: "deleted" | "removed") => {
-    const hadDialog = dialogsRef.current.some((item) => item.id === dialogId)
-    setDialogs((prev) => prev.filter((item) => item.id !== dialogId))
+  const handleDialogAccessLost = useCallback(
+    (dialogId: number, reason: "deleted" | "removed") => {
+      const hadDialog = dialogsRef.current.some((item) => item.id === dialogId)
+      setDialogs((prev) => prev.filter((item) => item.id !== dialogId))
 
-    if (!hadDialog) {
-      return
-    }
+      if (!hadDialog) {
+        return
+      }
 
-    if (activeDialogIdRef.current === dialogId) {
-      setIsDialogView(false)
-      setSelectedDialogId(null)
-      setMessages([])
-      setSseSince(0)
-      setShowParticipants(false)
-      setShowAddParticipants(false)
-      setSelectedParticipantIdsToAdd([])
-    }
+      if (activeDialogIdRef.current === dialogId) {
+        setIsDialogView(false)
+        setSelectedDialogId(null)
+        setMessages([])
+        setSseSince(0)
+        setShowParticipants(false)
+        setShowAddParticipants(false)
+        setSelectedParticipantIdsToAdd([])
+      }
 
       toast.error(tr(reason === "removed" ? "Вас удалили из чата" : "Чат удалён владельцем"))
-  }, [])
+    },
+    [tr]
+  )
 
   useEffect(() => {
     if (!isDialogView || !activeDialogId) {
@@ -900,21 +906,27 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const showDialogPanel = isDialogView
 
   return (
-    <main className="h-dvh overflow-hidden bg-gradient-to-b from-background to-muted/20">
-      <header className="sticky top-0 z-20 shrink-0 border-b border-border/70 bg-background/95 px-6 py-3 backdrop-blur">
+    <main className="h-dvh overflow-hidden px-4 py-5 sm:px-6">
+      <header className="sticky top-0 z-20 shrink-0 rounded-[2rem] border border-white/50 bg-card/88 px-5 py-4 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div
-              className={`flex size-12 items-center justify-center rounded-full border text-sm font-semibold shadow-sm ${emblemTone}`}
+              className={`flex size-14 items-center justify-center rounded-full border border-white/55 text-sm font-semibold shadow-lg shadow-sky-500/10 ${emblemTone}`}
             >
               {emblem}
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="truncate font-medium">{getDialogUserName(user)}</p>
-                <AccountStatusBadge role={user.role} email={user.email} />
+                <p className="truncate text-lg font-semibold">{getDialogUserName(user)}</p>
+                <AccountStatusBadge
+                  role={user.role}
+                  email={user.email}
+                  firstName={user.firstName}
+                  lastName={user.lastName}
+                  isBlocked={user.isBlocked}
+                />
               </div>
-              <p className="truncate text-sm text-muted-foreground">{user.email}</p>
+              <p className="truncate text-sm text-muted-foreground">Личные и групповые диалоги</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -926,13 +938,13 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         </div>
       </header>
 
-      <section className="mx-auto flex h-[calc(100dvh-72px)] w-full max-w-5xl min-h-0 px-4 py-4 pb-20">
-        <Card className="flex min-h-0 w-full flex-col border-border/80 shadow-xl shadow-black/5">
+      <section className="mx-auto flex h-[calc(100dvh-116px)] w-full max-w-5xl min-h-0 py-4 pb-20">
+        <Card className="flex min-h-0 w-full flex-col border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
           {showListPanel && (
-            <CardHeader className="shrink-0 gap-3">
+            <CardHeader className="shrink-0 gap-3 border-b border-border/55 pb-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <CardTitle className="text-2xl">{tr("Чаты")}</CardTitle>
+                  <CardTitle className="text-2xl font-semibold tracking-tight">{tr("Чаты")}</CardTitle>
                   <CardDescription>{tr("Общайтесь с пользователями из ваших контактов.")}</CardDescription>
                 </div>
                 <div className="space-y-1">
@@ -952,9 +964,11 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
             </CardHeader>
           )}
 
-          <CardContent className={`flex min-h-0 flex-1 flex-col ${showDialogPanel ? "p-0" : "space-y-4"}`}>
+          <CardContent
+            className={`flex min-h-0 flex-1 flex-col pt-6 ${showDialogPanel ? "p-0 pt-0" : "space-y-4"}`}
+          >
             {showListPanel && showCreateForm && contacts.length > 0 && (
-              <div className="space-y-3 rounded-xl border border-border/70 p-3">
+              <div className="space-y-3 rounded-[1.6rem] border border-border/70 bg-background/78 p-4 shadow-sm">
                 <p className="text-sm font-medium">Выберите пользователей для нового чата</p>
                 <div className="grid max-h-[28dvh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                   {contacts.map((contact) => (
@@ -985,16 +999,16 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
             )}
 
             {showListPanel && (
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl border border-border/70 p-2">
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background/74 p-2.5 shadow-sm">
                 {orderedDialogs.length === 0 && (
                   <div className="rounded-xl border border-dashed border-border/80 p-6 text-sm text-muted-foreground">
                     {tr("Чаты отсутствуют. Создайте новый чат с пользователем из контактов.")}
                   </div>
                 )}
                 {orderedDialogs.map((dialog) => (
-                  <div key={dialog.id} className="flex items-start gap-2 rounded-lg border border-transparent p-1">
+                  <div key={dialog.id} className="flex items-start gap-2 rounded-[1.2rem] border border-transparent p-1">
                     <button
-                      className="relative w-full rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
+                      className="relative w-full rounded-[1.3rem] border border-border/60 bg-background/88 p-3.5 text-left transition-colors hover:bg-accent/45"
                       onClick={() => openDialog(dialog.id)}
                     >
                       {dialog.unreadCount > 0 && (
@@ -1014,7 +1028,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       <div className="relative mt-2">
                         <button
                           type="button"
-                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground hover:bg-muted"
+                          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
                           aria-label="Действия с чатом"
                           onClick={() =>
                             setOpenDialogMenuId((prev) => (prev === dialog.id ? null : dialog.id))
@@ -1023,7 +1037,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                           <EllipsisVerticalIcon className="size-4" />
                         </button>
                         {openDialogMenuId === dialog.id && (
-                          <div className="absolute right-0 top-9 z-20 min-w-40 rounded-md border border-border bg-popover p-1 shadow-md">
+                          <div className="absolute right-0 top-11 z-20 min-w-40 rounded-2xl border border-border bg-popover/96 p-1.5 shadow-xl backdrop-blur-xl">
                             {canLeaveDialog(dialog, user.id) && (
                               <button
                                 type="button"
@@ -1052,8 +1066,8 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
             )}
 
             {showDialogPanel && (
-              <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/70">
-                <div className="flex items-center justify-between gap-3 border-b border-border/70 px-3 py-2">
+              <div className="flex min-h-0 flex-1 flex-col rounded-[1.75rem] border border-border/70 bg-background/68">
+                <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-background/72 px-4 py-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">
                       {selectedDialog
@@ -1095,7 +1109,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         <div className="relative">
                           <button
                             type="button"
-                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground hover:bg-muted"
+                            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
                             aria-label="Действия с чатом"
                             onClick={() =>
                               setOpenDialogMenuId((prev) =>
@@ -1106,7 +1120,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                             <EllipsisVerticalIcon className="size-4" />
                           </button>
                           {openDialogMenuId === selectedDialog.id && (
-                            <div className="absolute right-0 top-9 z-20 min-w-52 rounded-md border border-border bg-popover p-1 shadow-md">
+                            <div className="absolute right-0 top-11 z-20 min-w-52 rounded-2xl border border-border bg-popover/96 p-1.5 shadow-xl backdrop-blur-xl">
                               {canManageDialogParticipants(selectedDialog, user.id) && (
                                 <button
                                   type="button"
@@ -1151,7 +1165,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   </div>
                 </div>
                 {selectedDialog && showParticipants && (
-                  <div className="max-h-[45dvh] shrink-0 overflow-y-auto border-b border-border/70 bg-muted/20 px-3 py-3">
+                  <div className="max-h-[45dvh] shrink-0 overflow-y-auto border-b border-border/70 bg-muted/28 px-4 py-3">
                     <div className="space-y-2">
                       {canManageDialogParticipants(selectedDialog, user.id) && (
                         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-2">
@@ -1176,7 +1190,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         </div>
                       )}
                       {canManageDialogParticipants(selectedDialog, user.id) && showAddParticipants && (
-                        <div className="space-y-3 rounded-lg border border-border/70 bg-background px-3 py-3">
+                        <div className="space-y-3 rounded-[1.35rem] border border-border/70 bg-background/86 px-3 py-3">
                           <div>
                             <p className="text-sm font-medium">Добавить участников</p>
                             <p className="text-xs text-muted-foreground">
@@ -1193,7 +1207,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                 {selectedDialogAvailableContacts.map((contact) => (
                                   <label
                                     key={contact.id}
-                                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/70 p-2 text-sm"
+                                    className="flex cursor-pointer items-center gap-2 rounded-[1.1rem] border border-border/70 bg-background/80 p-2 text-sm"
                                   >
                                     <input
                                       type="checkbox"
@@ -1202,7 +1216,13 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   />
                                     <span className="flex min-w-0 flex-wrap items-center gap-2">
                                       <span className="truncate">{getDialogUserName(contact)}</span>
-                                      <AccountStatusBadge role={contact.role} email={contact.email} />
+                                      <AccountStatusBadge
+                                        role={contact.role}
+                                        email={contact.email}
+                                        firstName={contact.firstName}
+                                        lastName={contact.lastName}
+                                        isBlocked={contact.isBlocked}
+                                      />
                                     </span>
                                   </label>
                                 ))}
@@ -1243,7 +1263,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                           return (
                             <div
                               key={participant.id}
-                              className="rounded-lg border border-border/70 bg-background px-3 py-2"
+                              className="rounded-[1.2rem] border border-border/70 bg-background/86 px-3 py-2.5"
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -1256,6 +1276,9 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                     <AccountStatusBadge
                                       role={participant.role}
                                       email={participant.email}
+                                      firstName={participant.firstName}
+                                      lastName={participant.lastName}
+                                      isBlocked={participant.isBlocked}
                                     />
                                   </div>
                                   <p className="truncate text-xs text-muted-foreground">
@@ -1286,7 +1309,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   </div>
                 )}
 
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 pb-24">
+                <div className="chat-wall min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 pb-24">
                   {!activeDialogId && (
                     <p className="text-sm text-muted-foreground">Сначала выберите или создайте чат.</p>
                   )}
@@ -1304,13 +1327,13 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       const mine = message.author.id === user.id
                       const isEditingMessage = editingMessageId === message.id
                       return (
-                        <div key={message.id} className={`flex ${mine ? "justify-start" : "justify-end"}`}>
+                        <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                           <div className="flex items-start gap-2">
                             <div
-                              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                              className={`max-w-[85%] rounded-[1.35rem] px-3.5 py-2.5 text-sm shadow-sm ${
                                 mine
-                                  ? "bg-primary/15 text-foreground"
-                                  : "bg-secondary text-secondary-foreground"
+                                  ? "rounded-br-md bg-primary text-primary-foreground"
+                                  : "rounded-bl-md border border-white/45 bg-background/96 text-foreground dark:border-white/8"
                               }`}
                             >
                               {isEditingMessage ? (
@@ -1338,9 +1361,10 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                 </div>
                               ) : (
                                 <>
-                                  <p>{message.content}</p>
-                                  <p className="mt-1 text-[11px] opacity-70">
-                                    {getDialogUserName(message.author)} · {formatTime(message.createdAt)}
+                                  <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                                  <p className="mt-1 text-[11px] opacity-75">
+                                    {!mine && `${getDialogUserName(message.author)} · `}
+                                    {formatTime(message.createdAt)}
                                     {mine && (
                                       <span className="ml-2 inline-flex align-middle">
                                         <MessageStatusIcon status={message.status} />
@@ -1353,7 +1377,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                             {mine && !isEditingMessage && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger
-                                  className="inline-flex size-7 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground hover:bg-muted"
+                                  className="inline-flex size-8 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
                                   aria-label="Действия с сообщением"
                                 >
                                   <EllipsisVerticalIcon className="size-4" />
@@ -1379,8 +1403,8 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background p-3">
-                  <div className="flex items-center gap-2">
+                <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-3 backdrop-blur-xl">
+                  <div className="flex items-center gap-2 rounded-[1.75rem] border border-white/45 bg-card/92 p-2 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
                     <Input
                       value={messageText}
                       onChange={(event) => setMessageText(event.target.value)}

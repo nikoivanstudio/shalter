@@ -33,6 +33,7 @@ export default async function ChannelsPage({
           email: true,
           phone: true,
           role: true,
+          isBlocked: true,
         },
       },
     },
@@ -62,6 +63,7 @@ export default async function ChannelsPage({
               lastName: true,
               email: true,
               role: true,
+              isBlocked: true,
             },
           },
         },
@@ -99,6 +101,7 @@ export default async function ChannelsPage({
           lastName: user.lastName,
           email: user.email,
           role: user.role,
+          avatarTone: user.avatarTone,
         }}
         contacts={contacts.map((item) => item.contactUser)}
         initialChannelId={initialChannelId}

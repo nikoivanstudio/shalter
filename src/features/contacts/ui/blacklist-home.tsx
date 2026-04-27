@@ -22,6 +22,7 @@ type ProfileUser = {
   firstName: string
   lastName: string | null
   role: string
+  avatarTone: string | null
 }
 
 type ContactUser = {
@@ -31,6 +32,7 @@ type ContactUser = {
   lastName: string | null
   phone: string
   role: string
+  isBlocked: boolean
 }
 
 type SearchUser = ContactUser & {
@@ -57,7 +59,7 @@ export function BlacklistHome({
   const [blacklist, setBlacklist] = useState<ContactUser[]>(initialBlacklist)
   const [lastCompletedQuery, setLastCompletedQuery] = useState("")
   const emblem = buildEmblem(user.firstName, user.lastName)
-  const emblemTone = getEmblemTone(user.firstName, user.lastName)
+  const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
 
   useEffect(() => {
     const searchValue = deferredQuery.trim()
@@ -90,7 +92,7 @@ export function BlacklistHome({
       })
 
     return () => controller.abort()
-  }, [deferredQuery])
+  }, [deferredQuery, tr])
 
   const isSearching =
     deferredQuery.trim().length > 0 && lastCompletedQuery !== deferredQuery.trim()
@@ -169,7 +171,12 @@ export function BlacklistHome({
                 <p className="truncate font-medium">
                   {user.firstName} {user.lastName}
                 </p>
-                <AccountStatusBadge role={user.role} email={user.email} />
+                <AccountStatusBadge
+                  role={user.role}
+                  email={user.email}
+                  firstName={user.firstName}
+                  lastName={user.lastName}
+                />
               </div>
               <p className="truncate text-sm text-muted-foreground">{user.email}</p>
             </div>
@@ -256,7 +263,13 @@ export function BlacklistHome({
                                 <p className="truncate font-medium">
                                   {item.firstName} {item.lastName}
                                 </p>
-                                <AccountStatusBadge role={item.role} email={item.email} />
+                                <AccountStatusBadge
+                                  role={item.role}
+                                  email={item.email}
+                                  firstName={item.firstName}
+                                  lastName={item.lastName}
+                                  isBlocked={item.isBlocked}
+                                />
                               </div>
                               <p className="truncate text-sm text-muted-foreground">
                                 {item.phone} · {item.email}
@@ -300,7 +313,13 @@ export function BlacklistHome({
                         <p className="font-medium">
                           {blockedUser.firstName} {blockedUser.lastName}
                         </p>
-                        <AccountStatusBadge role={blockedUser.role} email={blockedUser.email} />
+                        <AccountStatusBadge
+                          role={blockedUser.role}
+                          email={blockedUser.email}
+                          firstName={blockedUser.firstName}
+                          lastName={blockedUser.lastName}
+                          isBlocked={blockedUser.isBlocked}
+                        />
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {blockedUser.phone} · {blockedUser.email}

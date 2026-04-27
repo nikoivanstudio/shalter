@@ -24,6 +24,7 @@ export default async function BlacklistPage() {
           lastName: true,
           phone: true,
           role: true,
+          isBlocked: true,
         },
       },
     },
@@ -40,6 +41,7 @@ export default async function BlacklistPage() {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          avatarTone: user.avatarTone,
         }}
         blacklist={blacklist.map((item) => item.blockedUser)}
       />

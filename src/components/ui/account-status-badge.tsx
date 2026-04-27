@@ -8,12 +8,18 @@ import {
 type AccountStatusBadgeProps = {
   role?: string | null
   email?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  isBlocked?: boolean | null
   className?: string
 }
 
 export function AccountStatusBadge({
   role,
   email,
+  firstName,
+  lastName,
+  isBlocked,
   className,
 }: AccountStatusBadgeProps) {
   const { tr } = useI18n()
@@ -22,11 +28,11 @@ export function AccountStatusBadge({
     <span
       className={cn(
         "inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none",
-        getAccountStatusTone({ role, email }),
+        getAccountStatusTone({ role, email, firstName, lastName, isBlocked }),
         className
       )}
     >
-      {tr(getAccountStatusLabel({ role, email }))}
+      {tr(getAccountStatusLabel({ role, email, firstName, lastName, isBlocked }))}
     </span>
   )
 }

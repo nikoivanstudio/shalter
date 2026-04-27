@@ -51,6 +51,7 @@ export async function PATCH(request: NextRequest) {
         firstName: data.firstName,
         lastName: data.lastName || null,
         phone: data.phone,
+        avatarTone: data.avatarTone,
         updatedAt: new Date(),
       },
       select: {
@@ -59,6 +60,7 @@ export async function PATCH(request: NextRequest) {
         firstName: true,
         lastName: true,
         phone: true,
+        avatarTone: true,
       },
     })
 

@@ -39,6 +39,7 @@ export default async function ChatsPage({
           email: true,
           phone: true,
           role: true,
+          isBlocked: true,
         },
       },
     },
@@ -160,6 +161,7 @@ export default async function ChatsPage({
           lastName: true,
           email: true,
           role: true,
+          isBlocked: true,
           lastSeenAt: true,
         },
       },
@@ -209,6 +211,7 @@ export default async function ChatsPage({
           lastName: user.lastName,
           email: user.email,
           role: user.role,
+          avatarTone: user.avatarTone,
         }}
         initialDialogId={initialDialogId}
         contacts={contacts.map((item) => item.contactUser)}

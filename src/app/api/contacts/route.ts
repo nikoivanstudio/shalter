@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
         phone: true,
         email: true,
         role: true,
+        isBlocked: true,
       },
     })
 

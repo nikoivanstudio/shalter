@@ -2,7 +2,29 @@ import bcrypt from "bcryptjs"
 import { Prisma } from "@prisma/client"
 
 import { prisma } from "@/shared/lib/db/prisma"
+import { env } from "@/shared/config/env"
 import { sendRecoveryCodeEmail } from "@/shared/lib/mail"
+import { ADMIN_ROLE, USER_ROLE } from "@/shared/lib/auth/roles"
+
+async function resolveInitialRole(email: string) {
+  const elevatedUsersCount = await prisma.user.count({
+    where: {
+      role: {
+        in: [ADMIN_ROLE],
+      },
+    },
+  })
+
+  if (elevatedUsersCount > 0) {
+    return USER_ROLE
+  }
+
+  if (env.BOOTSTRAP_ADMIN_EMAIL) {
+    return email === env.BOOTSTRAP_ADMIN_EMAIL ? ADMIN_ROLE : USER_ROLE
+  }
+
+  return ADMIN_ROLE
+}
 
 type AuthResult =
   | { ok: true; user: { id: number; email: string } }
@@ -135,6 +157,7 @@ export async function registerUser(input: {
   }
 
   const passwordHash = await bcrypt.hash(input.password, 12)
+  const role = await resolveInitialRole(email)
 
   try {
     const user = await prisma.user.create({
@@ -144,7 +167,7 @@ export async function registerUser(input: {
         firstName: input.firstName,
         lastName: input.lastName || null,
         phone: input.phone,
-        role: "user",
+        role,
         updatedAt: new Date(),
       },
       select: {
@@ -189,11 +212,16 @@ export async function loginUser(input: {
       id: true,
       email: true,
       passwordHash: true,
+      isBlocked: true,
     },
   })
 
   if (!user) {
     return { ok: false, status: 401, message: "Неверный email или пароль" }
+  }
+
+  if (user.isBlocked) {
+    return { ok: false, status: 403, message: "Аккаунт заблокирован" }
   }
 
   const passwordMatch = await bcrypt.compare(input.password, user.passwordHash)

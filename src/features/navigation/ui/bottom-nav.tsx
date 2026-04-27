@@ -44,11 +44,11 @@ export function BottomNav({
   }, [useExternalBadge])
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border/70 bg-background/95 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-5xl items-center justify-around px-4 py-3">
+    <nav className="fixed inset-x-0 bottom-0 z-30 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-3 sm:pb-3">
+      <div className="mx-auto flex w-full max-w-sm items-center justify-around rounded-[1.7rem] border border-white/50 bg-card/92 px-1.5 py-1.5 shadow-[0_18px_42px_-22px_rgba(15,23,42,0.58)] backdrop-blur-2xl dark:border-white/8 sm:max-w-md sm:rounded-[2rem] sm:px-2 sm:py-2">
         <Button
           variant={active === "settings" ? "default" : "ghost"}
-          className="h-auto flex-col gap-1 px-4 py-2"
+          className="h-auto min-w-13 flex-1 flex-col gap-0.5 rounded-[1.25rem] px-1.5 py-2 text-[11px] sm:min-w-15 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
           onClick={() => router.push("/")}
         >
           <SettingsIcon className="size-4" />
@@ -56,7 +56,7 @@ export function BottomNav({
         </Button>
         <Button
           variant={active === "contacts" ? "default" : "ghost"}
-          className="h-auto flex-col gap-1 px-4 py-2"
+          className="h-auto min-w-13 flex-1 flex-col gap-0.5 rounded-[1.25rem] px-1.5 py-2 text-[11px] sm:min-w-15 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
           onClick={() => router.push("/contacts")}
         >
           <UsersIcon className="size-4" />
@@ -64,7 +64,7 @@ export function BottomNav({
         </Button>
         <Button
           variant={active === "chats" ? "default" : "ghost"}
-          className="relative h-auto flex-col gap-1 px-4 py-2"
+          className="relative h-auto min-w-13 flex-1 flex-col gap-0.5 rounded-[1.25rem] px-1.5 py-2 text-[11px] sm:min-w-15 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
           onClick={() => {
             onChatsClick?.()
             router.push("/chats")
@@ -80,7 +80,7 @@ export function BottomNav({
         </Button>
         <Button
           variant={active === "feed" ? "default" : "ghost"}
-          className="h-auto flex-col gap-1 px-4 py-2"
+          className="h-auto min-w-13 flex-1 flex-col gap-0.5 rounded-[1.25rem] px-1.5 py-2 text-[11px] sm:min-w-15 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
           onClick={() => router.push("/feed")}
         >
           <NewspaperIcon className="size-4" />
@@ -88,7 +88,7 @@ export function BottomNav({
         </Button>
         <Button
           variant={active === "channels" ? "default" : "ghost"}
-          className="h-auto flex-col gap-1 px-4 py-2"
+          className="h-auto min-w-13 flex-1 flex-col gap-0.5 rounded-[1.25rem] px-1.5 py-2 text-[11px] sm:min-w-15 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
           onClick={() => router.push("/channels")}
         >
           <HashIcon className="size-4" />

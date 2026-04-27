@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
           lastName: true,
           email: true,
           role: true,
+          isBlocked: true,
         },
       },
     },

@@ -15,6 +15,13 @@ import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import {
+  canAssignManagedRole,
+  DEVELOPER_ROLE,
+  PREMIUM_ROLE,
+  USER_ROLE,
+  type ManagedUserRole,
+} from "@/shared/lib/auth/roles"
 
 type ProfileUser = {
   id: number
@@ -22,6 +29,7 @@ type ProfileUser = {
   firstName: string
   lastName: string | null
   role: string
+  avatarTone: string | null
 }
 
 type ContactUser = {
@@ -31,12 +39,22 @@ type ContactUser = {
   lastName: string | null
   phone: string
   role: string
+  isBlocked: boolean
 }
 
 type SearchUser = ContactUser & {
   isAlreadyContact: boolean
   isBlacklisted: boolean
 }
+
+const managedRoleButtons: Array<{
+  role: ManagedUserRole
+  labelKey: string
+}> = [
+  { role: USER_ROLE, labelKey: "Сделать обычным" },
+  { role: PREMIUM_ROLE, labelKey: "Выдать Premium" },
+  { role: DEVELOPER_ROLE, labelKey: "Выдать статус разработчика" },
+]
 
 export type ContactsHomeProps = {
   user: ProfileUser
@@ -59,8 +77,10 @@ export function ContactsHome({
   const [blacklist, setBlacklist] = useState<ContactUser[]>(initialBlacklist)
   const [lastCompletedQuery, setLastCompletedQuery] = useState("")
   const [openContactMenuId, setOpenContactMenuId] = useState<number | null>(null)
+  const [roleUpdateUserId, setRoleUpdateUserId] = useState<number | null>(null)
   const emblem = buildEmblem(user.firstName, user.lastName)
-  const emblemTone = getEmblemTone(user.firstName, user.lastName)
+  const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
+  const canManageRoles = canAssignManagedRole(user.role)
 
   useEffect(() => {
     const searchValue = deferredQuery.trim()
@@ -93,7 +113,7 @@ export function ContactsHome({
       })
 
     return () => controller.abort()
-  }, [deferredQuery])
+  }, [deferredQuery, tr])
 
   const isSearching =
     deferredQuery.trim().length > 0 && lastCompletedQuery !== deferredQuery.trim()
@@ -213,48 +233,141 @@ export function ContactsHome({
     })
   }
 
+  function applyRoleUpdate(nextUser: ContactUser) {
+    setContacts((prev) =>
+      prev.map((item) =>
+        item.id === nextUser.id ? { ...item, role: nextUser.role, isBlocked: nextUser.isBlocked } : item
+      )
+    )
+    setBlacklist((prev) =>
+      prev.map((item) =>
+        item.id === nextUser.id ? { ...item, role: nextUser.role, isBlocked: nextUser.isBlocked } : item
+      )
+    )
+    setSearchResults((prev) =>
+      prev.map((item) =>
+        item.id === nextUser.id ? { ...item, role: nextUser.role, isBlocked: nextUser.isBlocked } : item
+      )
+    )
+  }
+
+  function updateUserBlockedState(targetUserId: number, isBlocked: boolean) {
+    if (!canManageRoles) {
+      return
+    }
+
+    setRoleUpdateUserId(targetUserId)
+    startTransition(async () => {
+      const response = await fetch(`/api/admin/users/${targetUserId}/block`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isBlocked }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(tr(data?.message ?? "Не удалось обновить блокировку"))
+        setRoleUpdateUserId(null)
+        return
+      }
+
+      applyRoleUpdate(data.user as ContactUser)
+      setOpenContactMenuId(null)
+      setRoleUpdateUserId(null)
+      toast.success(tr("Статус блокировки обновлён"))
+    })
+  }
+
+  function updateUserRole(targetUserId: number, role: ManagedUserRole) {
+    if (!canManageRoles) {
+      return
+    }
+
+    if (targetUserId === user.id) {
+      toast.error(tr("Нельзя изменить собственную роль"))
+      return
+    }
+
+    setRoleUpdateUserId(targetUserId)
+    startTransition(async () => {
+      const response = await fetch(`/api/admin/users/${targetUserId}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(tr(data?.message ?? "Не удалось обновить роль"))
+        setRoleUpdateUserId(null)
+        return
+      }
+
+      applyRoleUpdate(data.user as ContactUser)
+      setOpenContactMenuId(null)
+      setRoleUpdateUserId(null)
+      toast.success(tr("Роль обновлена"))
+    })
+  }
+
   return (
-    <main className="h-dvh overflow-hidden bg-gradient-to-b from-background to-muted/20">
-      <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 px-6 py-6 pb-28">
-        <header className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex size-12 items-center justify-center rounded-full border text-sm font-semibold shadow-sm ${emblemTone}`}
-            >
-              {emblem}
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="truncate font-medium">
-                  {user.firstName} {user.lastName}
-                </p>
-                <AccountStatusBadge role={user.role} email={user.email} />
+    <main className="h-dvh overflow-hidden px-4 py-5 sm:px-6">
+      <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-5 pb-28">
+        <header className="rounded-[2rem] border border-white/50 bg-card/88 px-5 py-4 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex size-14 items-center justify-center rounded-full border border-white/55 text-sm font-semibold shadow-lg shadow-sky-500/10 ${emblemTone}`}
+              >
+                {emblem}
               </div>
-              <p className="truncate text-sm text-muted-foreground">{user.email}</p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-lg font-semibold">
+                    {user.firstName} {user.lastName}
+                  </p>
+                  <AccountStatusBadge
+                    role={user.role}
+                    email={user.email}
+                    firstName={user.firstName}
+                    lastName={user.lastName}
+                  />
+                </div>
+                <p className="truncate text-sm text-muted-foreground">
+                  {tr("Люди, с которыми вы можете начать диалог")}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <LanguageToggle />
-            <ThemeToggle />
-            <LogoutButton />
+            <div className="flex items-center gap-2">
+              <LanguageToggle />
+              <ThemeToggle />
+              <LogoutButton />
+            </div>
           </div>
         </header>
 
-        <Card className="flex min-h-0 flex-1 flex-col border-border/80 shadow-xl shadow-black/5">
-          <CardHeader>
+        <Card className="flex min-h-0 flex-1 flex-col border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
+          <CardHeader className="border-b border-border/55 pb-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-2xl">{tr("Контакты")}</CardTitle>
+                <CardTitle className="text-2xl font-semibold tracking-tight">{tr("Контакты")}</CardTitle>
                 <CardDescription>
                   {tr("Поиск пользователей по имени или телефону и добавление в свои контакты.")}
                 </CardDescription>
+                {canManageRoles && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {tr(
+                      "Администратор может назначать базовый, премиум и developer-статус пользователям."
+                    )}
+                  </p>
+                )}
               </div>
               <Button variant="outline" onClick={() => router.push("/blacklist")}>
                 {tr("Открыть чёрный список")}
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
+          <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden pt-6">
             <Input
               value={query}
               onChange={(e) => {
@@ -286,20 +399,26 @@ export function ContactsHome({
                     {searchResults.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between rounded-lg border border-border/70 p-3"
+                        className="flex flex-col gap-3 rounded-[1.35rem] border border-border/70 bg-background/72 p-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="truncate font-medium">
                               {item.firstName} {item.lastName}
                             </p>
-                            <AccountStatusBadge role={item.role} email={item.email} />
+                            <AccountStatusBadge
+                              role={item.role}
+                              email={item.email}
+                              firstName={item.firstName}
+                              lastName={item.lastName}
+                              isBlocked={item.isBlocked}
+                            />
                           </div>
                           <p className="truncate text-sm text-muted-foreground">
                             {item.phone} · {item.email}
                           </p>
                         </div>
-                        <div className="flex shrink-0 gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             variant={item.isAlreadyContact ? "secondary" : "default"}
                             disabled={item.isAlreadyContact || isPending}
@@ -319,6 +438,42 @@ export function ContactsHome({
                             {item.isBlacklisted ? tr("Убрать из ЧС") : tr("В ЧС")}
                           </Button>
                         </div>
+                        {canManageRoles && item.id !== user.id && (
+                          <div className="w-full rounded-[1.1rem] border border-border/70 bg-card/70 p-2.5">
+                            <p className="mb-2 text-xs font-medium text-muted-foreground">
+                              {tr("Управление ролями")}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {managedRoleButtons.map((roleOption) => (
+                                <Button
+                                  key={roleOption.role}
+                                  size="sm"
+                                  variant={item.role === roleOption.role ? "secondary" : "outline"}
+                                  disabled={isPending || roleUpdateUserId === item.id}
+                                  onClick={() => updateUserRole(item.id, roleOption.role)}
+                                >
+                                  {roleUpdateUserId === item.id
+                                    ? tr("Обновляем...")
+                                    : tr(roleOption.labelKey)}
+                                </Button>
+                              ))}
+                              <Button
+                                size="sm"
+                                variant={item.isBlocked ? "secondary" : "destructive"}
+                                disabled={isPending || roleUpdateUserId === item.id}
+                                onClick={() => updateUserBlockedState(item.id, !item.isBlocked)}
+                              >
+                                {roleUpdateUserId === item.id
+                                  ? tr("Обновляем...")
+                                  : tr(
+                                      item.isBlocked
+                                        ? "Разблокировать аккаунт"
+                                        : "Заблокировать аккаунт"
+                                    )}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -335,7 +490,7 @@ export function ContactsHome({
                 {contacts.map((contact) => (
                   <div
                     key={contact.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border/70 p-3 transition-colors hover:bg-muted/40"
+                    className="flex items-center justify-between gap-3 rounded-[1.35rem] border border-border/70 bg-background/72 p-3.5 transition-colors hover:bg-accent/50"
                   >
                     <button
                       className="min-w-0 flex-1 text-left"
@@ -345,7 +500,13 @@ export function ContactsHome({
                         <p className="font-medium">
                           {contact.firstName} {contact.lastName}
                         </p>
-                        <AccountStatusBadge role={contact.role} email={contact.email} />
+                        <AccountStatusBadge
+                          role={contact.role}
+                          email={contact.email}
+                          firstName={contact.firstName}
+                          lastName={contact.lastName}
+                          isBlocked={contact.isBlocked}
+                        />
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {contact.phone} · {contact.email}
@@ -354,7 +515,7 @@ export function ContactsHome({
                     <div className="relative">
                       <button
                         type="button"
-                        className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
                         aria-label={tr("Действия с контактом")}
                         onClick={() =>
                           setOpenContactMenuId((prev) =>
@@ -366,7 +527,7 @@ export function ContactsHome({
                         <EllipsisVerticalIcon className="size-4" />
                       </button>
                       {openContactMenuId === contact.id && (
-                        <div className="absolute right-0 top-9 z-20 min-w-44 rounded-md border border-border bg-popover p-1 shadow-md">
+                        <div className="absolute right-0 top-11 z-20 min-w-44 rounded-2xl border border-border bg-popover/96 p-1.5 shadow-xl backdrop-blur-xl">
                           <button
                             type="button"
                             className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
@@ -389,6 +550,43 @@ export function ContactsHome({
                               ? tr("Убрать из ЧС")
                               : tr("Добавить в ЧС")}
                           </button>
+                          {canManageRoles && contact.id !== user.id && (
+                            <>
+                              <div className="my-1 h-px bg-border/70" />
+                              <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                                {tr("Роли пользователей")}
+                              </p>
+                              {managedRoleButtons.map((roleOption) => (
+                                <button
+                                  key={roleOption.role}
+                                  type="button"
+                                  className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                                  onClick={() => updateUserRole(contact.id, roleOption.role)}
+                                  disabled={isPending || roleUpdateUserId === contact.id}
+                                >
+                                  {roleUpdateUserId === contact.id
+                                    ? tr("Обновляем...")
+                                    : tr(roleOption.labelKey)}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                onClick={() =>
+                                  updateUserBlockedState(contact.id, !contact.isBlocked)
+                                }
+                                disabled={isPending || roleUpdateUserId === contact.id}
+                              >
+                                {roleUpdateUserId === contact.id
+                                  ? tr("Обновляем...")
+                                  : tr(
+                                      contact.isBlocked
+                                        ? "Разблокировать аккаунт"
+                                        : "Заблокировать аккаунт"
+                                    )}
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

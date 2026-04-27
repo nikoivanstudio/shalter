@@ -1,13 +1,20 @@
 "use client"
 
-import { HeartIcon, MessageSquareIcon, SendIcon } from "lucide-react"
+import { EllipsisVerticalIcon, HeartIcon, MessageSquareIcon, SendIcon } from "lucide-react"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { AccountStatusBadge } from "@/components/ui/account-status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { useI18n } from "@/features/i18n/model/i18n-provider"
 import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { PushToggle } from "@/features/notifications/ui/push-toggle"
@@ -21,6 +28,8 @@ type FeedUser = {
   lastName: string | null
   email: string
   role: string
+  avatarTone: string | null
+  isBlocked?: boolean
 }
 
 type FeedComment = {
@@ -47,6 +56,7 @@ export function FeedHome({
   user: FeedUser
   posts: FeedPost[]
 }) {
+  const { tr } = useI18n()
   const [posts, setPosts] = useState(initialPosts)
   const [postText, setPostText] = useState("")
   const [commentTextByPostId, setCommentTextByPostId] = useState<Record<number, string>>({})
@@ -54,8 +64,9 @@ export function FeedHome({
   const [isPosting, startPosting] = useTransition()
   const [isLiking, startLiking] = useTransition()
   const [isCommenting, startCommenting] = useTransition()
+  const [isDeletingPost, startDeletingPost] = useTransition()
   const emblem = buildEmblem(user.firstName, user.lastName)
-  const emblemTone = getEmblemTone(user.firstName, user.lastName)
+  const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
 
   function createPost() {
     startPosting(async () => {
@@ -130,43 +141,66 @@ export function FeedHome({
     })
   }
 
+  function removePost(postId: number) {
+    startDeletingPost(async () => {
+      const response = await fetch(`/api/feed/${postId}`, {
+        method: "DELETE",
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(tr(data?.message ?? "Не удалось удалить публикацию"))
+        return
+      }
+
+      setPosts((prev) => prev.filter((post) => post.id !== postId))
+      toast.success(tr("Публикация удалена"))
+    })
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-6 pb-28">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-        <header className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex size-12 items-center justify-center rounded-full border text-sm font-semibold shadow-sm ${emblemTone}`}
-            >
-              {emblem}
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="truncate font-medium">
-                  {user.firstName} {user.lastName ?? ""}
-                </p>
-                <AccountStatusBadge role={user.role} email={user.email} />
+    <main className="min-h-screen px-4 py-5 pb-28 sm:px-6">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+        <header className="rounded-[2rem] border border-white/50 bg-card/88 px-5 py-4 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex size-14 items-center justify-center rounded-full border border-white/55 text-sm font-semibold shadow-lg shadow-sky-500/10 ${emblemTone}`}
+              >
+                {emblem}
               </div>
-              <p className="truncate text-sm text-muted-foreground">{user.email}</p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate text-lg font-semibold">
+                    {user.firstName} {user.lastName ?? ""}
+                  </p>
+                  <AccountStatusBadge
+                    role={user.role}
+                    email={user.email}
+                    firstName={user.firstName}
+                    lastName={user.lastName}
+                  />
+                </div>
+                <p className="truncate text-sm text-muted-foreground">Новости и обновления от сообщества</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <PushToggle />
-            <LanguageToggle />
-            <ThemeToggle />
-            <LogoutButton />
+            <div className="flex items-center gap-2">
+              <PushToggle />
+              <LanguageToggle />
+              <ThemeToggle />
+              <LogoutButton />
+            </div>
           </div>
         </header>
 
-        <Card className="border-border/80 shadow-xl shadow-black/5">
-          <CardHeader>
-            <CardTitle className="text-2xl">Лента новостей</CardTitle>
+        <Card className="border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
+          <CardHeader className="border-b border-border/55 pb-5">
+            <CardTitle className="text-2xl font-semibold tracking-tight">Лента новостей</CardTitle>
             <CardDescription>
               Публикуйте текстовые заметки, ставьте лайки и обсуждайте новости в комментариях.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3 rounded-xl border border-border/70 p-4">
+          <CardContent className="space-y-5 pt-6">
+            <div className="space-y-3 rounded-[1.6rem] border border-border/70 bg-background/78 p-4 shadow-sm">
               <Input
                 value={postText}
                 onChange={(event) => setPostText(event.target.value)}
@@ -185,19 +219,47 @@ export function FeedHome({
                 const isExpanded = Boolean(expandedPostIds[post.id])
 
                 return (
-                  <div key={post.id} className="rounded-xl border border-border/70 p-4">
+                  <div
+                    key={post.id}
+                    className="rounded-[1.6rem] border border-border/70 bg-background/78 p-4 shadow-sm"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium">
                             {post.author.firstName} {post.author.lastName ?? ""}
                           </p>
-                          <AccountStatusBadge role={post.author.role} email={post.author.email} />
+                          <AccountStatusBadge
+                            role={post.author.role}
+                            email={post.author.email}
+                            firstName={post.author.firstName}
+                            lastName={post.author.lastName}
+                            isBlocked={post.author.isBlocked}
+                          />
                         </div>
                         <p className="text-xs text-muted-foreground">
                           {new Date(post.createdAt).toLocaleString("ru-RU")}
                         </p>
                       </div>
+                      {post.author.id === user.id && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            className="inline-flex size-8 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
+                            aria-label={tr("Удалить публикацию")}
+                          >
+                            <EllipsisVerticalIcon className="size-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem
+                              variant="destructive"
+                              disabled={isDeletingPost}
+                              onClick={() => removePost(post.id)}
+                            >
+                              {tr("Удалить публикацию")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
 
                     <p className="mt-3 whitespace-pre-wrap text-sm">{post.content}</p>
@@ -231,7 +293,7 @@ export function FeedHome({
                             <p className="text-sm text-muted-foreground">Комментариев пока нет.</p>
                           )}
                           {post.comments.map((comment) => (
-                            <div key={comment.id} className="rounded-lg bg-muted/40 p-3">
+                            <div key={comment.id} className="rounded-[1.15rem] bg-muted/55 p-3">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-sm font-medium">
                                   {comment.author.firstName} {comment.author.lastName ?? ""}
@@ -239,6 +301,9 @@ export function FeedHome({
                                 <AccountStatusBadge
                                   role={comment.author.role}
                                   email={comment.author.email}
+                                  firstName={comment.author.firstName}
+                                  lastName={comment.author.lastName}
+                                  isBlocked={comment.author.isBlocked}
                                 />
                               </div>
                               <p className="mt-1 whitespace-pre-wrap text-sm">{comment.content}</p>

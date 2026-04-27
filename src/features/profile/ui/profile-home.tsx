@@ -14,7 +14,7 @@ import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { Separator } from "@/components/ui/separator"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
-import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
+import { buildEmblem, EMBLEM_TONE_OPTIONS, getEmblemTone } from "@/features/profile/lib/emblem"
 import {
   type ChangePasswordInput,
   type UpdateProfileInput,
@@ -30,6 +30,7 @@ type EditableUser = {
   lastName: string | null
   phone: string
   role: string
+  avatarTone: string | null
 }
 
 type FieldErrors = Record<string, string[] | undefined>
@@ -52,6 +53,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
     firstName: user.firstName,
     lastName: user.lastName ?? "",
     phone: user.phone,
+    avatarTone: user.avatarTone,
   })
   const [passwordForm, setPasswordForm] = useState<ChangePasswordInput>({
     currentPassword: "",
@@ -60,7 +62,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
   })
   const lastName = form.lastName ?? null
   const emblem = buildEmblem(form.firstName, lastName)
-  const emblemTone = getEmblemTone(form.firstName, lastName)
+  const emblemTone = getEmblemTone(form.firstName, lastName, form.avatarTone)
   const displayName = `${form.firstName} ${lastName ?? ""}`.trim()
 
   function updateField<K extends keyof UpdateProfileInput>(key: K, value: UpdateProfileInput[K]) {
@@ -99,6 +101,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
         firstName: data.user.firstName,
         lastName: data.user.lastName ?? "",
         phone: data.user.phone,
+        avatarTone: data.user.avatarTone ?? null,
       })
       toast.success(tr("Профиль сохранён"))
     })
@@ -174,39 +177,48 @@ export function ProfileHome({ user }: { user: EditableUser }) {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-6 pb-28">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-        <header className="flex items-center justify-between gap-3">
+    <main className="min-h-screen px-4 py-5 pb-28 sm:px-6">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
+        <header className="rounded-[2rem] border border-white/50 bg-card/88 px-5 py-4 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8">
+          <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div
-              className={`flex size-12 items-center justify-center rounded-full border text-sm font-semibold shadow-sm ${emblemTone}`}
+              className={`flex size-14 items-center justify-center rounded-full border border-white/55 text-sm font-semibold shadow-lg shadow-sky-500/10 ${emblemTone}`}
             >
               {emblem}
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="truncate font-medium">{displayName || tr("Пользователь")}</p>
-                <AccountStatusBadge role={user.role} email={form.email} />
+                <p className="truncate text-lg font-semibold">{displayName || tr("Пользователь")}</p>
+                <AccountStatusBadge
+                  role={user.role}
+                  email={form.email}
+                  firstName={form.firstName}
+                  lastName={lastName}
+                />
               </div>
-              <p className="truncate text-sm text-muted-foreground">{form.email}</p>
+              <p className="truncate text-sm text-muted-foreground">{tr("Ваш профиль и безопасность")}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <LanguageToggle />
-            <ThemeToggle />
-            <LogoutButton />
+            <div className="flex items-center gap-2">
+              <LanguageToggle />
+              <ThemeToggle />
+              <LogoutButton />
+            </div>
           </div>
         </header>
 
-        <Card className="border-border/80 shadow-xl shadow-black/5">
-          <CardHeader>
-            <CardTitle className="text-2xl">{tr("Настройки профиля")}</CardTitle>
+        <Card className="border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
+          <CardHeader className="border-b border-border/55 pb-5">
+            <CardTitle className="text-2xl font-semibold tracking-tight">
+              {tr("Настройки профиля")}
+            </CardTitle>
             <CardDescription>
               {tr("Изменения сохраняются в базе данных без смены пароля.")}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <form className="space-y-4" onSubmit={onSaveProfile}>
+          <CardContent className="space-y-6 pt-6">
+            <form className="space-y-5" onSubmit={onSaveProfile}>
               <div className="space-y-2">
                 <Label htmlFor="profile-first-name">{tr("Имя")}</Label>
                 <Input
@@ -261,6 +273,28 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                 )}
               </div>
 
+              <div className="space-y-2">
+                <Label>{tr("Цвет аватарки")}</Label>
+                <div className="flex flex-wrap gap-2">
+                  {EMBLEM_TONE_OPTIONS.map((tone) => {
+                    const active = form.avatarTone === tone.id
+
+                    return (
+                      <button
+                        key={tone.id}
+                        type="button"
+                        className={`flex size-10 items-center justify-center rounded-full border-2 transition-transform hover:scale-105 ${tone.className} ${active ? "border-foreground/70" : "border-transparent"}`}
+                        onClick={() => updateField("avatarTone", tone.id)}
+                        aria-label={tr("Выберите цвет аватарки")}
+                        title={tr("Выберите цвет аватарки")}
+                      >
+                        {active ? emblem : ""}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               {serverMessage && (
                 <>
                   <Separator />
@@ -268,14 +302,14 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                 </>
               )}
 
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" className="w-full sm:w-auto" disabled={isPending}>
                 {isPending ? tr("Сохраняем...") : tr("Сохранить профиль")}
               </Button>
             </form>
 
             <Separator />
 
-            <form className="space-y-4" onSubmit={onChangePassword}>
+            <form className="space-y-5" onSubmit={onChangePassword}>
               <div>
                 <p className="text-sm font-medium">{tr("Изменение пароля")}</p>
                 <p className="text-sm text-muted-foreground">
@@ -335,7 +369,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
               {passwordMessage && <p className="text-sm text-destructive">{passwordMessage}</p>}
 
-              <Button type="submit" variant="outline" disabled={isPending}>
+              <Button type="submit" variant="outline" className="w-full sm:w-auto" disabled={isPending}>
                 {isPending ? tr("Изменяем пароль...") : tr("Изменить пароль")}
               </Button>
             </form>
@@ -354,6 +388,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
               <Button
                 type="button"
                 variant="destructive"
+                className="w-full sm:w-auto"
                 disabled={isDeletingAccount}
                 onClick={deleteAccount}
               >

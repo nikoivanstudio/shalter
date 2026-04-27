@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
         phone: true,
         email: true,
         role: true,
+        isBlocked: true,
       },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
       take: 20,

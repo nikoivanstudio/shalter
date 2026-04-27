@@ -17,6 +17,7 @@ export type CurrentUser = {
   phone: string
   role: string
   avatarId: number | null
+  avatarTone: string | null
   lastSeenAt: Date | null
 }
 
@@ -44,13 +45,33 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
       phone: true,
       role: true,
       avatarId: true,
+      avatarTone: true,
+      isBlocked: true,
       lastSeenAt: true,
     },
   })
+
+  if (user?.isBlocked) {
+    return null
+  }
 
   if (user && options?.touchActivity !== false) {
     await touchUserActivity(user.id)
   }
 
-  return user
+  if (!user) {
+    return null
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    phone: user.phone,
+    role: user.role,
+    avatarId: user.avatarId,
+    avatarTone: user.avatarTone,
+    lastSeenAt: user.lastSeenAt,
+  }
 }

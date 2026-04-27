@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server"
 
+import { prisma } from "@/shared/lib/db/prisma"
 import { touchUserActivity } from "@/shared/lib/user-activity"
 import {
   AUTH_SESSION_COOKIE,
@@ -23,9 +24,21 @@ export async function getAuthorizedUserIdFromRequest(
     return null
   }
 
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: {
+      id: true,
+      isBlocked: true,
+    },
+  })
+
+  if (!user || user.isBlocked) {
+    return null
+  }
+
   if (options?.touchActivity !== false) {
     await touchUserActivity(payload.userId)
   }
 
-  return payload.userId
+  return user.id
 }

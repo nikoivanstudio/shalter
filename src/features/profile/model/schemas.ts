@@ -1,4 +1,10 @@
 import { z } from "zod"
+import { EMBLEM_TONE_OPTIONS } from "@/features/profile/lib/emblem"
+
+const avatarToneIds = EMBLEM_TONE_OPTIONS.map((tone) => tone.id) as [
+  (typeof EMBLEM_TONE_OPTIONS)[number]["id"],
+  ...(typeof EMBLEM_TONE_OPTIONS)[number]["id"][],
+]
 
 export const updateProfileSchema = z.object({
   email: z.email("Укажите корректный email"),
@@ -18,6 +24,7 @@ export const updateProfileSchema = z.object({
     .trim()
     .min(8, "Телефон слишком короткий")
     .max(20, "Телефон слишком длинный"),
+  avatarTone: z.enum(avatarToneIds).nullable(),
 })
 
 export const changePasswordSchema = z
