@@ -110,10 +110,15 @@ export default async function ChannelsPage({
           title: channel.title,
           description: channel.description,
           ownerId: channel.ownerId,
-          participants: channel.participants.map((participant) => ({
-            channelRole: participant.role,
-            ...participant.user,
-          })),
+          myRole:
+            channel.participants.find((participant) => participant.user.id === user.id)?.role ?? null,
+          participants:
+            channel.ownerId === user.id
+              ? channel.participants.map((participant) => ({
+                  channelRole: participant.role,
+                  ...participant.user,
+                }))
+              : [],
           lastMessage: channel.messages[0]
             ? {
                 id: channel.messages[0].id,

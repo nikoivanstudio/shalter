@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { getDialogMessages } from "@/shared/lib/media/message-store"
 import { touchUserActivity } from "@/shared/lib/user-activity"
 
 export const runtime = "nodejs"
@@ -35,13 +36,13 @@ export async function GET(
 ) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+    return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
   }
 
   const { dialogId: dialogIdParam } = await context.params
   const dialogId = parseDialogId(dialogIdParam)
   if (!dialogId) {
-    return NextResponse.json({ message: "Неверный id чата" }, { status: 400 })
+    return NextResponse.json({ message: "РќРµРІРµСЂРЅС‹Р№ id С‡Р°С‚Р°" }, { status: 400 })
   }
 
   const hasAccess = await prisma.dialog.findFirst({
@@ -54,7 +55,7 @@ export async function GET(
     return NextResponse.json(
       {
         code: reason === "removed" ? "REMOVED_FROM_CHAT" : "CHAT_DELETED",
-        message: reason === "removed" ? "Вас удалили из чата" : "Чат не найден",
+        message: reason === "removed" ? "Р’Р°СЃ СѓРґР°Р»РёР»Рё РёР· С‡Р°С‚Р°" : "Р§Р°С‚ РЅРµ РЅР°Р№РґРµРЅ",
       },
       { status: 404 }
     )
@@ -121,35 +122,11 @@ export async function GET(
             return
           }
 
-          const messages = await prisma.message.findMany({
-            where: {
-              dialogId,
-              id: { gt: lastSeenId },
-            },
-            orderBy: { id: "asc" },
-            include: {
-              author: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                },
-              },
-            },
-          })
+          const messages = (await getDialogMessages(dialogId)).filter((message) => message.id > lastSeenId)
 
           for (const message of messages) {
             lastSeenId = message.id
-            send(
-              createSseEvent("message", {
-                id: message.id,
-                content: message.content,
-                status: message.status,
-                createdAt: message.createdAt,
-                dialogId: message.dialogId,
-                author: message.author,
-              })
-            )
+            send(createSseEvent("message", message))
           }
 
           const nextCursor = new Date()
@@ -182,7 +159,7 @@ export async function GET(
             )
           }
         } catch {
-          send(createSseEvent("chat-error", { message: "Ошибка обновления чата" }))
+          send(createSseEvent("chat-error", { message: "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ С‡Р°С‚Р°" }))
         } finally {
           polling = false
         }

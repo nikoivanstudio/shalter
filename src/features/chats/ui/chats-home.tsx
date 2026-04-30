@@ -1211,9 +1211,10 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   >
                                     <input
                                       type="checkbox"
-                                    checked={selectedParticipantIdsToAdd.includes(contact.id)}
-                                    onChange={() => toggleParticipantToAdd(contact.id)}
-                                  />
+                                      className="size-4 shrink-0 accent-primary"
+                                      checked={selectedParticipantIdsToAdd.includes(contact.id)}
+                                      onChange={() => toggleParticipantToAdd(contact.id)}
+                                    />
                                     <span className="flex min-w-0 flex-wrap items-center gap-2">
                                       <span className="truncate">{getDialogUserName(contact)}</span>
                                       <AccountStatusBadge
@@ -1330,7 +1331,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                           <div className="flex items-start gap-2">
                             <div
-                              className={`max-w-[85%] rounded-[1.35rem] px-3.5 py-2.5 text-sm shadow-sm ${
+                              className={`w-fit max-w-[85%] rounded-[1.35rem] px-3.5 py-2.5 text-sm shadow-sm ${
                                 mine
                                   ? "rounded-br-md bg-primary text-primary-foreground"
                                   : "rounded-bl-md border border-white/45 bg-background/96 text-foreground dark:border-white/8"
@@ -1404,10 +1405,11 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                 </div>
 
                 <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-3 backdrop-blur-xl">
-                  <div className="flex items-center gap-2 rounded-[1.75rem] border border-white/45 bg-card/92 p-2 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
+                  <div className="flex items-center gap-2 rounded-[1.85rem] border border-white/45 bg-card/92 p-2.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
                     <Input
                       value={messageText}
                       onChange={(event) => setMessageText(event.target.value)}
+                      className="border-0 bg-transparent shadow-none focus-visible:ring-0"
                       placeholder="Введите сообщение"
                       disabled={!activeDialogId || isSending}
                       onKeyDown={(event) => {
@@ -1417,7 +1419,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         }
                       }}
                     />
-                    <Button onClick={sendMessage} disabled={!activeDialogId || isSending}>
+                    <Button className="min-w-28 rounded-full" onClick={sendMessage} disabled={!activeDialogId || isSending}>
                       {isSending ? "Отправка..." : "Отправить"}
                     </Button>
                   </div>

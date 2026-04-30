@@ -4,20 +4,24 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 const getCurrentUser = vi.fn()
 const prisma = {
   contact: { findMany: vi.fn() },
+  user: { findUnique: vi.fn() },
   userBlacklist: { findMany: vi.fn() },
   dialog: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   message: { groupBy: vi.fn() },
 }
 const findUsersWhoBlockedActor = vi.fn()
 const isUserOnline = vi.fn()
+const canWriteToProtectedUser = vi.fn()
 
 vi.mock("@/shared/lib/auth/current-user", () => ({ getCurrentUser }))
 vi.mock("@/shared/lib/db/prisma", () => ({ prisma }))
 vi.mock("@/shared/lib/blacklist", () => ({ findUsersWhoBlockedActor }))
+vi.mock("@/shared/lib/direct-message-access", () => ({ canWriteToProtectedUser }))
 vi.mock("@/shared/lib/user-activity", () => ({ isUserOnline }))
 vi.mock("@/app/providers", () => ({ Providers: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
 vi.mock("@/app/pwa-register-client", () => ({ PwaRegisterClient: () => <div>PWA</div> }))
 vi.mock("@/features/profile/ui/profile-home", () => ({ ProfileHome: ({ user }: any) => <div>{user.email}</div> }))
+vi.mock("@/features/bots/ui/bots-home", () => ({ BotsHome: ({ user }: any) => <div>bots:{user.email}</div> }))
 vi.mock("@/features/contacts/ui/contacts-home-client", () => ({ ContactsHomeClient: ({ contacts }: any) => <div>contacts:{contacts.length}</div> }))
 vi.mock("@/features/contacts/ui/blacklist-home", () => ({ BlacklistHome: ({ blacklist }: any) => <div>blacklist:{blacklist.length}</div> }))
 vi.mock("@/features/chats/ui/chats-home-client", () => ({ ChatsHomeClient: ({ dialogs, initialDialogId }: any) => <div>dialogs:{dialogs.length}:{initialDialogId ?? "none"}</div> }))
@@ -52,6 +56,24 @@ describe("app pages", () => {
     })
     render(await Home())
     expect(screen.getByText("user@example.com")).toBeInTheDocument()
+  })
+
+  test("bots page redirects anonymous users and renders constructor for authorized ones", async () => {
+    const { default: BotsPage } = await import("@/app/bots/page")
+
+    getCurrentUser.mockResolvedValueOnce(null)
+    await expect(BotsPage()).rejects.toThrow("redirect:/auth")
+
+    getCurrentUser.mockResolvedValueOnce({
+      id: 1,
+      email: "bot-owner@example.com",
+      firstName: "Ivan",
+      lastName: null,
+      role: "user",
+      avatarTone: null,
+    })
+    render(await BotsPage())
+    expect(screen.getByText("bots:bot-owner@example.com")).toBeInTheDocument()
   })
 
   test("contacts and blacklist pages redirect anonymous users and map prisma payloads", async () => {
@@ -123,6 +145,7 @@ describe("app pages", () => {
     ])
     prisma.message.groupBy.mockResolvedValueOnce([{ dialogId: 11, _count: { _all: 2 } }])
     findUsersWhoBlockedActor.mockResolvedValueOnce([])
+    canWriteToProtectedUser.mockResolvedValueOnce({ ok: true })
     prisma.dialog.create.mockResolvedValueOnce({ id: 11 })
     isUserOnline.mockReturnValue(true)
 

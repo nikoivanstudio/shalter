@@ -9,6 +9,7 @@ model User {
   lastName     String?   @map("last_name") @db.VarChar(40)
   avatarId     Int?      @map("avatar_id")
   avatarTone   String?   @map("avatar_tone") @db.VarChar(20)
+  avatarUrl    String?   @map("avatar_url") @db.VarChar(512)
   isBlocked    Boolean   @default(false) @map("is_blocked")
   lastSeenAt   DateTime? @map("last_seen_at")
   updatedAt    DateTime  @map("updated_at")

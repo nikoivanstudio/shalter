@@ -63,6 +63,7 @@ type ChannelItem = {
   title: string
   description: string | null
   ownerId: number
+  myRole: "OWNER" | "ADMIN" | "MEMBER" | null
   participants: ChannelParticipant[]
   lastMessage: ChannelMessage | null
 }
@@ -112,9 +113,7 @@ export function ChannelsHome({
   )
   const emblem = buildEmblem(user.firstName, user.lastName)
   const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
-  const myRole =
-    selectedChannel?.participants.find((participant) => participant.id === user.id)?.channelRole ??
-    null
+  const myRole = selectedChannel?.myRole ?? null
   const canManage = myRole === "OWNER"
   const canWrite = myRole === "OWNER" || myRole === "ADMIN"
   const availableContacts = useMemo(() => {
@@ -162,6 +161,7 @@ export function ChannelsHome({
     setMessages(null)
     setSelectedContactIds([])
     setMessageText("")
+    setShowMembers(false)
   }
 
   function createChannel() {
@@ -465,7 +465,7 @@ export function ChannelsHome({
                       {selectedChannel?.description ?? tr("Откройте канал из списка или создайте новый.")}
                     </p>
                   </div>
-                  {selectedChannel && (
+                  {selectedChannel && canManage && (
                     <Button size="sm" variant="outline" onClick={() => setShowMembers((prev) => !prev)}>
                       <UsersIcon className="size-4" />
                       {showMembers ? tr("Скрыть участников") : tr("Участники")}
@@ -473,7 +473,7 @@ export function ChannelsHome({
                   )}
                 </div>
 
-                {selectedChannel && showMembers && (
+                {selectedChannel && canManage && showMembers && (
                   <div className="max-h-[40dvh] overflow-y-auto border-b border-border/60 bg-muted/28 px-4 py-3">
                     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
                       <div className="space-y-2">
@@ -552,6 +552,7 @@ export function ChannelsHome({
                               >
                                 <input
                                   type="checkbox"
+                                  className="size-4 shrink-0 accent-primary"
                                   checked={selectedContactIds.includes(contact.id)}
                                   onChange={() =>
                                     setSelectedContactIds((prev) =>
@@ -614,7 +615,7 @@ export function ChannelsHome({
                         className={`mb-3 flex ${mine ? "justify-end" : "justify-start"}`}
                       >
                         <div
-                          className={`max-w-[85%] rounded-[1.35rem] px-3.5 py-2.5 text-sm shadow-sm ${
+                          className={`w-fit max-w-[85%] rounded-[1.35rem] px-3.5 py-2.5 text-sm shadow-sm ${
                             mine
                               ? "rounded-br-md bg-primary text-primary-foreground"
                               : "rounded-bl-md border border-white/45 bg-background/96 text-foreground dark:border-white/8"
@@ -633,19 +634,20 @@ export function ChannelsHome({
                 </div>
 
                 <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-3 backdrop-blur-xl">
-                  <div className="flex items-center gap-2 rounded-[1.75rem] border border-white/45 bg-card/92 p-2 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
+                  <div className="flex items-center gap-2 rounded-[1.85rem] border border-white/45 bg-card/92 p-2.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
                     <Button
                       size="sm"
                       variant="outline"
                       className="shrink-0 lg:hidden"
                       onClick={() => setShowMembers((prev) => !prev)}
-                      disabled={!selectedChannel}
+                      disabled={!selectedChannel || !canManage}
                     >
                       <ArrowLeftIcon className="size-4" />
                     </Button>
                     <Input
                       value={messageText}
                       onChange={(event) => setMessageText(event.target.value)}
+                      className="border-0 bg-transparent shadow-none focus-visible:ring-0"
                       placeholder={
                         canWrite ? tr("Сообщение в канал") : tr("Писать могут только владелец и админы")
                       }
@@ -658,6 +660,7 @@ export function ChannelsHome({
                       }}
                     />
                     <Button
+                      className="min-w-28 rounded-full"
                       onClick={sendMessage}
                       disabled={!canWrite || isSending || !messageText.trim() || !selectedChannel}
                     >
