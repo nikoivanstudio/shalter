@@ -1,5 +1,6 @@
 import { cookies } from "next/headers"
 
+import type { EmblemToneId } from "@/features/profile/lib/emblem"
 import { prisma } from "@/shared/lib/db/prisma"
 import { touchUserActivity } from "@/shared/lib/user-activity"
 
@@ -17,7 +18,7 @@ export type CurrentUser = {
   phone: string
   role: string
   avatarId: number | null
-  avatarTone: string | null
+  avatarTone: EmblemToneId | null
   lastSeenAt: Date | null
 }
 
@@ -71,7 +72,7 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
     phone: user.phone,
     role: user.role,
     avatarId: user.avatarId,
-    avatarTone: user.avatarTone,
+    avatarTone: user.avatarTone as EmblemToneId | null,
     lastSeenAt: user.lastSeenAt,
   }
 }

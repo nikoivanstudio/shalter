@@ -24,7 +24,11 @@ export const updateProfileSchema = z.object({
     .trim()
     .min(8, "Телефон слишком короткий")
     .max(20, "Телефон слишком длинный"),
-  avatarTone: z.enum(avatarToneIds).nullable(),
+  avatarTone: z
+    .enum(avatarToneIds)
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
 })
 
 export const changePasswordSchema = z

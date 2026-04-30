@@ -45,8 +45,13 @@ export async function POST(request: Request) {
       )
     }
 
-    const { turnstileToken: _turnstileToken, ...registerInput } = parsed.data
-    const result = await registerUser(registerInput)
+    const result = await registerUser({
+      email: parsed.data.email,
+      password: parsed.data.password,
+      firstName: parsed.data.firstName,
+      lastName: parsed.data.lastName,
+      phone: parsed.data.phone,
+    })
 
     if (!result.ok) {
       return NextResponse.json(

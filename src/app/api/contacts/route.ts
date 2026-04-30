@@ -1,9 +1,9 @@
-import { Prisma } from "@prisma/client"
 import { type NextRequest, NextResponse } from "next/server"
 
 import { addContactSchema } from "@/features/contacts/model/schemas"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
 
 export async function POST(request: NextRequest) {
   try {
@@ -76,10 +76,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ contact: targetUser }, { status: 201 })
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
+    if (isPrismaKnownRequestError(error, "P2002")) {
       return NextResponse.json({ message: "Этот контакт уже добавлен" }, { status: 409 })
     }
 

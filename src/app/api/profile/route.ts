@@ -1,8 +1,8 @@
-import { Prisma } from "@prisma/client"
 import { type NextRequest, NextResponse } from "next/server"
 
 import { updateProfileSchema } from "@/features/profile/model/schemas"
 import { prisma } from "@/shared/lib/db/prisma"
+import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
 import { touchUserActivity } from "@/shared/lib/user-activity"
 import {
   AUTH_SESSION_COOKIE,
@@ -74,10 +74,7 @@ export async function PATCH(request: NextRequest) {
     setAuthCookies(response, { token: nextToken, sessionId })
     return response
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
+    if (isPrismaKnownRequestError(error, "P2002")) {
       return NextResponse.json(
         {
           message: "Пользователь с таким email уже существует",

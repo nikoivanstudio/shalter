@@ -1,20 +1,17 @@
 import { z } from "zod"
 
-import { cn } from "@/lib/utils"
 import { loginSchema, registerSchema } from "@/features/auth/model/schemas"
 import {
   createChatSchema,
   sendMessageSchema,
   updateDialogParticipantsSchema,
 } from "@/features/chats/model/schemas"
+import { getDialogDisplayTitle, getDialogUserName } from "@/features/chats/lib/dialog-title"
 import { addContactSchema, blacklistUserSchema } from "@/features/contacts/model/schemas"
 import { getAccountStatusLabel } from "@/features/profile/lib/account-status"
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { updateProfileSchema } from "@/features/profile/model/schemas"
-import {
-  getDialogDisplayTitle,
-  getDialogUserName,
-} from "@/features/chats/lib/dialog-title"
+import { cn } from "@/lib/utils"
 
 describe("utils and schemas", () => {
   test("cn merges tailwind classes", () => {
@@ -36,9 +33,11 @@ describe("utils and schemas", () => {
     expect(getAccountStatusLabel({ role: "owner", email: "owner@example.com" })).toBe(
       "Владелец мессенджера"
     )
-    expect(getAccountStatusLabel({ role: "admin", email: "admin@example.com" })).toBe("Админ")
+    expect(getAccountStatusLabel({ role: "admin", email: "admin@example.com" })).toBe(
+      "Администратор"
+    )
     expect(getAccountStatusLabel({ role: "user", email: "matveykanico@gmail.com" })).toBe(
-      "Технический разработчик"
+      "Разработчик"
     )
     expect(getAccountStatusLabel({ role: "user", email: "user@example.com" })).toBe(
       "Пользователь"
@@ -104,6 +103,7 @@ describe("utils and schemas", () => {
         firstName: "Ivan",
         lastName: "",
         phone: "12345678",
+        avatarTone: null,
       }).lastName
     ).toBe("")
   })

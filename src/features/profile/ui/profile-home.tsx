@@ -30,7 +30,7 @@ type EditableUser = {
   lastName: string | null
   phone: string
   role: string
-  avatarTone: string | null
+  avatarTone: UpdateProfileInput["avatarTone"]
 }
 
 type FieldErrors = Record<string, string[] | undefined>

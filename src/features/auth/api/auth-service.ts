@@ -1,10 +1,10 @@
 import bcrypt from "bcryptjs"
-import { Prisma } from "@prisma/client"
 
 import { prisma } from "@/shared/lib/db/prisma"
 import { env } from "@/shared/config/env"
 import { sendRecoveryCodeEmail } from "@/shared/lib/mail"
 import { ADMIN_ROLE, USER_ROLE } from "@/shared/lib/auth/roles"
+import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
 
 async function resolveInitialRole(email: string) {
   const elevatedUsersCount = await prisma.user.count({
@@ -178,7 +178,7 @@ export async function registerUser(input: {
 
     return { ok: true, user }
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (isPrismaKnownRequestError(error, "P2002")) {
       const targets = Array.isArray(error.meta?.target) ? error.meta.target : []
       const fieldErrors: Record<string, string[]> = {}
 

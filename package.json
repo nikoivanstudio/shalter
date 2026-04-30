@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NODE_ENV=production next build --webpack",
+    "build": "next build --webpack",
     "db:ensure-dialog-title": "prisma db execute --file prisma/migrations/20260408013000_add_dialog_title/migration.sql",
     "db:prepare": "node scripts/db-prepare.mjs",
     "db:migrate:deploy": "prisma migrate deploy",

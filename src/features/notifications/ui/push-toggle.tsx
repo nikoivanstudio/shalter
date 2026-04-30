@@ -1,7 +1,7 @@
 "use client"
 
 import { BellIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -28,7 +28,7 @@ export function PushToggle() {
   )
   const [isCheckingConfig, setIsCheckingConfig] = useState(!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
 
-  async function fetchPublicKey() {
+  const fetchPublicKey = useCallback(async () => {
     const response = await fetch("/api/notifications/vapid-public-key")
     if (!response.ok) {
       const data = await response.json().catch(() => null)
@@ -42,7 +42,7 @@ export function PushToggle() {
 
     setPublicKey(data.publicKey)
     return data.publicKey
-  }
+  }, [tr])
 
   useEffect(() => {
     const isSupported =
@@ -71,7 +71,7 @@ export function PushToggle() {
         setEnabled(Boolean(subscription))
       })
       .catch(() => null)
-  }, [publicKey])
+  }, [fetchPublicKey, publicKey])
 
   async function subscribe() {
     setLoading(true)

@@ -312,6 +312,7 @@ describe("contacts, blacklist and profile routes", () => {
       firstName: "Ivan",
       lastName: null,
       phone: "12345678",
+      avatarTone: null,
     })
     createAuthToken.mockResolvedValueOnce("next-token")
     response = await PATCH(
@@ -322,6 +323,7 @@ describe("contacts, blacklist and profile routes", () => {
           firstName: "Ivan",
           lastName: "",
           phone: "12345678",
+          avatarTone: null,
         },
         { [AUTH_TOKEN_COOKIE]: "token", [AUTH_SESSION_COOKIE]: "sid" }
       )
@@ -340,6 +342,7 @@ describe("contacts, blacklist and profile routes", () => {
           firstName: "Ivan",
           lastName: "",
           phone: "12345678",
+          avatarTone: null,
         },
         { [AUTH_TOKEN_COOKIE]: "token", [AUTH_SESSION_COOKIE]: "sid" }
       )

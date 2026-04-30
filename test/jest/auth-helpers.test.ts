@@ -54,11 +54,13 @@ describe("auth helpers", () => {
     await expect(getAuthorizedUserIdFromRequest(request as never)).resolves.toBeNull()
 
     mockVerifyAuthToken.mockResolvedValueOnce({ sid: "sid", userId: 4 })
+    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 4, isBlocked: false })
     await expect(
       getAuthorizedUserIdFromRequest(request as never, { touchActivity: false })
     ).resolves.toBe(4)
 
     mockVerifyAuthToken.mockResolvedValueOnce({ sid: "sid", userId: 9 })
+    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 9, isBlocked: false })
     await expect(getAuthorizedUserIdFromRequest(request as never)).resolves.toBe(9)
     expect(mockTouchUserActivity).toHaveBeenCalledWith(9)
   })

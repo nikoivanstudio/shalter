@@ -125,7 +125,9 @@ describe("auth/profile/navigation components", () => {
         }
       })
       close = close
-      constructor(_url: string) {}
+      constructor(url: string) {
+        void url
+      }
     }
     vi.stubGlobal("EventSource", MockEventSource as any)
 

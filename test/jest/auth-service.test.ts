@@ -18,6 +18,7 @@ jest.mock("@/shared/lib/db/prisma", () => ({
       findFirst: jest.fn(),
     },
     user: {
+      count: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
@@ -69,6 +70,7 @@ async function loadAuthService() {
         findFirst: jest.Mock
       }
       user: {
+        count: jest.Mock
         findFirst: jest.Mock
         create: jest.Mock
         findUnique: jest.Mock
@@ -142,6 +144,7 @@ describe("auth-service", () => {
     const { registerUser, mockPrisma, bcrypt } = await loadAuthService()
 
     mockPrisma.user.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
+    mockPrisma.user.count.mockResolvedValue(0)
     bcrypt.hash.mockResolvedValue("hash")
     mockPrisma.user.create
       .mockResolvedValueOnce({ id: 1, email: "user@example.com" })

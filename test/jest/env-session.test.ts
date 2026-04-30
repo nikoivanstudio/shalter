@@ -47,6 +47,7 @@ describe("env and session", () => {
     const { env } = await import("@/shared/config/env")
     expect(env).toEqual({
       AUTH_SECRET: "secret",
+      BOOTSTRAP_ADMIN_EMAIL: null,
     })
   })
 
