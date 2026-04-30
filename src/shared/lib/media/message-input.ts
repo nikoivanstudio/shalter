@@ -38,7 +38,9 @@ export async function parseMessageInput(
     if (!parsedContent.success) {
       return {
         success: false,
-        fieldErrors: parsedContent.error.flatten().fieldErrors,
+        fieldErrors: {
+          content: parsedContent.error.issues.map((issue) => issue.message),
+        },
       }
     }
 
