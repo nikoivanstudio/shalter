@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 
@@ -31,6 +31,7 @@ type RegisterForm = {
   lastName: string
   phone: string
   turnstileToken: string
+  referrerId?: number
 }
 
 type RecoveryForm = {
@@ -59,6 +60,7 @@ function getFieldError(errors: FieldErrors, key: string) {
 
 export function AuthCard() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { tr } = useI18n()
   const [isPending, startTransition] = useTransition()
   const [serverMessage, setServerMessage] = useState("")
@@ -117,6 +119,12 @@ export function AuthCard() {
       turnstileToken: token ?? "",
     }))
   }, [])
+
+  const referrerId = useMemo(() => {
+    const refValue = searchParams.get("ref")
+    const parsed = refValue ? Number(refValue) : NaN
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+  }, [searchParams])
 
   function submitLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -205,7 +213,10 @@ export function AuthCard() {
     setServerMessage("")
     setRegisterErrors({})
 
-    const parsed = registerSchema.safeParse(registerForm)
+    const parsed = registerSchema.safeParse({
+      ...registerForm,
+      referrerId,
+    })
     if (!parsed.success) {
       setRegisterErrors(parsed.error.flatten().fieldErrors)
       return
@@ -305,6 +316,12 @@ export function AuthCard() {
 
             <TabsContent value="register" className="space-y-4">
               <form className="space-y-4" onSubmit={submitRegister}>
+                {referrerId ? (
+                  <div className="rounded-2xl border border-primary/20 bg-primary/8 px-4 py-3 text-sm text-foreground">
+                    Регистрация по партнёрской ссылке. При успешной активации пригласивший пользователь
+                    получит звёзды.
+                  </div>
+                ) : null}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="register-first-name">{tr("Имя")}</Label>

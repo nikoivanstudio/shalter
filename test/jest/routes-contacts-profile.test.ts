@@ -49,6 +49,11 @@ jest.mock("@/shared/lib/db/prisma", () => ({
       deleteMany: jest.fn(),
       findMany: jest.fn(),
     },
+    botPublication: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      delete: jest.fn(),
+    },
     $transaction: jest.fn(),
   },
 }))

@@ -1,0 +1,14 @@
+model BotPublication {
+  id          Int      @id @default(autoincrement())
+  ownerId     Int      @map("owner_id")
+  owner       User     @relation("OwnedBotPublications", fields: [ownerId], references: [id], onDelete: Cascade)
+  name        String   @db.VarChar(120)
+  niche       String?  @db.VarChar(120)
+  audience    String   @db.VarChar(20)
+  config      Json
+  publishedAt DateTime @default(now()) @map("published_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([ownerId, publishedAt])
+  @@map("bot_publications")
+}

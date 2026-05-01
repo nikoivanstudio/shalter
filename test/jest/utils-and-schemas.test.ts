@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { loginSchema, registerSchema } from "@/features/auth/model/schemas"
+import { publishBotSchema } from "@/features/bots/model/schemas"
 import {
   createChatSchema,
   sendMessageSchema,
@@ -106,5 +107,30 @@ describe("utils and schemas", () => {
         avatarTone: null,
       }).lastName
     ).toBe("")
+
+    expect(
+      publishBotSchema.parse({
+        audience: "client",
+        config: {
+          name: "Support Bot",
+          niche: "SaaS",
+          goal: "Answer FAQs",
+          tone: "Warm",
+          greeting: "Hi!",
+          knowledge: ["Billing"],
+          channels: ["Shalter"],
+          skills: ["Answer questions"],
+          guardrails: ["No refunds without manager"],
+          escalation: "Escalate payment disputes",
+          flow: [{ type: "identity", title: "Start", value: "Support Bot|SaaS" }],
+          handoffEnabled: true,
+          analytics: {
+            trackLeads: true,
+            trackFallbacks: true,
+            summaryWindow: "daily",
+          },
+        },
+      }).audience
+    ).toBe("client")
   })
 })

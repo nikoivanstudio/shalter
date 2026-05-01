@@ -24,6 +24,9 @@ jest.mock("@/shared/lib/db/prisma", () => ({
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    starTransaction: {
+      create: jest.fn(),
+    },
     contact: {
       deleteMany: jest.fn(),
     },
@@ -75,6 +78,9 @@ async function loadAuthService() {
         create: jest.Mock
         findUnique: jest.Mock
         update: jest.Mock
+      }
+      starTransaction: {
+        create: jest.Mock
       }
       contact: {
         deleteMany: jest.Mock
@@ -138,6 +144,24 @@ describe("auth-service", () => {
         phone: ["Пользователь с таким телефоном уже существует"],
       },
     })
+
+    mockPrisma.user.findFirst.mockResolvedValueOnce(null)
+    mockPrisma.user.findUnique.mockResolvedValueOnce(null)
+    await expect(
+      registerUser({
+        email: "new@example.com",
+        password: "password123",
+        firstName: "Ivan",
+        phone: "12345679",
+        referrerId: 999,
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      status: 400,
+      fieldErrors: {
+        referrerId: ["Партнёрская ссылка недействительна"],
+      },
+    })
   })
 
   test("registerUser creates user and handles unique constraint", async () => {
@@ -146,6 +170,7 @@ describe("auth-service", () => {
     mockPrisma.user.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
     mockPrisma.user.count.mockResolvedValue(0)
     bcrypt.hash.mockResolvedValue("hash")
+    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 7, isBlocked: false })
     mockPrisma.user.create
       .mockResolvedValueOnce({ id: 1, email: "user@example.com" })
       .mockRejectedValueOnce(new MockPrismaClientKnownRequestError("P2002", { target: ["email"] }))
@@ -157,11 +182,14 @@ describe("auth-service", () => {
         firstName: "Ivan",
         lastName: "Petrov",
         phone: "12345678",
+        referrerId: 7,
       })
     ).resolves.toEqual({
       ok: true,
       user: { id: 1, email: "user@example.com" },
     })
+    expect(mockPrisma.user.update).toHaveBeenCalled()
+    expect(mockPrisma.starTransaction.create).toHaveBeenCalled()
 
     await expect(
       registerUser({

@@ -8,6 +8,7 @@ const prisma = {
   userBlacklist: { findMany: vi.fn() },
   dialog: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   message: { groupBy: vi.fn() },
+  botPublication: { findMany: vi.fn() },
 }
 const findUsersWhoBlockedActor = vi.fn()
 const isUserOnline = vi.fn()
@@ -21,7 +22,9 @@ vi.mock("@/shared/lib/user-activity", () => ({ isUserOnline }))
 vi.mock("@/app/providers", () => ({ Providers: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }))
 vi.mock("@/app/pwa-register-client", () => ({ PwaRegisterClient: () => <div>PWA</div> }))
 vi.mock("@/features/profile/ui/profile-home", () => ({ ProfileHome: ({ user }: any) => <div>{user.email}</div> }))
-vi.mock("@/features/bots/ui/bots-home", () => ({ BotsHome: ({ user }: any) => <div>bots:{user.email}</div> }))
+vi.mock("@/features/bots/ui/bots-home", () => ({
+  BotsHome: ({ user, publishedBots }: any) => <div>bots:{user.email}:{publishedBots.length}</div>,
+}))
 vi.mock("@/features/contacts/ui/contacts-home-client", () => ({ ContactsHomeClient: ({ contacts }: any) => <div>contacts:{contacts.length}</div> }))
 vi.mock("@/features/contacts/ui/blacklist-home", () => ({ BlacklistHome: ({ blacklist }: any) => <div>blacklist:{blacklist.length}</div> }))
 vi.mock("@/features/chats/ui/chats-home-client", () => ({ ChatsHomeClient: ({ dialogs, initialDialogId }: any) => <div>dialogs:{dialogs.length}:{initialDialogId ?? "none"}</div> }))
@@ -72,8 +75,11 @@ describe("app pages", () => {
       role: "user",
       avatarTone: null,
     })
+    prisma.botPublication.findMany.mockResolvedValueOnce([
+      { id: 1, name: "Sales Copilot", niche: null, audience: "client", publishedAt: new Date("2026-05-01T09:00:00Z") },
+    ])
     render(await BotsPage())
-    expect(screen.getByText("bots:bot-owner@example.com")).toBeInTheDocument()
+    expect(screen.getByText("bots:bot-owner@example.com:1")).toBeInTheDocument()
   })
 
   test("contacts and blacklist pages redirect anonymous users and map prisma payloads", async () => {

@@ -1,6 +1,14 @@
-"use client"
+﻿"use client"
 
-import { ArrowLeftIcon, CheckIcon, EllipsisVerticalIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  CheckIcon,
+  EllipsisVerticalIcon,
+  FileImageIcon,
+  MicIcon,
+  PlayCircleIcon,
+  XIcon,
+} from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
@@ -25,6 +33,8 @@ import {
 } from "@/features/chats/lib/dialog-title"
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import type { MediaAttachment, MediaKind } from "@/shared/lib/media/constants"
+import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 
 type UserShort = {
   id: number
@@ -54,6 +64,7 @@ type ChatMessage = {
   status?: string | null
   createdAt: string
   dialogId: number
+  attachment?: MediaAttachment | null
   author: {
     id: number
     firstName: string
@@ -97,7 +108,7 @@ function getDialogMembersSubtitle(dialog: ChatDialog, currentUserId: number) {
     .map((item) => getDialogUserName(item))
 
   if (names.length === 0) {
-    return "Только вы"
+    return "РўРѕР»СЊРєРѕ РІС‹"
   }
 
   return names.join(", ")
@@ -115,14 +126,14 @@ function formatLastSeen(value: string) {
 
 function getUserPresenceLabel(user: UserShort) {
   if (user.isOnline) {
-    return "Онлайн"
+    return "РћРЅР»Р°Р№РЅ"
   }
 
   if (user.lastSeenAt) {
-    return `Был(а) в сети ${formatLastSeen(user.lastSeenAt)}`
+    return `Р‘С‹Р»(Р°) РІ СЃРµС‚Рё ${formatLastSeen(user.lastSeenAt)}`
   }
 
-  return "Статус неизвестен"
+  return "РЎС‚Р°С‚СѓСЃ РЅРµРёР·РІРµСЃС‚РµРЅ"
 }
 
 function OnlineDot() {
@@ -224,6 +235,9 @@ function MessageStatusIcon({ status }: { status: ChatMessage["status"] }) {
 export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDialogId }: ChatsHomeProps) {
   const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const voiceInputRef = useRef<HTMLInputElement | null>(null)
+  const circleInputRef = useRef<HTMLInputElement | null>(null)
   const [dialogs, setDialogs] = useState(initialDialogs)
   const [selectedDialogId, setSelectedDialogId] = useState<number | null>(
     initialDialogId ?? null
@@ -233,6 +247,8 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const [messagesReloadKey, setMessagesReloadKey] = useState(0)
   const [sseSince, setSseSince] = useState(0)
   const [messageText, setMessageText] = useState("")
+  const [attachmentKind, setAttachmentKind] = useState<MediaKind | null>(null)
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
   const [editingText, setEditingText] = useState("")
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -283,6 +299,26 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   )
   const isMessageListReady = messages !== null
 
+  function resetComposer() {
+    setMessageText("")
+    setAttachmentKind(null)
+    setAttachmentFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+    if (voiceInputRef.current) {
+      voiceInputRef.current.value = ""
+    }
+    if (circleInputRef.current) {
+      circleInputRef.current.value = ""
+    }
+  }
+
+  function selectAttachment(kind: MediaKind, file: File | null) {
+    setAttachmentKind(file ? kind : null)
+    setAttachmentFile(file)
+  }
+
   useEffect(() => {
     dialogsRef.current = dialogs
   }, [dialogs])
@@ -310,7 +346,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         setSelectedParticipantIdsToAdd([])
       }
 
-      toast.error(tr(reason === "removed" ? "Вас удалили из чата" : "Чат удалён владельцем"))
+      toast.error(tr(reason === "removed" ? "Р’Р°СЃ СѓРґР°Р»РёР»Рё РёР· С‡Р°С‚Р°" : "Р§Р°С‚ СѓРґР°Р»С‘РЅ РІР»Р°РґРµР»СЊС†РµРј"))
     },
     [tr]
   )
@@ -327,11 +363,11 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
           const data = await response.json().catch(() => null)
           if (response.status === 404) {
             const code = data?.code === "REMOVED_FROM_CHAT" ? "REMOVED_FROM_CHAT" : "CHAT_DELETED"
-            const error = new Error(data?.message ?? "Не удалось получить сообщения")
+            const error = new Error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРѕРѕР±С‰РµРЅРёСЏ")
             ;(error as Error & { code?: string }).code = code
             throw error
           }
-          throw new Error(data?.message ?? "Не удалось получить сообщения")
+          throw new Error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРѕРѕР±С‰РµРЅРёСЏ")
         }
         return response.json()
       })
@@ -393,7 +429,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
     eventSource.addEventListener("chat-error", (event) => {
       const payload = JSON.parse((event as MessageEvent<string>).data) as { message?: string }
-      toast.error(payload.message ?? "Ошибка обновления чата")
+      toast.error(payload.message ?? "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ С‡Р°С‚Р°")
     })
 
     eventSource.addEventListener("status", (event) => {
@@ -590,13 +626,13 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
   function createChat() {
     if (selectedContactIds.length === 0) {
-      toast.error("Выберите хотя бы один контакт")
+      toast.error("Р’С‹Р±РµСЂРёС‚Рµ С…РѕС‚СЏ Р±С‹ РѕРґРёРЅ РєРѕРЅС‚Р°РєС‚")
       return
     }
 
     const isGroupChat = selectedContactIds.length >= 2
     if (isGroupChat && !newChatTitle.trim()) {
-      toast.error("Для группового чата укажите название")
+      toast.error("Р”Р»СЏ РіСЂСѓРїРїРѕРІРѕРіРѕ С‡Р°С‚Р° СѓРєР°Р¶РёС‚Рµ РЅР°Р·РІР°РЅРёРµ")
       return
     }
 
@@ -612,7 +648,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось создать чат")
+        toast.error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ С‡Р°С‚")
         return
       }
 
@@ -629,7 +665,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       setSelectedContactIds([])
       setNewChatTitle("")
       openDialog(dialog.id)
-      toast.success("Чат создан")
+      toast.success("Р§Р°С‚ СЃРѕР·РґР°РЅ")
     })
   }
 
@@ -639,25 +675,40 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     }
 
     const content = messageText.trim()
-    if (!content) {
+    if (!content && !attachmentFile) {
       return
     }
 
     startSending(async () => {
+      const body =
+        attachmentFile && attachmentKind
+          ? (() => {
+              const formData = new FormData()
+              formData.set("content", content)
+              formData.set("kind", attachmentKind)
+              formData.set("attachment", attachmentFile)
+              return formData
+            })()
+          : JSON.stringify({ content })
+
       const response = await fetch(`/api/chats/${activeDialogId}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        ...(body instanceof FormData
+          ? { body }
+          : {
+              headers: { "Content-Type": "application/json" },
+              body,
+            }),
       })
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось отправить сообщение")
+        toast.error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ")
         return
       }
 
       const nextMessage = data.message as ChatMessage
-      setMessageText("")
+      resetComposer()
       setMessages((prev) => {
         if (!prev) {
           return [nextMessage]
@@ -683,7 +734,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
     const content = editingText.trim()
     if (!content) {
-      toast.error("Сообщение не может быть пустым")
+      toast.error("РЎРѕРѕР±С‰РµРЅРёРµ РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј")
       return
     }
 
@@ -696,7 +747,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось изменить сообщение")
+        toast.error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РёР·РјРµРЅРёС‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ")
         return
       }
 
@@ -728,7 +779,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось удалить сообщение")
+        toast.error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ")
         return
       }
 
@@ -763,7 +814,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось удалить чат")
+        toast.error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ С‡Р°С‚")
         return
       }
 
@@ -775,7 +826,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         setSseSince(0)
         setShowParticipants(false)
       }
-      toast.success("Чат удалён")
+      toast.success("Р§Р°С‚ СѓРґР°Р»С‘РЅ")
     })
   }
 
@@ -788,7 +839,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось покинуть чат")
+        toast.error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРєРёРЅСѓС‚СЊ С‡Р°С‚")
         return
       }
 
@@ -800,13 +851,13 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         setSseSince(0)
         setShowParticipants(false)
       }
-      toast.success("Вы покинули чат")
+      toast.success("Р’С‹ РїРѕРєРёРЅСѓР»Рё С‡Р°С‚")
     })
   }
 
   function addParticipants(dialogId: number) {
     if (selectedParticipantIdsToAdd.length === 0) {
-      toast.error("Выберите хотя бы одного пользователя")
+      toast.error("Р’С‹Р±РµСЂРёС‚Рµ С…РѕС‚СЏ Р±С‹ РѕРґРЅРѕРіРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ")
       return
     }
 
@@ -819,7 +870,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось добавить участников")
+        toast.error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РґРѕР±Р°РІРёС‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ")
         return
       }
 
@@ -853,7 +904,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       setShowParticipants(true)
       setShowAddParticipants(false)
       setSelectedParticipantIdsToAdd([])
-      toast.success("Участники добавлены")
+      toast.success("РЈС‡Р°СЃС‚РЅРёРєРё РґРѕР±Р°РІР»РµРЅС‹")
     })
   }
 
@@ -867,7 +918,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось удалить участника")
+        toast.error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ СѓС‡Р°СЃС‚РЅРёРєР°")
         return
       }
 
@@ -898,7 +949,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       }
 
       setSelectedParticipantIdsToAdd((prev) => prev.filter((id) => id !== participantId))
-      toast.success("Участник удалён")
+      toast.success("РЈС‡Р°СЃС‚РЅРёРє СѓРґР°Р»С‘РЅ")
     })
   }
 
@@ -926,7 +977,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   isBlocked={user.isBlocked}
                 />
               </div>
-              <p className="truncate text-sm text-muted-foreground">Личные и групповые диалоги</p>
+              <p className="truncate text-sm text-muted-foreground">Р›РёС‡РЅС‹Рµ Рё РіСЂСѓРїРїРѕРІС‹Рµ РґРёР°Р»РѕРіРё</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -944,19 +995,19 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
             <CardHeader className="shrink-0 gap-3 border-b border-border/55 pb-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <CardTitle className="text-2xl font-semibold tracking-tight">{tr("Чаты")}</CardTitle>
-                  <CardDescription>{tr("Общайтесь с пользователями из ваших контактов.")}</CardDescription>
+                  <CardTitle className="text-2xl font-semibold tracking-tight">{tr("Р§Р°С‚С‹")}</CardTitle>
+                  <CardDescription>{tr("РћР±С‰Р°Р№С‚РµСЃСЊ СЃ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏРјРё РёР· РІР°С€РёС… РєРѕРЅС‚Р°РєС‚РѕРІ.")}</CardDescription>
                 </div>
                 <div className="space-y-1">
                   <Button
                     onClick={() => setShowCreateForm((prev) => !prev)}
                     disabled={contacts.length === 0}
                   >
-                    {tr("Создать чат")}
+                    {tr("РЎРѕР·РґР°С‚СЊ С‡Р°С‚")}
                   </Button>
                   {contacts.length === 0 && (
                     <p className="text-xs text-muted-foreground">
-                      {tr("Чтобы создать чат, сначала добавьте контакты.")}
+                      {tr("Р§С‚РѕР±С‹ СЃРѕР·РґР°С‚СЊ С‡Р°С‚, СЃРЅР°С‡Р°Р»Р° РґРѕР±Р°РІСЊС‚Рµ РєРѕРЅС‚Р°РєС‚С‹.")}
                     </p>
                   )}
                 </div>
@@ -969,7 +1020,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
           >
             {showListPanel && showCreateForm && contacts.length > 0 && (
               <div className="space-y-3 rounded-[1.6rem] border border-border/70 bg-background/78 p-4 shadow-sm">
-                <p className="text-sm font-medium">Выберите пользователей для нового чата</p>
+                <p className="text-sm font-medium">Р’С‹Р±РµСЂРёС‚Рµ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№ РґР»СЏ РЅРѕРІРѕРіРѕ С‡Р°С‚Р°</p>
                 <div className="grid max-h-[28dvh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                   {contacts.map((contact) => (
                     <label
@@ -989,11 +1040,11 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   <Input
                     value={newChatTitle}
                     onChange={(event) => setNewChatTitle(event.target.value)}
-                    placeholder="Название группового чата"
+                    placeholder="РќР°Р·РІР°РЅРёРµ РіСЂСѓРїРїРѕРІРѕРіРѕ С‡Р°С‚Р°"
                   />
                 )}
                 <Button onClick={createChat} disabled={isCreating || selectedContactIds.length === 0}>
-                  {isCreating ? "Создаём..." : "Создать"}
+                  {isCreating ? "РЎРѕР·РґР°С‘Рј..." : "РЎРѕР·РґР°С‚СЊ"}
                 </Button>
               </div>
             )}
@@ -1002,7 +1053,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background/74 p-2.5 shadow-sm">
                 {orderedDialogs.length === 0 && (
                   <div className="rounded-xl border border-dashed border-border/80 p-6 text-sm text-muted-foreground">
-                    {tr("Чаты отсутствуют. Создайте новый чат с пользователем из контактов.")}
+                    {tr("Р§Р°С‚С‹ РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‚. РЎРѕР·РґР°Р№С‚Рµ РЅРѕРІС‹Р№ С‡Р°С‚ СЃ РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј РёР· РєРѕРЅС‚Р°РєС‚РѕРІ.")}
                   </div>
                 )}
                 {orderedDialogs.map((dialog) => (
@@ -1020,7 +1071,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         {getDialogDisplayTitle(dialog, user.id)}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {dialog.lastMessage?.content ?? "Сообщений пока нет"}
+                        {dialog.lastMessage?.content ?? "РЎРѕРѕР±С‰РµРЅРёР№ РїРѕРєР° РЅРµС‚"}
                       </p>
                     </button>
 
@@ -1029,7 +1080,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         <button
                           type="button"
                           className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
-                          aria-label="Действия с чатом"
+                          aria-label="Р”РµР№СЃС‚РІРёСЏ СЃ С‡Р°С‚РѕРј"
                           onClick={() =>
                             setOpenDialogMenuId((prev) => (prev === dialog.id ? null : dialog.id))
                           }
@@ -1045,7 +1096,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                 onClick={() => leaveDialog(dialog.id)}
                                 disabled={isLeavingDialog}
                               >
-                                Покинуть группу
+                                РџРѕРєРёРЅСѓС‚СЊ РіСЂСѓРїРїСѓ
                               </button>
                             )}
                             <button
@@ -1054,7 +1105,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                               onClick={() => removeDialog(dialog.id)}
                               disabled={isDeletingDialog}
                             >
-                              Удалить чат
+                              РЈРґР°Р»РёС‚СЊ С‡Р°С‚
                             </button>
                           </div>
                         )}
@@ -1072,7 +1123,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                     <p className="truncate text-sm font-semibold">
                       {selectedDialog
                         ? getDialogDisplayTitle(selectedDialog, user.id)
-                        : tr("Выберите чат")}
+                        : tr("Р’С‹Р±РµСЂРёС‚Рµ С‡Р°С‚")}
                     </p>
                     {selectedDialog &&
                       (() => {
@@ -1100,7 +1151,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         variant="outline"
                         onClick={() => setShowParticipants((prev) => !prev)}
                       >
-                        {showParticipants ? tr("Скрыть участников") : tr("Участники")}
+                        {showParticipants ? tr("РЎРєСЂС‹С‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ") : tr("РЈС‡Р°СЃС‚РЅРёРєРё")}
                       </Button>
                     )}
                     {selectedDialog &&
@@ -1110,7 +1161,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                           <button
                             type="button"
                             className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
-                            aria-label="Действия с чатом"
+                            aria-label="Р”РµР№СЃС‚РІРёСЏ СЃ С‡Р°С‚РѕРј"
                             onClick={() =>
                               setOpenDialogMenuId((prev) =>
                                 prev === selectedDialog.id ? null : selectedDialog.id
@@ -1131,7 +1182,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                     setShowAddParticipants((prev) => !prev)
                                   }}
                                 >
-                                  Добавить участников
+                                  Р”РѕР±Р°РІРёС‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ
                                 </button>
                               )}
                               {canLeaveDialog(selectedDialog, user.id) && (
@@ -1141,7 +1192,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   onClick={() => leaveDialog(selectedDialog.id)}
                                   disabled={isLeavingDialog}
                                 >
-                                  Покинуть группу
+                                  РџРѕРєРёРЅСѓС‚СЊ РіСЂСѓРїРїСѓ
                                 </button>
                               )}
                               {canDeleteDialog(selectedDialog, user.id) && (
@@ -1151,7 +1202,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   onClick={() => removeDialog(selectedDialog.id)}
                                   disabled={isDeletingDialog}
                                 >
-                                  Удалить чат
+                                  РЈРґР°Р»РёС‚СЊ С‡Р°С‚
                                 </button>
                               )}
                             </div>
@@ -1160,7 +1211,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       )}
                     <Button size="sm" variant="outline" onClick={() => setIsDialogView(false)}>
                       <ArrowLeftIcon className="size-4" />
-                      {tr("Список")}
+                      {tr("РЎРїРёСЃРѕРє")}
                     </Button>
                   </div>
                 </div>
@@ -1170,9 +1221,9 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       {canManageDialogParticipants(selectedDialog, user.id) && (
                         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-2">
                           <div>
-                            <p className="text-sm font-medium">Управление участниками</p>
+                            <p className="text-sm font-medium">РЈРїСЂР°РІР»РµРЅРёРµ СѓС‡Р°СЃС‚РЅРёРєР°РјРё</p>
                             <p className="text-xs text-muted-foreground">
-                              Только админ чата может добавлять и удалять участников.
+                              РўРѕР»СЊРєРѕ Р°РґРјРёРЅ С‡Р°С‚Р° РјРѕР¶РµС‚ РґРѕР±Р°РІР»СЏС‚СЊ Рё СѓРґР°Р»СЏС‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ.
                             </p>
                           </div>
                           <Button
@@ -1185,21 +1236,21 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                               }
                             }}
                           >
-                            {showAddParticipants ? "Скрыть форму" : "Добавить участников"}
+                            {showAddParticipants ? "РЎРєСЂС‹С‚СЊ С„РѕСЂРјСѓ" : "Р”РѕР±Р°РІРёС‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ"}
                           </Button>
                         </div>
                       )}
                       {canManageDialogParticipants(selectedDialog, user.id) && showAddParticipants && (
                         <div className="space-y-3 rounded-[1.35rem] border border-border/70 bg-background/86 px-3 py-3">
                           <div>
-                            <p className="text-sm font-medium">Добавить участников</p>
+                            <p className="text-sm font-medium">Р”РѕР±Р°РІРёС‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ</p>
                             <p className="text-xs text-muted-foreground">
-                              Доступны только пользователи из ваших контактов.
+                              Р”РѕСЃС‚СѓРїРЅС‹ С‚РѕР»СЊРєРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»Рё РёР· РІР°С€РёС… РєРѕРЅС‚Р°РєС‚РѕРІ.
                             </p>
                           </div>
                           {selectedDialogAvailableContacts.length === 0 ? (
                             <p className="text-sm text-muted-foreground">
-                              Нет доступных контактов для добавления.
+                              РќРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РєРѕРЅС‚Р°РєС‚РѕРІ РґР»СЏ РґРѕР±Р°РІР»РµРЅРёСЏ.
                             </p>
                           ) : (
                             <>
@@ -1236,7 +1287,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                     isAddingParticipants || selectedParticipantIdsToAdd.length === 0
                                   }
                                 >
-                                  {isAddingParticipants ? "Добавляем..." : "Добавить"}
+                                  {isAddingParticipants ? "Р”РѕР±Р°РІР»СЏРµРј..." : "Р”РѕР±Р°РІРёС‚СЊ"}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1246,7 +1297,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                     setSelectedParticipantIdsToAdd([])
                                   }}
                                 >
-                                  Отмена
+                                  РћС‚РјРµРЅР°
                                 </Button>
                               </div>
                             </>
@@ -1254,7 +1305,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         </div>
                       )}
                       <p className="text-xs font-medium text-muted-foreground">
-                        Участники: {selectedDialog.users.length}
+                        РЈС‡Р°СЃС‚РЅРёРєРё: {selectedDialog.users.length}
                       </p>
                       <div className="space-y-2 pr-1">
                         {selectedDialog.users.map((participant) => {
@@ -1271,8 +1322,8 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   <div className="flex flex-wrap items-center gap-2">
                                     <p className="truncate text-sm font-medium">
                                       {getDialogUserName(participant)}
-                                      {isCurrentUser ? " (Вы)" : ""}
-                                      {isOwner ? " • админ" : ""}
+                                      {isCurrentUser ? " (Р’С‹)" : ""}
+                                      {isOwner ? " вЂў Р°РґРјРёРЅ" : ""}
                                     </p>
                                     <AccountStatusBadge
                                       role={participant.role}
@@ -1298,7 +1349,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                       removeParticipant(selectedDialog.id, participant.id)
                                     }
                                   >
-                                    Удалить
+                                    РЈРґР°Р»РёС‚СЊ
                                   </Button>
                                 )}
                               </div>
@@ -1312,14 +1363,14 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
                 <div className="chat-wall min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 pb-24">
                   {!activeDialogId && (
-                    <p className="text-sm text-muted-foreground">Сначала выберите или создайте чат.</p>
+                    <p className="text-sm text-muted-foreground">РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ РёР»Рё СЃРѕР·РґР°Р№С‚Рµ С‡Р°С‚.</p>
                   )}
                   {activeDialogId && messages === null && (
-                    <p className="text-sm text-muted-foreground">Загружаем сообщения...</p>
+                    <p className="text-sm text-muted-foreground">Р—Р°РіСЂСѓР¶Р°РµРј СЃРѕРѕР±С‰РµРЅРёСЏ...</p>
                   )}
                   {activeDialogId && messages !== null && messages.length === 0 && (
                     <p className="text-sm text-muted-foreground">
-                      Сообщений пока нет. Напишите первое сообщение.
+                      РЎРѕРѕР±С‰РµРЅРёР№ РїРѕРєР° РЅРµС‚. РќР°РїРёС€РёС‚Рµ РїРµСЂРІРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ.
                     </p>
                   )}
 
@@ -1346,7 +1397,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                   />
                                   <div className="flex items-center gap-2">
                                     <Button size="sm" onClick={() => saveEdit(message.id)} disabled={isEditing}>
-                                      Сохранить
+                                      РЎРѕС…СЂР°РЅРёС‚СЊ
                                     </Button>
                                     <Button
                                       size="sm"
@@ -1356,15 +1407,16 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                         setEditingText("")
                                       }}
                                     >
-                                      Отмена
+                                      РћС‚РјРµРЅР°
                                     </Button>
                                   </div>
                                 </div>
                               ) : (
                                 <>
                                   <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                                  <MessageAttachmentView attachment={message.attachment} compact />
                                   <p className="mt-1 text-[11px] opacity-75">
-                                    {!mine && `${getDialogUserName(message.author)} · `}
+                                    {!mine && `${getDialogUserName(message.author)} В· `}
                                     {formatTime(message.createdAt)}
                                     {mine && (
                                       <span className="ml-2 inline-flex align-middle">
@@ -1379,20 +1431,20 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                               <DropdownMenu>
                                 <DropdownMenuTrigger
                                   className="inline-flex size-8 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
-                                  aria-label="Действия с сообщением"
+                                  aria-label="Р”РµР№СЃС‚РІРёСЏ СЃ СЃРѕРѕР±С‰РµРЅРёРµРј"
                                 >
                                   <EllipsisVerticalIcon className="size-4" />
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-40">
                                   <DropdownMenuItem onClick={() => beginEdit(message)}>
-                                    Редактировать
+                                    Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     variant="destructive"
                                     onClick={() => removeMessage(message.id)}
                                     disabled={isDeleting}
                                   >
-                                    Удалить
+                                    РЈРґР°Р»РёС‚СЊ
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -1405,23 +1457,94 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                 </div>
 
                 <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-3 backdrop-blur-xl">
-                  <div className="flex items-center gap-2 rounded-[1.85rem] border border-white/45 bg-card/92 p-2.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
-                    <Input
-                      value={messageText}
-                      onChange={(event) => setMessageText(event.target.value)}
-                      className="border-0 bg-transparent shadow-none focus-visible:ring-0"
-                      placeholder="Введите сообщение"
-                      disabled={!activeDialogId || isSending}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                          event.preventDefault()
-                          sendMessage()
-                        }
-                      }}
+                  <div className="space-y-2 rounded-[1.85rem] border border-white/45 bg-card/92 p-2.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
+                    {attachmentFile && attachmentKind ? (
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/78 px-3 py-2 text-sm">
+                        <span className="min-w-0 truncate">
+                          {attachmentKind === "VOICE"
+                            ? "Р“РѕР»РѕСЃРѕРІРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ"
+                            : attachmentKind === "VIDEO_CIRCLE"
+                              ? "Р’РёРґРµРѕ-РєСЂСѓР¶РѕРє"
+                              : attachmentFile.name}
+                        </span>
+                        <Button type="button" size="icon" variant="outline" onClick={resetComposer}>
+                          <XIcon className="size-4" />
+                        </Button>
+                      </div>
+                    ) : null}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*,*/*"
+                      className="hidden"
+                      onChange={(event) => selectAttachment("FILE", event.target.files?.[0] ?? null)}
                     />
-                    <Button className="min-w-28 rounded-full" onClick={sendMessage} disabled={!activeDialogId || isSending}>
-                      {isSending ? "Отправка..." : "Отправить"}
-                    </Button>
+                    <input
+                      ref={voiceInputRef}
+                      type="file"
+                      accept="audio/*"
+                      className="hidden"
+                      onChange={(event) => selectAttachment("VOICE", event.target.files?.[0] ?? null)}
+                    />
+                    <input
+                      ref={circleInputRef}
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      onChange={(event) => selectAttachment("VIDEO_CIRCLE", event.target.files?.[0] ?? null)}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={!activeDialogId || isSending}
+                        aria-label="РћС‚РїСЂР°РІРёС‚СЊ С„Р°Р№Р» РёР»Рё РєР°СЂС‚РёРЅРєСѓ"
+                      >
+                        <FileImageIcon className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => voiceInputRef.current?.click()}
+                        disabled={!activeDialogId || isSending}
+                        aria-label="РћС‚РїСЂР°РІРёС‚СЊ РіРѕР»РѕСЃРѕРІРѕРµ"
+                      >
+                        <MicIcon className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => circleInputRef.current?.click()}
+                        disabled={!activeDialogId || isSending}
+                        aria-label="РћС‚РїСЂР°РІРёС‚СЊ РєСЂСѓР¶РѕРє"
+                      >
+                        <PlayCircleIcon className="size-4" />
+                      </Button>
+                      <Input
+                        value={messageText}
+                        onChange={(event) => setMessageText(event.target.value)}
+                        className="border-0 bg-transparent shadow-none focus-visible:ring-0"
+                        placeholder="Введите сообщение"
+                        disabled={!activeDialogId || isSending}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault()
+                            sendMessage()
+                          }
+                        }}
+                      />
+                      <Button
+                        className="min-w-28 rounded-full"
+                        onClick={sendMessage}
+                        disabled={!activeDialogId || isSending || (!messageText.trim() && !attachmentFile)}
+                      >
+                        {isSending ? "Отправка..." : "Отправить"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1443,3 +1566,4 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     </main>
   )
 }
+

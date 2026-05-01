@@ -23,7 +23,10 @@ export default async function Home() {
           lastName: user.lastName,
           phone: user.phone,
           role: user.role,
+          starsBalance: user.starsBalance,
+          partnerStarsEarned: user.partnerStarsEarned,
           avatarTone: user.avatarTone,
+          avatarUrl: user.avatarUrl,
         }}
       />
     </Providers>

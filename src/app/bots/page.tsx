@@ -4,6 +4,7 @@ import { Providers } from "@/app/providers"
 import { PwaRegisterClient } from "@/app/pwa-register-client"
 import { BotsHome } from "@/features/bots/ui/bots-home"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
+import { prisma } from "@/shared/lib/db/prisma"
 
 export default async function BotsPage() {
   const user = await getCurrentUser()
@@ -11,6 +12,11 @@ export default async function BotsPage() {
   if (!user) {
     redirect("/auth")
   }
+
+  const publications = await prisma.botPublication.findMany({
+    where: { ownerId: user.id },
+    orderBy: { publishedAt: "desc" },
+  })
 
   return (
     <Providers>
@@ -24,6 +30,13 @@ export default async function BotsPage() {
           role: user.role,
           avatarTone: user.avatarTone,
         }}
+        publishedBots={publications.map((bot) => ({
+          id: bot.id,
+          name: bot.name,
+          niche: bot.niche,
+          audience: bot.audience as "client" | "user",
+          publishedAt: bot.publishedAt.toISOString(),
+        }))}
       />
     </Providers>
   )

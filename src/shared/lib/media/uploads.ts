@@ -77,6 +77,10 @@ function getExtension(fileName: string, mimeType: string) {
     return ".webp"
   }
 
+  if (mimeType.startsWith("image/gif")) {
+    return ".gif"
+  }
+
   return ""
 }
 
@@ -105,8 +109,8 @@ export function validateAvatarFile(file: File) {
     return "Выберите файл аватарки"
   }
 
-  if (!file.type.startsWith("image/")) {
-    return "Аватарка должна быть изображением"
+  if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.type)) {
+    return "Аватарка должна быть картинкой PNG, JPG, WEBP или GIF"
   }
 
   if (file.size > 5 * 1024 * 1024) {

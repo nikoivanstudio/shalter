@@ -28,13 +28,27 @@ describe("bots builder", () => {
     vi.stubGlobal("EventSource", MockEventSource as any)
 
     render(<BottomNav active="bots" />)
-    fireEvent.click(screen.getByRole("button", { name: /Боты|Р‘РѕС‚С‹/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Боты/i }))
     expect(routerMock.push).toHaveBeenCalledWith("/bots")
   })
 
-  test("constructor updates preview and copies generated config", async () => {
+  test("constructor updates preview, copies config and publishes a bot", async () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValue(undefined)
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        bot: {
+          id: 11,
+          name: "Sales Copilot",
+          niche: "Online sales",
+          audience: "client",
+          publishedAt: "2026-05-01T09:00:00.000Z",
+        },
+      }),
+    })
+
+    vi.stubGlobal("fetch", fetchMock as any)
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText },
@@ -50,18 +64,23 @@ describe("bots builder", () => {
           role: "user",
           avatarTone: null,
         }}
+        publishedBots={[]}
       />
     )
 
-    await user.clear(screen.getByLabelText(/Имя бота|РРјСЏ Р±РѕС‚Р°/))
-    await user.type(screen.getByLabelText(/Имя бота|РРјСЏ Р±РѕС‚Р°/), "Sales Copilot")
+    await user.clear(screen.getByLabelText(/Имя бота/i))
+    await user.type(screen.getByLabelText(/Имя бота/i), "Sales Copilot")
     expect(screen.getAllByText("Sales Copilot").length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole("button", { name: "Навык" }))
     expect(screen.getAllByText("Навык").length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole("button", { name: /Скопировать конфиг|РЎРєРѕРїРёСЂРѕРІР°С‚СЊ РєРѕРЅС„РёРі/ }))
+    await user.click(screen.getByRole("button", { name: /Скопировать конфиг/i }))
     await waitFor(() => expect(writeText).toHaveBeenCalled())
     expect(toastMock.success).toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: /Опубликовать/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/bots", expect.any(Object)))
+    expect((await screen.findAllByText("Клиенты")).length).toBeGreaterThan(0)
   })
 })

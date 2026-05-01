@@ -5,6 +5,7 @@ import { env } from "@/shared/config/env"
 import { sendRecoveryCodeEmail } from "@/shared/lib/mail"
 import { ADMIN_ROLE, USER_ROLE } from "@/shared/lib/auth/roles"
 import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
+import { PARTNER_REWARD_STARS } from "@/shared/lib/rewards/catalog"
 
 async function resolveInitialRole(email: string) {
   const elevatedUsersCount = await prisma.user.count({
@@ -125,6 +126,7 @@ export async function registerUser(input: {
   firstName: string
   lastName?: string
   phone: string
+  referrerId?: number
 }): Promise<AuthResult> {
   const email = input.email.toLowerCase()
   const duplicateUser = await prisma.user.findFirst({
@@ -156,6 +158,27 @@ export async function registerUser(input: {
     }
   }
 
+  if (input.referrerId) {
+    const referrer = await prisma.user.findUnique({
+      where: { id: input.referrerId },
+      select: {
+        id: true,
+        isBlocked: true,
+      },
+    })
+
+    if (!referrer || referrer.isBlocked) {
+      return {
+        ok: false,
+        status: 400,
+        message: "Партнёрская ссылка недействительна",
+        fieldErrors: {
+          referrerId: ["Партнёрская ссылка недействительна"],
+        },
+      }
+    }
+  }
+
   const passwordHash = await bcrypt.hash(input.password, 12)
   const role = await resolveInitialRole(email)
 
@@ -168,6 +191,7 @@ export async function registerUser(input: {
         lastName: input.lastName || null,
         phone: input.phone,
         role,
+        referredById: input.referrerId ?? null,
         updatedAt: new Date(),
       },
       select: {
@@ -175,6 +199,31 @@ export async function registerUser(input: {
         email: true,
       },
     })
+
+    if (input.referrerId) {
+      await prisma.user.update({
+        where: { id: input.referrerId },
+        data: {
+          starsBalance: {
+            increment: PARTNER_REWARD_STARS,
+          },
+          partnerStarsEarned: {
+            increment: PARTNER_REWARD_STARS,
+          },
+          updatedAt: new Date(),
+        },
+      })
+
+      await prisma.starTransaction.create({
+        data: {
+          senderId: null,
+          recipientId: input.referrerId,
+          amount: PARTNER_REWARD_STARS,
+          kind: "PARTNER_REWARD",
+          note: `Награда за регистрацию пользователя ${user.email}`,
+        },
+      })
+    }
 
     return { ok: true, user }
   } catch (error) {

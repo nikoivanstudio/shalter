@@ -17,6 +17,8 @@ export type CurrentUser = {
   lastName: string | null
   phone: string
   role: string
+  starsBalance: number
+  partnerStarsEarned: number
   avatarId: number | null
   avatarTone: EmblemToneId | null
   avatarUrl: string | null
@@ -45,6 +47,8 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
       last_name: string | null
       phone: string
       role: string
+      stars_balance: number
+      partner_stars_earned: number
       avatar_id: number | null
       avatar_tone: string | null
       avatar_url: string | null
@@ -60,6 +64,8 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
         last_name,
         phone,
         role,
+        stars_balance,
+        partner_stars_earned,
         avatar_id,
         avatar_tone,
         avatar_url,
@@ -92,6 +98,8 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
     lastName: user.last_name,
     phone: user.phone,
     role: user.role,
+    starsBalance: user.stars_balance,
+    partnerStarsEarned: user.partner_stars_earned,
     avatarId: user.avatar_id,
     avatarTone: user.avatar_tone as EmblemToneId | null,
     avatarUrl: user.avatar_url,
