@@ -1,5 +1,6 @@
 "use client"
 
+import { GemIcon, HandCoinsIcon, RocketIcon, StarIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
@@ -22,6 +23,7 @@ import {
   updateProfileSchema,
 } from "@/features/profile/model/schemas"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import { normalizeRole, PREMIUM_ROLE } from "@/shared/lib/auth/roles"
 
 type EditableUser = {
   id: number
@@ -64,6 +66,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
   const emblem = buildEmblem(form.firstName, lastName)
   const emblemTone = getEmblemTone(form.firstName, lastName, form.avatarTone)
   const displayName = `${form.firstName} ${lastName ?? ""}`.trim()
+  const isPremium = normalizeRole(user.role) === PREMIUM_ROLE
 
   function updateField<K extends keyof UpdateProfileInput>(key: K, value: UpdateProfileInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -397,9 +400,108 @@ export function ProfileHome({ user }: { user: EditableUser }) {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
+          <CardHeader className="border-b border-border/55 pb-5">
+            <CardTitle className="text-2xl font-semibold tracking-tight">Возможности роста</CardTitle>
+            <CardDescription>
+              Премиум открывает усиленный режим, а партнёрская программа помогает зарабатывать на
+              рекомендациях и внедрениях.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
+            <PromoCard
+              icon={<GemIcon className="size-5" />}
+              title="Премиум"
+              badge={isPremium ? "Активен" : "Доступен"}
+              badgeTone={isPremium ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300" : "bg-primary/10 text-primary"}
+              description="Для активных пользователей и команд, которым нужны расширенные лимиты, более сильные сценарии и быстрый доступ к новым функциям."
+              bullets={[
+                "Расширенные возможности для ботов",
+                "Приоритетный доступ к новым инструментам",
+                "Более удобный режим для бизнеса",
+              ]}
+              actionLabel={isPremium ? "Премиум активен" : "Скоро подключим"}
+              actionVariant={isPremium ? "secondary" : "default"}
+              footer={isPremium ? "Ваш аккаунт уже работает в премиум-режиме." : "Подойдёт, если вы часто используете ботов и рабочие сценарии."}
+            />
+
+            <PromoCard
+              icon={<HandCoinsIcon className="size-5" />}
+              title="Партнёрская программа"
+              badge="Новая"
+              badgeTone="bg-amber-500/12 text-amber-700 dark:text-amber-300"
+              description="Приглашайте клиентов и команды в Shalter, делитесь своим решением и получайте бонус за активные подключения."
+              bullets={[
+                "Персональная партнёрская ссылка",
+                "Бонусы за приведённые оплаты",
+                "Подходит агентствам и интеграторам",
+              ]}
+              actionLabel="Стать партнёром"
+              actionVariant="outline"
+              footer="Хороший вариант для тех, кто внедряет ботов, каналы и рабочие процессы другим."
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <BottomNav active="settings" />
     </main>
+  )
+}
+
+function PromoCard({
+  icon,
+  title,
+  badge,
+  badgeTone,
+  description,
+  bullets,
+  actionLabel,
+  actionVariant,
+  footer,
+}: {
+  icon: React.ReactNode
+  title: string
+  badge: string
+  badgeTone: string
+  description: string
+  bullets: string[]
+  actionLabel: string
+  actionVariant: "default" | "outline" | "secondary"
+  footer: string
+}) {
+  return (
+    <div className="overflow-hidden rounded-[1.7rem] border border-border/70 bg-linear-to-br from-background via-background to-muted/30">
+      <div className="space-y-4 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            {icon}
+          </div>
+          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${badgeTone}`}>{badge}</span>
+        </div>
+
+        <div>
+          <p className="text-lg font-semibold">{title}</p>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
+
+        <div className="space-y-2">
+          {bullets.map((bullet) => (
+            <div key={bullet} className="flex items-start gap-2 text-sm">
+              <StarIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+              <span>{bullet}</span>
+            </div>
+          ))}
+        </div>
+
+        <Button type="button" variant={actionVariant} className="w-full sm:w-auto">
+          <RocketIcon className="size-4" />
+          {actionLabel}
+        </Button>
+      </div>
+
+      <div className="border-t border-border/70 bg-muted/45 px-5 py-4 text-sm text-muted-foreground">{footer}</div>
+    </div>
   )
 }

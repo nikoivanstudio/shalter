@@ -442,13 +442,14 @@ export function AuthCard() {
       {isRecoveryConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
-            <h3 className="text-xl font-semibold">{tr("Сбросить аккаунт?")}</h3>
+            <h3 className="text-xl font-semibold">Восстановить доступ?</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Укажите привязанный номер телефона. Код подтверждения придёт на email аккаунта.
+              Укажите номер телефона, который привязан к аккаунту. Код подтверждения придёт на
+              привязанный email.
             </p>
             <div className="mt-4 space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="recovery-phone">Номер телефона для восстановления</Label>
+                <Label htmlFor="recovery-phone">Указанный номер телефона</Label>
                 <Input
                   id="recovery-phone"
                   type="tel"
@@ -472,30 +473,32 @@ export function AuthCard() {
                 onClick={requestRecoveryCode}
                 disabled={isPending}
               >
-                {isPending ? tr("Отправляем...") : tr("Отправить код")}
+                {isPending ? tr("Отправляем...") : "Продолжить"}
               </Button>
 
-              <div className="space-y-2">
-                <Label htmlFor="recovery-code">Код подтверждения</Label>
-                <Input
-                  id="recovery-code"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={recoveryForm.code}
-                  onChange={(e) =>
-                    setRecoveryForm((prev) => ({
-                      ...prev,
-                      code: e.target.value.replace(/\D/g, "").slice(0, 6),
-                    }))
-                  }
-                  placeholder="123456"
-                />
-                {getFieldError(recoveryErrors, "code") && (
-                  <p className="text-sm text-destructive">
-                    {getFieldError(recoveryErrors, "code")}
-                  </p>
-                )}
-              </div>
+              {isRecoveryCodeSent && (
+                <div className="space-y-2">
+                  <Label htmlFor="recovery-code">Код подтверждения</Label>
+                  <Input
+                    id="recovery-code"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={recoveryForm.code}
+                    onChange={(e) =>
+                      setRecoveryForm((prev) => ({
+                        ...prev,
+                        code: e.target.value.replace(/\D/g, "").slice(0, 6),
+                      }))
+                    }
+                    placeholder="123456"
+                  />
+                  {getFieldError(recoveryErrors, "code") && (
+                    <p className="text-sm text-destructive">
+                      {getFieldError(recoveryErrors, "code")}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <p className="text-sm text-muted-foreground">
                 {tr("После подтверждения контакты, чёрный список и все чаты будут очищены.")}
@@ -525,7 +528,7 @@ export function AuthCard() {
                 onClick={recoverAccount}
                 disabled={isPending || !isRecoveryCodeSent}
               >
-                {isPending ? tr("Сбрасываем...") : tr("Да")}
+                {isPending ? tr("Сбрасываем...") : "Восстановить"}
               </Button>
             </div>
           </div>

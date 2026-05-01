@@ -6,7 +6,9 @@ import { routerMock, toastMock } from "../vitest.setup"
 
 vi.mock("@/features/theme/ui/theme-toggle", () => ({ ThemeToggle: () => <div>ThemeToggle</div> }))
 vi.mock("@/features/auth/ui/logout-button", () => ({ LogoutButton: () => <div>LogoutButton</div> }))
-vi.mock("@/features/navigation/ui/bottom-nav", () => ({ BottomNav: ({ active }: { active?: string }) => <div>BottomNav:{active ?? "none"}</div> }))
+vi.mock("@/features/navigation/ui/bottom-nav", () => ({
+  BottomNav: ({ active }: { active?: string }) => <div>BottomNav:{active ?? "none"}</div>,
+}))
 vi.mock("@/features/auth/ui/turnstile-widget", () => ({
   TurnstileWidget: ({ onTokenChange }: { onTokenChange: (token: string) => void }) => (
     <button type="button" onClick={() => onTokenChange("turnstile-token")}>
@@ -31,7 +33,7 @@ describe("auth/profile/navigation components", () => {
     ;(fetch as any).mockResolvedValueOnce({ ok: true })
 
     render(<mod.LogoutButton />)
-    const button = await screen.findByRole("button", { name: /Выйти|Р’С‹Р№С‚Рё|Р’С‹С…РѕРґРёРј/ })
+    const button = await screen.findByRole("button", { name: /Выйти|Р’С‹Р№С‚Рё/ })
     fireEvent.click(button)
 
     await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Вы вышли из аккаунта"))
@@ -48,7 +50,7 @@ describe("auth/profile/navigation components", () => {
       })
       .mockResolvedValueOnce({
         ok: false,
-        json: async () => ({ message: "РћС€РёР±РєР° СЂРµРіРёСЃС‚СЂР°С†РёРё", fieldErrors: { email: ["duplicate"] } }),
+        json: async () => ({ message: "Ошибка регистрации", fieldErrors: { email: ["duplicate"] } }),
       })
 
     render(<AuthCard />)
@@ -59,9 +61,9 @@ describe("auth/profile/navigation components", () => {
     await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Вход выполнен"))
     expect(routerMock.replace).toHaveBeenCalledWith("/")
 
-    await user.click(screen.getByText(/Регистрация|Р РµРіРёСЃС‚СЂР°С†РёСЏ/))
+    await user.click(screen.getByRole("tab", { name: /Регистрация|Р РµРіРёСЃС‚СЂР°С†РёСЏ/ }))
     await user.type(screen.getByLabelText(/Имя|РРјСЏ/), "Ivan")
-    await user.type(screen.getByLabelText(/Фамилия \(необязательно\)|Р¤Р°РјРёР»РёСЏ \(РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ\)/), "Petrov")
+    await user.type(screen.getByLabelText(/Фамилия \(необязательно\)|Р¤Р°РјРёР»РёСЏ/), "Petrov")
     await user.type(screen.getByLabelText("Email"), "user@example.com")
     await user.type(screen.getByLabelText(/Телефон|РўРµР»РµС„РѕРЅ/), "12345678")
     await user.click(screen.getByRole("button", { name: "Turnstile" }))
@@ -69,7 +71,7 @@ describe("auth/profile/navigation components", () => {
     await user.type(screen.getByLabelText(/Подтверждение пароля|РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РїР°СЂРѕР»СЏ/), "password123")
     await user.click(screen.getByRole("button", { name: /Зарегистрироваться|Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ/ }))
 
-    await screen.findByText("РћС€РёР±РєР° СЂРµРіРёСЃС‚СЂР°С†РёРё")
+    await screen.findByText("Ошибка регистрации")
     expect(screen.getByText("duplicate")).toBeInTheDocument()
   })
 
@@ -91,23 +93,27 @@ describe("auth/profile/navigation components", () => {
 
     render(<AuthCard />)
     await user.click(screen.getByRole("button", { name: /Забыли пароль\?|Р—Р°Р±С‹Р»Рё РїР°СЂРѕР»СЊ\?/ }))
-    expect(screen.getByText(/Сбросить аккаунт\?|РЎР±СЂРѕСЃРёС‚СЊ Р°РєРєР°СѓРЅС‚\?/)).toBeInTheDocument()
+    expect(screen.getByText(/Восстановить доступ\?|Сбросить аккаунт\?/)).toBeInTheDocument()
     expect(
       screen.getByText(/контакты, чёрный список и все чаты будут очищены|РєРѕРЅС‚Р°РєС‚С‹, С‡С‘СЂРЅС‹Р№ СЃРїРёСЃРѕРє Рё РІСЃРµ С‡Р°С‚С‹ Р±СѓРґСѓС‚ РѕС‡РёС‰РµРЅС‹/i)
     ).toBeInTheDocument()
-    await user.type(screen.getByLabelText(/Номер телефона для восстановления|РќРѕРјРµСЂ С‚РµР»РµС„РѕРЅР° РґР»СЏ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ/), "12345678")
-    await user.click(screen.getByRole("button", { name: /Отправить код|РћС‚РїСЂР°РІРёС‚СЊ РєРѕРґ/ }))
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
-      "/api/auth/recover/request-code",
-      expect.objectContaining({ method: "POST" })
-    ))
+    await user.type(screen.getByLabelText(/Указанный номер телефона|РќРѕРјРµСЂ С‚РµР»РµС„РѕРЅР°/), "12345678")
+    await user.click(screen.getByRole("button", { name: /Продолжить|РћС‚РїСЂР°РІРёС‚СЊ РєРѕРґ/ }))
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/auth/recover/request-code",
+        expect.objectContaining({ method: "POST" })
+      )
+    )
     await user.type(screen.getByLabelText(/Код подтверждения|РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ/), "123456")
-    await user.click(screen.getByRole("button", { name: /Да|Р”Р°/ }))
+    await user.click(screen.getByRole("button", { name: /Восстановить|Р”Р°/ }))
 
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
-      "/api/auth/recover",
-      expect.objectContaining({ method: "POST" })
-    ))
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/auth/recover",
+        expect.objectContaining({ method: "POST" })
+      )
+    )
     await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Аккаунт восстановлен"))
     expect(routerMock.replace).toHaveBeenCalledWith("/")
     expect(routerMock.refresh).toHaveBeenCalled()
@@ -133,15 +139,13 @@ describe("auth/profile/navigation components", () => {
 
     const { rerender } = render(<ActualBottomNav />)
     expect(await screen.findByText("3")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /Р§Р°С‚С‹|Чаты/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Чаты|Р§Р°С‚С‹/ }))
     expect(routerMock.push).toHaveBeenCalledWith("/chats")
 
     const onChatsClick = vi.fn()
-    rerender(
-      <ActualBottomNav active="contacts" chatsBadgeCount={101} onChatsClick={onChatsClick} />
-    )
+    rerender(<ActualBottomNav active="contacts" chatsBadgeCount={101} onChatsClick={onChatsClick} />)
     expect(screen.getByText("99+")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /Р§Р°С‚С‹|Чаты/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Чаты|Р§Р°С‚С‹/ }))
     expect(onChatsClick).toHaveBeenCalled()
   })
 
@@ -151,7 +155,7 @@ describe("auth/profile/navigation components", () => {
     ;(fetch as any)
       .mockResolvedValueOnce({
         ok: false,
-        json: async () => ({ message: "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РїСЂРѕС„РёР»СЊ", fieldErrors: { email: ["bad"] } }),
+        json: async () => ({ message: "Не удалось сохранить профиль", fieldErrors: { email: ["bad"] } }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -167,7 +171,7 @@ describe("auth/profile/navigation components", () => {
       .mockResolvedValueOnce({
         ok: false,
         json: async () => ({
-          message: "РўРµРєСѓС‰РёР№ РїР°СЂРѕР»СЊ РІРІРµРґС‘РЅ РЅРµРІРµСЂРЅРѕ",
+          message: "Текущий пароль введён неверно",
           fieldErrors: { currentPassword: ["bad-password"] },
         }),
       })
@@ -196,7 +200,7 @@ describe("auth/profile/navigation components", () => {
     await user.clear(screen.getByLabelText(/Имя|РРјСЏ/))
     await user.type(screen.getByLabelText(/Имя|РРјСЏ/), "A")
     await user.click(screen.getByRole("button", { name: /Сохранить профиль|РЎРѕС…СЂР°РЅРёС‚СЊ РїСЂРѕС„РёР»СЊ/ }))
-    expect(await screen.findByText(/Имя должно быть не короче 2 символов|РРјСЏ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РЅРµ РєРѕСЂРѕС‡Рµ 2 СЃРёРјРІРѕР»РѕРІ/)).toBeInTheDocument()
+    expect(await screen.findByText(/Имя должно быть не короче 2 символов|РРјСЏ РґРѕР»Р¶РЅРѕ/)).toBeInTheDocument()
 
     await user.clear(screen.getByLabelText(/Имя|РРјСЏ/))
     await user.type(screen.getByLabelText(/Имя|РРјСЏ/), "Ivan")

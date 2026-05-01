@@ -10,6 +10,7 @@ jest.mock("@/shared/lib/db/prisma", () => ({
       findMany: jest.fn(),
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      delete: jest.fn(),
     },
     channelParticipant: {
       findFirst: jest.fn(),
@@ -17,6 +18,7 @@ jest.mock("@/shared/lib/db/prisma", () => ({
       createMany: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     channelMessage: {
       findMany: jest.fn(),
@@ -113,6 +115,7 @@ describe("channel routes", () => {
   test("messages and participants routes enforce roles", async () => {
     const messagesRoute = await import("@/app/api/channels/[channelId]/messages/route")
     const participantsRoute = await import("@/app/api/channels/[channelId]/participants/route")
+    const channelRoute = await import("@/app/api/channels/[channelId]/route")
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(1)
     prisma.channelParticipant.findFirst.mockResolvedValueOnce(null)
@@ -203,5 +206,31 @@ describe("channel routes", () => {
       }
     )
     expect(response.status).toBe(200)
+
+    getAuthorizedUserIdFromRequest.mockResolvedValueOnce(1)
+    prisma.channel.findFirst.mockResolvedValueOnce({
+      id: 1,
+      ownerId: 1,
+      participants: [
+        { userId: 1, role: "OWNER", user: { id: 1 } },
+        { userId: 2, role: "MEMBER", user: { id: 2 } },
+      ],
+    })
+    response = await participantsRoute.DELETE(new NextRequest("http://localhost?targetUserId=2", { method: "DELETE" }), {
+      params: Promise.resolve({ channelId: "1" }),
+    })
+    expect(response.status).toBe(200)
+    expect(prisma.channelParticipant.delete).toHaveBeenCalled()
+
+    getAuthorizedUserIdFromRequest.mockResolvedValueOnce(1)
+    prisma.channel.findFirst.mockResolvedValueOnce({
+      id: 1,
+      ownerId: 1,
+    })
+    response = await channelRoute.DELETE(nextRequest("http://localhost", "DELETE"), {
+      params: Promise.resolve({ channelId: "1" }),
+    })
+    expect(response.status).toBe(200)
+    expect(prisma.channel.delete).toHaveBeenCalledWith({ where: { id: 1 } })
   })
 })

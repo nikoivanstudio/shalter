@@ -106,6 +106,8 @@ export function ChannelsHome({
   const [isSending, startSending] = useTransition()
   const [isUpdatingRole, startUpdatingRole] = useTransition()
   const [isAddingParticipants, startAddingParticipants] = useTransition()
+  const [isRemovingParticipant, startRemovingParticipant] = useTransition()
+  const [isDeletingChannel, startDeletingChannel] = useTransition()
 
   const selectedChannel = useMemo(
     () => channels.find((channel) => channel.id === selectedChannelId) ?? null,
@@ -311,6 +313,76 @@ export function ChannelsHome({
     })
   }
 
+  function removeParticipant(targetUserId: number) {
+    if (!selectedChannelId) {
+      return
+    }
+
+    const confirmed = window.confirm("Выгнать участника из канала?")
+    if (!confirmed) {
+      return
+    }
+
+    startRemovingParticipant(async () => {
+      const response = await fetch(
+        `/api/channels/${selectedChannelId}/participants?targetUserId=${targetUserId}`,
+        {
+          method: "DELETE",
+        }
+      )
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(tr(data?.message ?? "Не удалось выгнать участника"))
+        return
+      }
+
+      setChannels((prev) =>
+        prev.map((channel) =>
+          channel.id === selectedChannelId
+            ? {
+                ...channel,
+                participants: channel.participants.filter((participant) => participant.id !== targetUserId),
+              }
+            : channel
+        )
+      )
+      setSelectedContactIds((prev) => prev.filter((id) => id !== targetUserId))
+      toast.success(tr("Участник удалён"))
+    })
+  }
+
+  function deleteChannel() {
+    if (!selectedChannelId || !selectedChannel) {
+      return
+    }
+
+    const confirmed = window.confirm(`Удалить канал «${selectedChannel.title}»?`)
+    if (!confirmed) {
+      return
+    }
+
+    startDeletingChannel(async () => {
+      const response = await fetch(`/api/channels/${selectedChannelId}`, {
+        method: "DELETE",
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(tr(data?.message ?? "Не удалось удалить канал"))
+        return
+      }
+
+      setChannels((prev) => {
+        const next = prev.filter((channel) => channel.id !== selectedChannelId)
+        const nextSelectedId = next[0]?.id ?? null
+        setSelectedChannelId(nextSelectedId)
+        setMessages(nextSelectedId ? null : [])
+        setShowMembers(false)
+        return next
+      })
+      toast.success(tr("Канал удалён"))
+    })
+  }
+
   return (
     <main className="min-h-screen px-4 py-5 pb-28 sm:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
@@ -348,7 +420,7 @@ export function ChannelsHome({
           </div>
         </header>
 
-        <section className="mx-auto flex w-full max-w-6xl min-h-0">
+        <section className="mx-auto flex min-h-0 w-full max-w-6xl">
           <Card className="flex min-h-[78dvh] w-full flex-col border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
             <CardContent className="grid min-h-0 flex-1 gap-0 p-0 lg:grid-cols-[360px_minmax(0,1fr)]">
               <aside className="flex min-h-0 flex-col border-b border-border/60 p-4 lg:border-r lg:border-b-0">
@@ -466,10 +538,15 @@ export function ChannelsHome({
                     </p>
                   </div>
                   {selectedChannel && canManage && (
-                    <Button size="sm" variant="outline" onClick={() => setShowMembers((prev) => !prev)}>
-                      <UsersIcon className="size-4" />
-                      {showMembers ? tr("Скрыть участников") : tr("Участники")}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setShowMembers((prev) => !prev)}>
+                        <UsersIcon className="size-4" />
+                        {showMembers ? tr("Скрыть участников") : tr("Участники")}
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={deleteChannel} disabled={isDeletingChannel}>
+                        {isDeletingChannel ? "Удаляем..." : "Удалить канал"}
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -517,80 +594,88 @@ export function ChannelsHome({
                                 </div>
                               </div>
                               {canManage && participant.channelRole !== "OWNER" && (
-                                <Button
-                                  size="sm"
-                                  variant={participant.channelRole === "ADMIN" ? "outline" : "default"}
-                                  disabled={isUpdatingRole}
-                                  onClick={() =>
-                                    updateRole(
-                                      participant.id,
-                                      participant.channelRole === "ADMIN" ? "MEMBER" : "ADMIN"
-                                    )
-                                  }
-                                >
-                                  {participant.channelRole === "ADMIN"
-                                    ? tr("Снять админа")
-                                    : tr("Сделать админом")}
-                                </Button>
+                                <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                                  <Button
+                                    size="sm"
+                                    variant={participant.channelRole === "ADMIN" ? "outline" : "default"}
+                                    disabled={isUpdatingRole}
+                                    onClick={() =>
+                                      updateRole(
+                                        participant.id,
+                                        participant.channelRole === "ADMIN" ? "MEMBER" : "ADMIN"
+                                      )
+                                    }
+                                  >
+                                    {participant.channelRole === "ADMIN"
+                                      ? tr("Снять админа")
+                                      : tr("Сделать админом")}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    disabled={isRemovingParticipant}
+                                    onClick={() => removeParticipant(participant.id)}
+                                  >
+                                    {isRemovingParticipant ? "Удаляем..." : "Выгнать"}
+                                  </Button>
+                                </div>
                               )}
                             </div>
                           </div>
                         ))}
                       </div>
 
-                      {canManage && (
-                        <div className="rounded-[1.2rem] border border-border/70 bg-background/86 p-3">
-                          <p className="text-sm font-medium">{tr("Добавить участников")}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {tr("Доступны только пользователи из ваших контактов.")}
-                          </p>
-                          <div className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1">
-                            {availableContacts.map((contact) => (
-                              <label
-                                key={contact.id}
-                                className="flex cursor-pointer items-center gap-2 rounded-[1rem] border border-border/70 bg-card/70 p-2 text-sm"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="size-4 shrink-0 accent-primary"
-                                  checked={selectedContactIds.includes(contact.id)}
-                                  onChange={() =>
-                                    setSelectedContactIds((prev) =>
-                                      prev.includes(contact.id)
-                                        ? prev.filter((id) => id !== contact.id)
-                                        : [...prev, contact.id]
-                                    )
-                                  }
-                                />
-                                <span className="flex min-w-0 flex-wrap items-center gap-2">
-                                  <span className="truncate">
-                                    {contact.firstName} {contact.lastName ?? ""}
-                                  </span>
-                                  <AccountStatusBadge
-                                    role={contact.role}
-                                    email={contact.email}
-                                    firstName={contact.firstName}
-                                    lastName={contact.lastName}
-                                    isBlocked={contact.isBlocked}
-                                  />
+                      <div className="rounded-[1.2rem] border border-border/70 bg-background/86 p-3">
+                        <p className="text-sm font-medium">{tr("Добавить участников")}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {tr("Доступны только пользователи из ваших контактов.")}
+                        </p>
+                        <div className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1">
+                          {availableContacts.map((contact) => (
+                            <label
+                              key={contact.id}
+                              className="flex cursor-pointer items-center gap-2 rounded-[1rem] border border-border/70 bg-card/70 p-2 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                className="size-4 shrink-0 accent-primary"
+                                checked={selectedContactIds.includes(contact.id)}
+                                onChange={() =>
+                                  setSelectedContactIds((prev) =>
+                                    prev.includes(contact.id)
+                                      ? prev.filter((id) => id !== contact.id)
+                                      : [...prev, contact.id]
+                                  )
+                                }
+                              />
+                              <span className="flex min-w-0 flex-wrap items-center gap-2">
+                                <span className="truncate">
+                                  {contact.firstName} {contact.lastName ?? ""}
                                 </span>
-                              </label>
-                            ))}
-                            {availableContacts.length === 0 && (
-                              <p className="text-sm text-muted-foreground">
-                                {tr("Нет доступных контактов для добавления.")}
-                              </p>
-                            )}
-                          </div>
-                          <Button
-                            className="mt-3 w-full"
-                            onClick={addParticipants}
-                            disabled={isAddingParticipants || selectedContactIds.length === 0}
-                          >
-                            {isAddingParticipants ? tr("Добавляем...") : tr("Добавить выбранных")}
-                          </Button>
+                                <AccountStatusBadge
+                                  role={contact.role}
+                                  email={contact.email}
+                                  firstName={contact.firstName}
+                                  lastName={contact.lastName}
+                                  isBlocked={contact.isBlocked}
+                                />
+                              </span>
+                            </label>
+                          ))}
+                          {availableContacts.length === 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              {tr("Нет доступных контактов для добавления.")}
+                            </p>
+                          )}
                         </div>
-                      )}
+                        <Button
+                          className="mt-3 w-full"
+                          onClick={addParticipants}
+                          disabled={isAddingParticipants || selectedContactIds.length === 0}
+                        >
+                          {isAddingParticipants ? tr("Добавляем...") : tr("Добавить выбранных")}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}

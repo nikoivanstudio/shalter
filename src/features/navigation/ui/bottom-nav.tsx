@@ -59,7 +59,7 @@ export function BottomNav({
           onClick={() => router.push("/")}
         >
           <SettingsIcon className="size-4" />
-          <span className="text-[10px] sm:text-xs">{tr("РќР°СЃС‚СЂРѕР№РєРё")}</span>
+          <span className="text-[10px] sm:text-xs">{tr("Настройки")}</span>
         </Button>
         <Button
           variant={active === "contacts" ? "default" : "ghost"}
@@ -67,7 +67,7 @@ export function BottomNav({
           onClick={() => router.push("/contacts")}
         >
           <UsersIcon className="size-4" />
-          <span className="text-[10px] sm:text-xs">{tr("РљРѕРЅС‚Р°РєС‚С‹")}</span>
+          <span className="text-[10px] sm:text-xs">{tr("Контакты")}</span>
         </Button>
         <Button
           variant={active === "chats" ? "default" : "ghost"}
@@ -78,7 +78,7 @@ export function BottomNav({
           }}
         >
           <MessageCircleIcon className="size-4" />
-          <span className="text-[10px] sm:text-xs">{tr("Р§Р°С‚С‹")}</span>
+          <span className="text-[10px] sm:text-xs">{tr("Чаты")}</span>
           {effectiveChatsBadgeCount > 0 && (
             <span className="absolute -top-1 right-1 inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
               {effectiveChatsBadgeCount > 99 ? "99+" : effectiveChatsBadgeCount}
@@ -91,7 +91,7 @@ export function BottomNav({
           onClick={() => router.push("/feed")}
         >
           <NewspaperIcon className="size-4" />
-          <span className="text-[10px] sm:text-xs">Р›РµРЅС‚Р°</span>
+          <span className="text-[10px] sm:text-xs">{tr("Лента")}</span>
         </Button>
         <Button
           variant={active === "channels" ? "default" : "ghost"}
@@ -99,7 +99,7 @@ export function BottomNav({
           onClick={() => router.push("/channels")}
         >
           <HashIcon className="size-4" />
-          <span className="text-[10px] sm:text-xs">{tr("РљР°РЅР°Р»С‹")}</span>
+          <span className="text-[10px] sm:text-xs">{tr("Каналы")}</span>
         </Button>
         <Button
           variant={active === "bots" ? "default" : "ghost"}
