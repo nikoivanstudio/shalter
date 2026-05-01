@@ -1,3 +1,5 @@
+import { Suspense } from "react"
+
 import { Providers } from "@/app/providers"
 import { PwaRegisterClient } from "@/app/pwa-register-client"
 import { AuthCard } from "@/features/auth/ui/auth-card"
@@ -14,7 +16,10 @@ export default function AuthPage() {
           <LanguageToggle />
           <ThemeToggle />
         </div>
-        <AuthCard />
+
+        <Suspense fallback={null}>
+          <AuthCard />
+        </Suspense>
       </main>
     </Providers>
   )
