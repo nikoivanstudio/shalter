@@ -89,7 +89,7 @@ export async function getDialogMessages(dialogId: number) {
         m.media_mime,
         m.media_size
       from messages m
-      inner join users u on u.id = m.author_id
+      inner join users u on u.id = m."authorId"
       where m.dialog_id = $1
       order by m.id asc
     `,
@@ -122,7 +122,7 @@ export async function createDialogMessage(input: {
         created_at,
         updated_at,
         dialog_id,
-        author_id,
+        "authorId",
         media_kind,
         media_url,
         media_name,
@@ -136,7 +136,7 @@ export async function createDialogMessage(input: {
         status,
         created_at,
         dialog_id,
-        author_id,
+        "authorId" as author_id,
         media_kind,
         media_url,
         media_name,

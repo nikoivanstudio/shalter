@@ -242,6 +242,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const lastDialogResyncAtRef = useRef(0)
   const [dialogs, setDialogs] = useState(initialDialogs)
   const [selectedDialogId, setSelectedDialogId] = useState<number | null>(
     initialDialogId ?? null
@@ -285,6 +286,16 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       return rightHasUnread - leftHasUnread
     })
   }, [dialogs])
+
+  const requestDialogResync = useCallback(() => {
+    const now = Date.now()
+    if (now - lastDialogResyncAtRef.current < 2000) {
+      return
+    }
+
+    lastDialogResyncAtRef.current = now
+    setMessagesReloadKey((value) => value + 1)
+  }, [])
 
   const activeDialogId = useMemo(() => {
     if (selectedDialogId && dialogs.some((item) => item.id === selectedDialogId)) {
@@ -431,7 +442,11 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
     eventSource.addEventListener("chat-error", (event) => {
       const payload = parseEventPayload<{ message?: string }>(event)
-      toast.error(payload?.message ?? "Ошибка обновления чата")
+      eventSource.close()
+      requestDialogResync()
+      if (!messages?.length) {
+        toast.error(payload?.message ?? "Ошибка обновления чата")
+      }
     })
 
     eventSource.addEventListener("status", (event) => {
@@ -469,8 +484,22 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
       eventSource.close()
     })
 
+    eventSource.onerror = () => {
+      eventSource.close()
+      requestDialogResync()
+    }
+
     return () => eventSource.close()
-  }, [activeDialogId, handleDialogAccessLost, isDialogView, isMessageListReady, sseSince, user.id])
+  }, [
+    activeDialogId,
+    handleDialogAccessLost,
+    isDialogView,
+    isMessageListReady,
+    messages,
+    requestDialogResync,
+    sseSince,
+    user.id,
+  ])
 
   useEffect(() => {
     if (!isDialogView || !activeDialogId) {

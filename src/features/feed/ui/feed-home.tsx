@@ -125,8 +125,13 @@ export function FeedHome({
             }),
       })
       const data = await response.json().catch(() => null)
+      const firstFieldError = Object.values(
+        (data?.fieldErrors ?? {}) as Record<string, string[] | undefined>
+      )
+        .flat()
+        .find((value): value is string => Boolean(value))
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось опубликовать пост")
+        toast.error(firstFieldError ?? data?.message ?? "Не удалось опубликовать пост")
         return
       }
 
@@ -212,6 +217,8 @@ export function FeedHome({
 
   function submitAdCampaign() {
     startSubmittingAd(async () => {
+      const normalizedTargetUrl = adTargetUrl.trim()
+      const normalizedBudget = adBudget.trim().replace(/\s+/g, "")
       const response = await fetch("/api/ads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,14 +226,19 @@ export function FeedHome({
           title: adTitle,
           description: adDescription,
           ctaText: adCtaText,
-          targetUrl: adTargetUrl,
+          targetUrl: normalizedTargetUrl,
           audience: adAudience,
-          budget: Number(adBudget),
+          budget: normalizedBudget,
         }),
       })
       const data = await response.json().catch(() => null)
+      const firstFieldError = Object.values(
+        (data?.fieldErrors ?? {}) as Record<string, string[] | undefined>
+      )
+        .flat()
+        .find((value): value is string => Boolean(value))
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось создать размещение")
+        toast.error(firstFieldError ?? data?.message ?? "Не удалось создать размещение")
         return
       }
 
