@@ -117,12 +117,18 @@ export async function GET(
 
           if (!stillHasAccess) {
             const reason = await getDialogRemovalReason(dialogId)
-            send(createSseEvent(reason === "removed" ? "chat-removed" : "chat-deleted", { dialogId }))
+            send(
+              createSseEvent(reason === "removed" ? "chat-removed" : "chat-deleted", {
+                dialogId,
+              })
+            )
             stop()
             return
           }
 
-          const messages = (await getDialogMessages(dialogId)).filter((message) => message.id > lastSeenId)
+          const messages = (await getDialogMessages(dialogId)).filter(
+            (message) => message.id > lastSeenId
+          )
 
           for (const message of messages) {
             lastSeenId = message.id

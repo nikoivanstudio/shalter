@@ -128,7 +128,9 @@ export async function GET(request: NextRequest) {
           const nextDialogIds = new Set(snapshot.dialogIds)
 
           if (previousDialogIds.size > 0) {
-            const missingDialogIds = Array.from(previousDialogIds).filter((id) => !nextDialogIds.has(id))
+            const missingDialogIds = Array.from(previousDialogIds).filter(
+              (id) => !nextDialogIds.has(id)
+            )
 
             for (const dialogId of missingDialogIds) {
               const existingDialog = await prisma.dialog.findUnique({

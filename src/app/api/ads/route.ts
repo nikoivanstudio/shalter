@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import { createAdCampaign, listAdCampaignsByOwner, listPublicAdCampaigns } from "@/features/ads/lib/store"
+import {
+  createAdCampaign,
+  listAdCampaignsByOwner,
+  listPublicAdCampaigns,
+} from "@/features/ads/lib/store"
 import { createAdCampaignSchema } from "@/features/ads/model/schemas"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 
@@ -28,13 +32,7 @@ export async function POST(request: NextRequest) {
   }
 
   const json = await request.json().catch(() => null)
-  const normalized = json
-    ? {
-        ...json,
-        budget: Number(json.budget),
-      }
-    : null
-  const parsed = createAdCampaignSchema.safeParse(normalized)
+  const parsed = createAdCampaignSchema.safeParse(json)
 
   if (!parsed.success) {
     return NextResponse.json(

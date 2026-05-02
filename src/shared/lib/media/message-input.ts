@@ -15,6 +15,19 @@ export type ParsedMessageInput = {
   } | null
 }
 
+function isFileLike(value: FormDataEntryValue | null): value is File {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "size" in value &&
+    typeof value.size === "number" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "arrayBuffer" in value &&
+    typeof value.arrayBuffer === "function"
+  )
+}
+
 export async function parseMessageInput(
   request: Request
 ): Promise<
@@ -46,7 +59,7 @@ export async function parseMessageInput(
 
     const kindValue = formData.get("kind")
     const attachment = formData.get("attachment")
-    const hasFile = attachment instanceof File && attachment.size > 0
+    const hasFile = isFileLike(attachment) && attachment.size > 0
 
     if (!hasFile) {
       if (!parsedContent.data) {

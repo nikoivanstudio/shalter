@@ -14,6 +14,19 @@ import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
 import { deleteUploadedFileByUrl, saveAvatarFile, validateAvatarFile } from "@/shared/lib/media/uploads"
 import { touchUserActivity } from "@/shared/lib/user-activity"
 
+function isFileLike(value: FormDataEntryValue | null): value is File {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "size" in value &&
+    typeof value.size === "number" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "arrayBuffer" in value &&
+    typeof value.arrayBuffer === "function"
+  )
+}
+
 async function getCurrentAvatarUrl(userId: number) {
   const rows = await prisma.$queryRawUnsafe<Array<{ avatar_url: string | null }>>(
     `
@@ -53,7 +66,7 @@ export async function PATCH(request: NextRequest) {
       const profileValue = formData.get("profile")
       parsedPayload = typeof profileValue === "string" ? JSON.parse(profileValue) : null
       const avatarValue = formData.get("avatarFile")
-      avatarFile = avatarValue instanceof File && avatarValue.size > 0 ? avatarValue : null
+      avatarFile = isFileLike(avatarValue) && avatarValue.size > 0 ? avatarValue : null
     } else {
       parsedPayload = await request.json()
     }

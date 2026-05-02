@@ -230,6 +230,14 @@ function MessageStatusIcon({ status }: { status: ChatMessage["status"] }) {
   )
 }
 
+function parseEventPayload<T>(event: Event) {
+  try {
+    return JSON.parse((event as MessageEvent<string>).data) as T
+  } catch {
+    return null
+  }
+}
+
 export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDialogId }: ChatsHomeProps) {
   const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
@@ -393,7 +401,11 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
 
     const eventSource = new EventSource(`/api/chats/${activeDialogId}/events?since=${sseSince}`)
     eventSource.addEventListener("message", (event) => {
-      const nextMessage = JSON.parse((event as MessageEvent<string>).data) as ChatMessage
+      const nextMessage = parseEventPayload<ChatMessage>(event)
+      if (!nextMessage) {
+        return
+      }
+
       setMessages((prev) => {
         if (!prev) {
           return [nextMessage]
@@ -418,15 +430,19 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     })
 
     eventSource.addEventListener("chat-error", (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as { message?: string }
-      toast.error(payload.message ?? "Ошибка обновления чата")
+      const payload = parseEventPayload<{ message?: string }>(event)
+      toast.error(payload?.message ?? "Ошибка обновления чата")
     })
 
     eventSource.addEventListener("status", (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as {
+      const payload = parseEventPayload<{
         id: number
         status: ChatMessage["status"]
+      }>(event)
+      if (!payload) {
+        return
       }
+
       setMessages((prev) =>
         prev
           ? prev.map((item) =>
@@ -468,11 +484,15 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     const eventSource = new EventSource("/api/chats/unread/events")
 
     eventSource.addEventListener("unread", (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as {
+      const payload = parseEventPayload<{
         dialogIds?: number[]
         presenceByUserId?: Record<string, { lastSeenAt: string | null; isOnline: boolean }>
         unreadByDialog?: Record<string, number>
+      }>(event)
+      if (!payload) {
+        return
       }
+
       const unreadByDialog = payload.unreadByDialog ?? {}
       const presenceByUserId = payload.presenceByUserId ?? {}
       const hasDialogIds = Array.isArray(payload.dialogIds)
@@ -499,15 +519,15 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     })
 
     eventSource.addEventListener("chat-deleted", (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as { dialogId?: number }
-      if (typeof payload.dialogId === "number") {
+      const payload = parseEventPayload<{ dialogId?: number }>(event)
+      if (typeof payload?.dialogId === "number") {
         handleDialogAccessLost(payload.dialogId, "deleted")
       }
     })
 
     eventSource.addEventListener("chat-removed", (event) => {
-      const payload = JSON.parse((event as MessageEvent<string>).data) as { dialogId?: number }
-      if (typeof payload.dialogId === "number") {
+      const payload = parseEventPayload<{ dialogId?: number }>(event)
+      if (typeof payload?.dialogId === "number") {
         handleDialogAccessLost(payload.dialogId, "removed")
       }
     })
