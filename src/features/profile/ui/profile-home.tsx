@@ -1,8 +1,14 @@
 "use client"
 
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useState,
+  useTransition,
+} from "react"
 import { CameraIcon, GemIcon, HandCoinsIcon, RocketIcon, StarIcon, XIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { AccountStatusBadge } from "@/components/ui/account-status-badge"
@@ -82,6 +88,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(user.avatarUrl ?? null)
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(user.avatarUrl ?? null)
+
   const [form, setForm] = useState<UpdateProfileInput>({
     email: user.email,
     firstName: user.firstName,
@@ -89,11 +96,13 @@ export function ProfileHome({ user }: { user: EditableUser }) {
     phone: user.phone ?? "",
     avatarTone: user.avatarTone ?? null,
   })
+
   const [passwordForm, setPasswordForm] = useState<ChangePasswordInput>({
     currentPassword: "",
     newPassword: "",
     confirmNewPassword: "",
   })
+
   const [starsBalance, setStarsBalance] = useState(user.starsBalance ?? 0)
   const [giftRecipientEmail, setGiftRecipientEmail] = useState("")
   const [giftNote, setGiftNote] = useState("")
@@ -109,11 +118,6 @@ export function ProfileHome({ user }: { user: EditableUser }) {
   const selectedGift = giftCatalog.find((gift) => gift.key === giftKey) ?? giftCatalog[0]
 
   useEffect(() => {
-    setSavedAvatarUrl(user.avatarUrl ?? null)
-    setAvatarPreviewUrl(user.avatarUrl ?? null)
-  }, [user.avatarUrl])
-
-  useEffect(() => {
     return () => {
       if (avatarPreviewUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(avatarPreviewUrl)
@@ -126,6 +130,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
     if (key === "firstName" && typeof value === "string") {
       const nextValue = value.trim()
+
       setFieldErrors((prev) => ({
         ...prev,
         firstName:
@@ -141,6 +146,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       if (prev?.startsWith("blob:")) {
         URL.revokeObjectURL(prev)
       }
+
       return prev
     })
 
@@ -152,7 +158,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
     setAvatarPreviewUrl(URL.createObjectURL(file))
   }
 
-  function onSaveProfile(e: React.FormEvent<HTMLFormElement>) {
+  function onSaveProfile(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setServerMessage("")
     setFieldErrors({})
@@ -165,6 +171,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
     }
 
     const parsed = updateProfileSchema.safeParse(form)
+
     if (!parsed.success) {
       setFieldErrors(parsed.error.flatten().fieldErrors)
       return
@@ -192,6 +199,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       })
 
       const data = await response.json().catch(() => null)
+
       if (!response.ok) {
         setFieldErrors((data?.fieldErrors ?? {}) as FieldErrors)
         setServerMessage(tr(data?.message ?? "Не удалось сохранить профиль"))
@@ -199,6 +207,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       }
 
       const nextAvatarUrl = data.user.avatarUrl ?? null
+
       setForm({
         email: data.user.email,
         firstName: data.user.firstName,
@@ -206,6 +215,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
         phone: data.user.phone ?? "",
         avatarTone: data.user.avatarTone ?? null,
       })
+
       setSavedAvatarUrl(nextAvatarUrl)
       setAvatarFile(null)
       setAvatarPreviewUrl(withAvatarCacheBuster(nextAvatarUrl))
@@ -220,12 +230,13 @@ export function ProfileHome({ user }: { user: EditableUser }) {
     setPasswordForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  function onChangePassword(e: React.FormEvent<HTMLFormElement>) {
+  function onChangePassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setPasswordMessage("")
     setPasswordErrors({})
 
     const parsed = changePasswordSchema.safeParse(passwordForm)
+
     if (!parsed.success) {
       setPasswordErrors(parsed.error.flatten().fieldErrors)
       return
@@ -241,6 +252,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       })
 
       const data = await response.json().catch(() => null)
+
       if (!response.ok) {
         setPasswordErrors((data?.fieldErrors ?? {}) as FieldErrors)
         setPasswordMessage(tr(data?.message ?? "Не удалось изменить пароль"))
@@ -252,6 +264,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
         newPassword: "",
         confirmNewPassword: "",
       })
+
       toast.success(tr("Пароль изменён"))
     })
   }
@@ -271,6 +284,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       })
 
       const data = await response.json().catch(() => null)
+
       if (!response.ok) {
         toast.error(tr(data?.message ?? "Не удалось удалить аккаунт"))
         return
@@ -292,6 +306,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
           text: shareText,
           url: partnerLink,
         })
+
         toast.success("Партнёрская ссылка готова к отправке")
         return
       }
@@ -328,6 +343,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       })
 
       const data = await response.json().catch(() => null)
+
       if (!response.ok) {
         toast.error(data?.message ?? "Не удалось отправить подарок")
         return
@@ -350,6 +366,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
     }
 
     const amount = Number(starAmount)
+
     if (!Number.isInteger(amount) || amount <= 0) {
       toast.error("Укажите корректное количество звёзд")
       return
@@ -368,6 +385,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       })
 
       const data = await response.json().catch(() => null)
+
       if (!response.ok) {
         toast.error(data?.message ?? "Не удалось подарить звёзды")
         return
@@ -398,7 +416,11 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                     className="size-20 border border-border/70"
                     textClassName="text-xl font-semibold"
                   />
-                  <label className="absolute -bottom-1 -right-1 cursor-pointer" htmlFor="profile-avatar">
+
+                  <label
+                    className="absolute -bottom-1 -right-1 cursor-pointer"
+                    htmlFor="profile-avatar"
+                  >
                     <input
                       id="profile-avatar"
                       type="file"
@@ -406,6 +428,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                       className="sr-only"
                       onChange={(event) => onAvatarChange(event.target.files?.[0] ?? null)}
                     />
+
                     <span className="flex size-9 items-center justify-center rounded-full border border-border/70 bg-background text-foreground shadow-sm">
                       <CameraIcon className="size-4" />
                     </span>
@@ -417,6 +440,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                     <h1 className="text-2xl font-semibold">{displayName || user.email}</h1>
                     <p className="text-sm text-muted-foreground">{user.email}</p>
                   </div>
+
                   <div className="flex flex-wrap items-center gap-2">
                     <AccountStatusBadge
                       role={user.role}
@@ -424,12 +448,14 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                       firstName={user.firstName}
                       lastName={user.lastName}
                     />
+
                     {isPremium ? (
                       <span className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                         Premium
                       </span>
                     ) : null}
                   </div>
+
                   <p className="text-sm text-muted-foreground">{tr("Настройки профиля")}</p>
                 </div>
               </div>
@@ -443,10 +469,12 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <StatPill label="Звёзды" value={isAdminWithInfiniteStars ? "∞" : String(starsBalance)} />
+
               <StatPill
                 label="Партнёрские награды"
                 value={String(user.partnerStarsEarned ?? 0)}
               />
+
               <StatPill label="Бонус за приглашение" value={String(PARTNER_REWARD_STARS)} />
             </div>
           </CardContent>
@@ -461,6 +489,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                   {tr("Изменения сохраняются в базе данных без смены пароля.")}
                 </CardDescription>
               </CardHeader>
+
               <CardContent>
                 <form className="space-y-5" onSubmit={onSaveProfile}>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -477,6 +506,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         aria-invalid={Boolean(getFieldError(fieldErrors, "firstName"))}
                       />
                     </Field>
+
                     <Field
                       label={tr("Фамилия (необязательно)")}
                       htmlFor="profile-last-name"
@@ -492,7 +522,11 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Email" htmlFor="profile-email" error={getFieldError(fieldErrors, "email")}>
+                    <Field
+                      label="Email"
+                      htmlFor="profile-email"
+                      error={getFieldError(fieldErrors, "email")}
+                    >
                       <Input
                         id="profile-email"
                         type="email"
@@ -501,6 +535,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         aria-invalid={Boolean(getFieldError(fieldErrors, "email"))}
                       />
                     </Field>
+
                     <Field
                       label={tr("Телефон")}
                       htmlFor="profile-phone"
@@ -517,6 +552,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
                   <div className="space-y-3">
                     <Label>{tr("Цвет аватарки")}</Label>
+
                     <div className="flex flex-wrap gap-2">
                       {EMBLEM_TONE_OPTIONS.map((tone) => {
                         const isActive = form.avatarTone === tone.id
@@ -537,6 +573,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                           </button>
                         )
                       })}
+
                       <button
                         type="button"
                         className="flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-2 text-sm hover:bg-muted/60"
@@ -546,14 +583,18 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         Сбросить
                       </button>
                     </div>
+
                     {avatarPreviewUrl ? (
                       <Button type="button" variant="outline" onClick={() => onAvatarChange(null)}>
                         <XIcon className="size-4" />
                         Убрать фото
                       </Button>
                     ) : null}
+
                     {getFieldError(fieldErrors, "avatarFile") ? (
-                      <p className="text-sm text-destructive">{getFieldError(fieldErrors, "avatarFile")}</p>
+                      <p className="text-sm text-destructive">
+                        {getFieldError(fieldErrors, "avatarFile")}
+                      </p>
                     ) : null}
                   </div>
 
@@ -573,6 +614,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                   {tr("Укажите текущий пароль и дважды введите новый.")}
                 </CardDescription>
               </CardHeader>
+
               <CardContent>
                 <form className="space-y-4" onSubmit={onChangePassword}>
                   <Field
@@ -584,7 +626,9 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                       id="current-password"
                       type="password"
                       value={passwordForm.currentPassword}
-                      onChange={(event) => updatePasswordField("currentPassword", event.target.value)}
+                      onChange={(event) =>
+                        updatePasswordField("currentPassword", event.target.value)
+                      }
                       aria-invalid={Boolean(getFieldError(passwordErrors, "currentPassword"))}
                     />
                   </Field>
@@ -599,10 +643,13 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         id="new-password"
                         type="password"
                         value={passwordForm.newPassword}
-                        onChange={(event) => updatePasswordField("newPassword", event.target.value)}
+                        onChange={(event) =>
+                          updatePasswordField("newPassword", event.target.value)
+                        }
                         aria-invalid={Boolean(getFieldError(passwordErrors, "newPassword"))}
                       />
                     </Field>
+
                     <Field
                       label={tr("Подтверждение нового пароля")}
                       htmlFor="confirm-new-password"
@@ -620,7 +667,9 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                     </Field>
                   </div>
 
-                  {passwordMessage ? <p className="text-sm text-destructive">{passwordMessage}</p> : null}
+                  {passwordMessage ? (
+                    <p className="text-sm text-destructive">{passwordMessage}</p>
+                  ) : null}
 
                   <Button type="submit" disabled={isChangingPassword}>
                     {isChangingPassword ? tr("Сохраняем...") : tr("Изменить пароль")}
@@ -638,6 +687,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                   Делитесь личной ссылкой и получайте бонус за каждого нового участника.
                 </CardDescription>
               </CardHeader>
+
               <CardContent className="space-y-4">
                 <div className="rounded-2xl border border-border/70 bg-muted/35 p-4">
                   <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
@@ -645,6 +695,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                   </p>
                   <p className="mt-2 break-all text-sm">{partnerLink}</p>
                 </div>
+
                 <Button type="button" onClick={handlePartnerProgramAction}>
                   <RocketIcon className="size-4" />
                   Скопировать ссылку
@@ -677,6 +728,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                       onChange={(event) => setGiftRecipientEmail(event.target.value)}
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="giftKey">Подарок</Label>
                     <select
@@ -691,8 +743,10 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         </option>
                       ))}
                     </select>
+
                     <p className="text-sm text-muted-foreground">{selectedGift?.description}</p>
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="giftNote">Комментарий</Label>
                     <Input
@@ -730,6 +784,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                       onChange={(event) => setStarRecipientEmail(event.target.value)}
                     />
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="starAmount">Количество звёзд</Label>
                     <Input
@@ -752,13 +807,11 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                   )}
                 </CardDescription>
               </CardHeader>
+
               <CardContent className="space-y-4">
                 <Separator />
-                <Button
-                  variant="destructive"
-                  disabled={isDeletingAccount}
-                  onClick={deleteAccount}
-                >
+
+                <Button variant="destructive" disabled={isDeletingAccount} onClick={deleteAccount}>
                   {isDeletingAccount ? tr("Удаляем...") : tr("Удалить аккаунт")}
                 </Button>
               </CardContent>
@@ -783,7 +836,7 @@ function Field({
   htmlFor?: string
   error?: string
   hint?: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <div className="space-y-2">
@@ -817,7 +870,7 @@ function PromoCard({
   onAction,
   details,
 }: {
-  icon: React.ReactNode
+  icon: ReactNode
   title: string
   badge: string
   badgeTone: string
@@ -827,7 +880,7 @@ function PromoCard({
   actionVariant: "default" | "outline" | "secondary"
   footer: string
   onAction?: () => void
-  details?: React.ReactNode
+  details?: ReactNode
 }) {
   return (
     <div className="overflow-hidden rounded-[1.7rem] border border-border/70 bg-linear-to-br from-background via-background to-muted/30">
@@ -836,6 +889,7 @@ function PromoCard({
           <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             {icon}
           </div>
+
           <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${badgeTone}`}>
             {badge}
           </span>

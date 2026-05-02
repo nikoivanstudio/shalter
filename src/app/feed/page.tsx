@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 
 import { Providers } from "@/app/providers"
 import { PwaRegisterClient } from "@/app/pwa-register-client"
+import { listAdCampaignsByOwner, listPublicAdCampaigns } from "@/features/ads/lib/store"
 import { FeedHome } from "@/features/feed/ui/feed-home"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
@@ -55,6 +56,11 @@ export default async function FeedPage() {
     orderBy: { createdAt: "desc" },
   })
 
+  const [ads, myAds] = await Promise.all([
+    listPublicAdCampaigns(),
+    listAdCampaignsByOwner(user.id),
+  ])
+
   return (
     <Providers>
       <PwaRegisterClient />
@@ -81,6 +87,8 @@ export default async function FeedPage() {
             author: comment.author,
           })),
         }))}
+        ads={ads}
+        myAds={myAds}
       />
     </Providers>
   )

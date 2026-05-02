@@ -58,6 +58,7 @@ export async function POST(
           lastName: true,
           email: true,
           role: true,
+          avatarTone: true,
           isBlocked: true,
         },
       },

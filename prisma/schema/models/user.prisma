@@ -33,6 +33,7 @@ model User {
   newsPosts            NewsPost[]           @relation("NewsPosts")
   newsPostLikes        NewsPostLike[]       @relation("NewsPostLikes")
   newsPostComments     NewsPostComment[]    @relation("NewsPostComments")
+  adCampaigns          AdCampaign[]         @relation("OwnedAdCampaigns")
   botPublications      BotPublication[]     @relation("OwnedBotPublications")
   sentStarTransactions StarTransaction[]    @relation("SentStarTransactions")
   receivedStarTransactions StarTransaction[] @relation("ReceivedStarTransactions")
