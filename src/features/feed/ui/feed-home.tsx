@@ -2,6 +2,7 @@
 
 import {
   EllipsisVerticalIcon,
+  FileImageIcon,
   HeartIcon,
   LayoutPanelTopIcon,
   MessageSquareIcon,
@@ -10,8 +11,9 @@ import {
   PlayCircleIcon,
   SendIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react"
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { AccountStatusBadge } from "@/components/ui/account-status-badge"
@@ -31,6 +33,8 @@ import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { PushToggle } from "@/features/notifications/ui/push-toggle"
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import type { MediaAttachment } from "@/shared/lib/media/constants"
+import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
 
 type FeedUser = {
@@ -55,6 +59,7 @@ type FeedPost = {
   content: string
   createdAt: string
   author: FeedUser
+  attachment?: MediaAttachment | null
   likesCount: number
   likedByMe: boolean
   comments: FeedComment[]
@@ -79,6 +84,7 @@ export function FeedHome({
   const [ads, setAds] = useState(initialAds)
   const [myAds, setMyAds] = useState(initialMyAds)
   const [postText, setPostText] = useState("")
+  const [postAttachment, setPostAttachment] = useState<File | null>(null)
   const [commentTextByPostId, setCommentTextByPostId] = useState<Record<number, string>>({})
   const [expandedPostIds, setExpandedPostIds] = useState<Record<number, boolean>>({})
   const [adTitle, setAdTitle] = useState("")
@@ -93,15 +99,30 @@ export function FeedHome({
   const [isDeletingPost, startDeletingPost] = useTransition()
   const [isSubmittingAd, startSubmittingAd] = useTransition()
   const [isUpdatingAd, startUpdatingAd] = useTransition()
+  const postAttachmentInputRef = useRef<HTMLInputElement | null>(null)
   const emblem = buildEmblem(user.firstName, user.lastName)
   const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
 
   function createPost() {
     startPosting(async () => {
+      const trimmedContent = postText.trim()
+      const body = postAttachment
+        ? (() => {
+            const formData = new FormData()
+            formData.set("content", trimmedContent)
+            formData.set("attachment", postAttachment)
+            return formData
+          })()
+        : JSON.stringify({ content: trimmedContent })
+
       const response = await fetch("/api/feed", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: postText }),
+        ...(body instanceof FormData
+          ? { body }
+          : {
+              headers: { "Content-Type": "application/json" },
+              body,
+            }),
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) {
@@ -111,6 +132,10 @@ export function FeedHome({
 
       setPosts((prev) => [data.post as FeedPost, ...prev])
       setPostText("")
+      setPostAttachment(null)
+      if (postAttachmentInputRef.current) {
+        postAttachmentInputRef.current.value = ""
+      }
       toast.success("Публикация создана")
     })
   }
@@ -353,9 +378,44 @@ export function FeedHome({
                     onChange={(event) => setPostText(event.target.value)}
                     placeholder="Что нового?"
                   />
-                  <Button onClick={createPost} disabled={isPosting || postText.trim().length === 0}>
+                  <input
+                    ref={postAttachmentInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    className="hidden"
+                    onChange={(event) => setPostAttachment(event.target.files?.[0] ?? null)}
+                  />
+                  {postAttachment ? (
+                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/78 px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate">{postAttachment.name}</span>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => {
+                          setPostAttachment(null)
+                          if (postAttachmentInputRef.current) {
+                            postAttachmentInputRef.current.value = ""
+                          }
+                        }}
+                      >
+                        <XIcon className="size-4" />
+                      </Button>
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => postAttachmentInputRef.current?.click()}
+                    >
+                      <FileImageIcon className="size-4" />
+                      Добавить фото или видео
+                    </Button>
+                    <Button onClick={createPost} disabled={isPosting || (!postText.trim().length && !postAttachment)}>
                     {isPosting ? "Публикуем..." : "Опубликовать"}
                   </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
@@ -410,6 +470,7 @@ export function FeedHome({
                         </div>
 
                         <p className="mt-3 whitespace-pre-wrap text-sm">{post.content}</p>
+                        <MessageAttachmentView attachment={post.attachment} />
 
                         <div className="mt-4 flex flex-wrap items-center gap-2">
                           <Button

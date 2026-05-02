@@ -33,6 +33,8 @@ export default async function ContactsPage() {
           lastName: true,
           phone: true,
           role: true,
+          avatarTone: true,
+          avatarUrl: true,
           isBlocked: true,
         },
       },
@@ -51,6 +53,8 @@ export default async function ContactsPage() {
           lastName: true,
           phone: true,
           role: true,
+          avatarTone: true,
+          avatarUrl: true,
           isBlocked: true,
         },
       },
@@ -69,6 +73,7 @@ export default async function ContactsPage() {
           lastName: user.lastName,
           role: user.role,
           avatarTone: user.avatarTone,
+          avatarUrl: user.avatarUrl,
         }}
         contacts={contacts.map((item) => item.contactUser)}
         blacklist={blacklist.map((item) => item.blockedUser)}

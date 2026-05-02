@@ -6,6 +6,27 @@ import { listAdCampaignsByOwner, listPublicAdCampaigns } from "@/features/ads/li
 import { FeedHome } from "@/features/feed/ui/feed-home"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import type { MediaAttachment } from "@/shared/lib/media/constants"
+
+function mapAttachmentFromPost(post: {
+  mediaKind: string | null
+  mediaUrl: string | null
+  mediaName: string | null
+  mediaMime: string | null
+  mediaSize: number | null
+}): MediaAttachment | null {
+  if (!post.mediaKind || !post.mediaUrl || !post.mediaName || !post.mediaMime || post.mediaSize === null) {
+    return null
+  }
+
+  return {
+    kind: post.mediaKind as MediaAttachment["kind"],
+    url: post.mediaUrl,
+    name: post.mediaName,
+    mime: post.mediaMime,
+    size: post.mediaSize,
+  }
+}
 
 export default async function FeedPage() {
   const user = await getCurrentUser()
@@ -78,6 +99,7 @@ export default async function FeedPage() {
           content: post.content,
           createdAt: post.createdAt.toISOString(),
           author: post.author,
+          attachment: mapAttachmentFromPost(post),
           likesCount: post._count.likes,
           likedByMe: post.likes.length > 0,
           comments: post.comments.map((comment) => ({

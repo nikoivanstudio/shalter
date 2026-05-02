@@ -1,11 +1,7 @@
 import { z } from "zod"
 
 export const createNewsPostSchema = z.object({
-  content: z
-    .string()
-    .trim()
-    .min(1, "Введите текст публикации")
-    .max(2000, "Текст публикации слишком длинный"),
+  content: z.string().trim().max(2000, "Текст публикации слишком длинный").default(""),
 })
 
 export const createNewsCommentSchema = z.object({

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { deleteUploadedFileByUrl } from "@/shared/lib/media/uploads"
 
 function parsePostId(value: string) {
   const postId = Number(value)
@@ -28,6 +29,7 @@ export async function DELETE(
     select: {
       id: true,
       authorId: true,
+      mediaUrl: true,
     },
   })
 
@@ -42,6 +44,7 @@ export async function DELETE(
   await prisma.newsPost.delete({
     where: { id: postId },
   })
+  await deleteUploadedFileByUrl(post.mediaUrl)
 
   return NextResponse.json({ ok: true }, { status: 200 })
 }

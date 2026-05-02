@@ -10,6 +10,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
+import {
+  ContactProfileCard,
+  type ViewedContactProfile,
+} from "@/features/contacts/ui/contact-profile-card"
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
@@ -30,6 +34,7 @@ type ProfileUser = {
   lastName: string | null
   role: string
   avatarTone: string | null
+  avatarUrl?: string | null
 }
 
 type ContactUser = {
@@ -40,6 +45,8 @@ type ContactUser = {
   phone: string
   role: string
   isBlocked: boolean
+  avatarTone?: string | null
+  avatarUrl?: string | null
 }
 
 type SearchUser = ContactUser & {
@@ -78,6 +85,8 @@ export function ContactsHome({
   const [lastCompletedQuery, setLastCompletedQuery] = useState("")
   const [openContactMenuId, setOpenContactMenuId] = useState<number | null>(null)
   const [roleUpdateUserId, setRoleUpdateUserId] = useState<number | null>(null)
+  const [selectedProfile, setSelectedProfile] = useState<ViewedContactProfile | null>(null)
+  const [isProfileLoading, setIsProfileLoading] = useState(false)
   const emblem = buildEmblem(user.firstName, user.lastName)
   const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
   const canManageRoles = canAssignManagedRole(user.role)
@@ -310,6 +319,30 @@ export function ContactsHome({
     })
   }
 
+  function openProfile(contactUserId: number) {
+    setSelectedProfile(null)
+    setIsProfileLoading(true)
+
+    void fetch(`/api/contacts/${contactUserId}/profile`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(tr(data?.message ?? "Не удалось открыть профиль"))
+        }
+
+        return data as { profile: ViewedContactProfile }
+      })
+      .then((data) => {
+        setSelectedProfile(data.profile)
+      })
+      .catch((error: Error) => {
+        toast.error(error.message)
+      })
+      .finally(() => {
+        setIsProfileLoading(false)
+      })
+  }
+
   return (
     <main className="h-dvh overflow-hidden px-4 py-5 sm:px-6">
       <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-5 pb-28">
@@ -368,6 +401,16 @@ export function ContactsHome({
             </div>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden pt-6">
+            <ContactProfileCard
+              profile={selectedProfile}
+              isLoading={isProfileLoading}
+              onClose={() => {
+                setSelectedProfile(null)
+                setIsProfileLoading(false)
+              }}
+              onOpenChat={(contactId) => router.push(`/chats?contactId=${contactId}`)}
+            />
+
             <Input
               value={query}
               onChange={(e) => {
@@ -419,6 +462,13 @@ export function ContactsHome({
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            disabled={isPending}
+                            onClick={() => openProfile(item.id)}
+                          >
+                            {tr("Профиль")}
+                          </Button>
                           <Button
                             variant={item.isAlreadyContact ? "secondary" : "default"}
                             disabled={item.isAlreadyContact || isPending}
@@ -512,6 +562,15 @@ export function ContactsHome({
                         {contact.phone} · {contact.email}
                       </p>
                     </button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openProfile(contact.id)}
+                      disabled={isPending}
+                    >
+                      {tr("Профиль")}
+                    </Button>
                     <div className="relative">
                       <button
                         type="button"

@@ -43,6 +43,27 @@ export function MessageAttachmentView({
     )
   }
 
+  if (attachment.mime.startsWith("video/")) {
+    return (
+      <div className="mt-2 space-y-2">
+        <video
+          src={attachment.url}
+          controls
+          preload="metadata"
+          className={`max-w-full rounded-2xl bg-black ${compact ? "max-h-56" : "max-h-80"}`}
+        />
+        <a
+          href={attachment.url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex text-xs underline underline-offset-2 opacity-80 hover:opacity-100"
+        >
+          {attachment.name}
+        </a>
+      </div>
+    )
+  }
+
   return (
     <a
       href={attachment.url}

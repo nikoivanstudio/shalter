@@ -103,7 +103,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     const data = parsed.data
-    const previousAvatarUrl = await getCurrentAvatarUrl(payload.userId)
+    const previousAvatarUrl =
+      typeof savedAvatarUrl === "undefined" ? null : await getCurrentAvatarUrl(payload.userId)
     const updated = await prisma.user.update({
       where: { id: payload.userId },
       data: {

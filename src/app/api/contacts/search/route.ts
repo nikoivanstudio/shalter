@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
         phone: true,
         email: true,
         role: true,
+        avatarTone: true,
+        avatarUrl: true,
         isBlocked: true,
       },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],

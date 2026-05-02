@@ -744,7 +744,19 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                       ))}
                     </select>
 
-                    <p className="text-sm text-muted-foreground">{selectedGift?.description}</p>
+                    {selectedGift ? (
+                      <div className="overflow-hidden rounded-[1.2rem] border border-border/70 bg-background/80">
+                        <img
+                          src={selectedGift.imageUrl}
+                          alt={selectedGift.name}
+                          className="h-36 w-full object-cover"
+                        />
+                        <div className="space-y-1 p-3">
+                          <p className="text-sm font-medium">{selectedGift.name}</p>
+                          <p className="text-sm text-muted-foreground">{selectedGift.description}</p>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="space-y-2">
