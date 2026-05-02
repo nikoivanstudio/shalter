@@ -15,12 +15,14 @@ import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 
 type ProfileUser = {
   id: number
   email: string
   firstName: string
   lastName: string | null
+  phone?: string | null
   role: string
   avatarTone: string | null
 }
@@ -171,6 +173,7 @@ export function BlacklistHome({
                 <p className="truncate font-medium">
                   {user.firstName} {user.lastName}
                 </p>
+                <CountryFlagBadge phone={user.phone} />
                 <AccountStatusBadge
                   role={user.role}
                   email={user.email}
@@ -263,6 +266,7 @@ export function BlacklistHome({
                                 <p className="truncate font-medium">
                                   {item.firstName} {item.lastName}
                                 </p>
+                                <CountryFlagBadge phone={item.phone} />
                                 <AccountStatusBadge
                                   role={item.role}
                                   email={item.email}
@@ -313,6 +317,7 @@ export function BlacklistHome({
                         <p className="font-medium">
                           {blockedUser.firstName} {blockedUser.lastName}
                         </p>
+                        <CountryFlagBadge phone={blockedUser.phone} />
                         <AccountStatusBadge
                           role={blockedUser.role}
                           email={blockedUser.email}

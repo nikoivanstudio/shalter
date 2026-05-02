@@ -71,6 +71,7 @@ export default async function ContactsPage() {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
+          phone: user.phone,
           role: user.role,
           avatarTone: user.avatarTone,
           avatarUrl: user.avatarUrl,

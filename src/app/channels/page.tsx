@@ -62,6 +62,7 @@ export default async function ChannelsPage({
               firstName: true,
               lastName: true,
               email: true,
+              phone: true,
               role: true,
               isBlocked: true,
             },
@@ -100,6 +101,7 @@ export default async function ChannelsPage({
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
+          phone: user.phone,
           role: user.role,
           avatarTone: user.avatarTone,
         }}

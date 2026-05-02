@@ -21,12 +21,14 @@ import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 
 type UserShort = {
   id: number
   firstName: string
   lastName: string | null
   email: string
+  phone?: string | null
   role: string
   avatarTone?: string | null
   isBlocked?: boolean
@@ -399,6 +401,7 @@ export function ChannelsHome({
                   <p className="truncate text-lg font-semibold">
                     {user.firstName} {user.lastName ?? ""}
                   </p>
+                  <CountryFlagBadge phone={user.phone} />
                   <AccountStatusBadge
                     role={user.role}
                     email={user.email}
@@ -566,6 +569,7 @@ export function ChannelsHome({
                                   <p className="truncate text-sm font-medium">
                                     {participant.firstName} {participant.lastName ?? ""}
                                   </p>
+                                  <CountryFlagBadge phone={participant.phone} />
                                   <AccountStatusBadge
                                     role={participant.role}
                                     email={participant.email}
@@ -652,6 +656,7 @@ export function ChannelsHome({
                                 <span className="truncate">
                                   {contact.firstName} {contact.lastName ?? ""}
                                 </span>
+                                <CountryFlagBadge phone={contact.phone} />
                                 <AccountStatusBadge
                                   role={contact.role}
                                   email={contact.email}

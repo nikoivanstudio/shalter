@@ -26,12 +26,14 @@ import {
   USER_ROLE,
   type ManagedUserRole,
 } from "@/shared/lib/auth/roles"
+import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 
 type ProfileUser = {
   id: number
   email: string
   firstName: string
   lastName: string | null
+  phone?: string | null
   role: string
   avatarTone: string | null
   avatarUrl?: string | null
@@ -359,6 +361,7 @@ export function ContactsHome({
                   <p className="truncate text-lg font-semibold">
                     {user.firstName} {user.lastName}
                   </p>
+                  <CountryFlagBadge phone={user.phone} />
                   <AccountStatusBadge
                     role={user.role}
                     email={user.email}
@@ -449,6 +452,7 @@ export function ContactsHome({
                             <p className="truncate font-medium">
                               {item.firstName} {item.lastName}
                             </p>
+                            <CountryFlagBadge phone={item.phone} />
                             <AccountStatusBadge
                               role={item.role}
                               email={item.email}
@@ -550,6 +554,7 @@ export function ContactsHome({
                         <p className="font-medium">
                           {contact.firstName} {contact.lastName}
                         </p>
+                        <CountryFlagBadge phone={contact.phone} />
                         <AccountStatusBadge
                           role={contact.role}
                           email={contact.email}

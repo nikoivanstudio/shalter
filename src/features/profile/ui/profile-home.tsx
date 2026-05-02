@@ -36,6 +36,7 @@ import {
   PARTNER_REWARD_STARS,
   type GiftKey,
 } from "@/shared/lib/rewards/catalog"
+import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { UserAvatar } from "@/shared/ui/user-avatar"
 
 type EditableUser = {
@@ -437,7 +438,10 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
                 <div className="space-y-2">
                   <div className="space-y-1">
-                    <h1 className="text-2xl font-semibold">{displayName || user.email}</h1>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h1 className="text-2xl font-semibold">{displayName || user.email}</h1>
+                      <CountryFlagBadge phone={form.phone} />
+                    </div>
                     <p className="text-sm text-muted-foreground">{user.email}</p>
                   </div>
 

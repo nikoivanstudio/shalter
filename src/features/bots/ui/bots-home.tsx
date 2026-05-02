@@ -31,6 +31,9 @@ type PublishedBot = {
   audience: "client" | "user"
   publishedAt: string
   config: BotConfig
+  ownerId?: number
+  ownerName?: string
+  isMine?: boolean
 }
 
 type FlowBlock = {

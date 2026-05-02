@@ -15,8 +15,16 @@ export default async function BotsPage() {
   }
 
   const publications = await prisma.botPublication.findMany({
-    where: { ownerId: user.id },
     orderBy: { publishedAt: "desc" },
+    include: {
+      owner: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
   })
 
   return (
@@ -38,6 +46,10 @@ export default async function BotsPage() {
           audience: bot.audience as "client" | "user",
           publishedAt: bot.publishedAt.toISOString(),
           config: bot.config as BotConfig,
+          ownerId: bot.ownerId,
+          ownerName:
+            `${bot.owner?.firstName ?? "Автор"} ${bot.owner?.lastName ?? ""}`.trim(),
+          isMine: bot.ownerId === user.id,
         }))}
       />
     </Providers>

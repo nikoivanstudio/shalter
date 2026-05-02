@@ -5,6 +5,7 @@ import { GiftIcon, MessageCircleIcon, XIcon } from "lucide-react"
 import { AccountStatusBadge } from "@/components/ui/account-status-badge"
 import { Button } from "@/components/ui/button"
 import { giftCatalog } from "@/shared/lib/rewards/catalog"
+import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { UserAvatar } from "@/shared/ui/user-avatar"
 
 type ProfileGift = {
@@ -82,6 +83,12 @@ export function ContactProfileCard({
               textClassName="text-xl font-semibold"
             />
             <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-lg font-semibold">
+                  {profile.firstName} {profile.lastName ?? ""}
+                </p>
+                <CountryFlagBadge phone={profile.phone} />
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <AccountStatusBadge
                   role={profile.role}

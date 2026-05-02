@@ -32,6 +32,7 @@ import {
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 import type { MediaAttachment, MediaKind } from "@/shared/lib/media/constants"
+import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 
 type UserShort = {
@@ -40,6 +41,7 @@ type UserShort = {
   lastName: string | null
   email: string
   role: string
+  phone?: string | null
   avatarTone?: string | null
   isBlocked?: boolean
   lastSeenAt?: string | null
@@ -53,6 +55,7 @@ type ContactUser = {
   email: string
   phone: string
   role: string
+  avatarTone?: string | null
   isBlocked?: boolean
 }
 
@@ -1008,6 +1011,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="truncate text-lg font-semibold">{getDialogUserName(user)}</p>
+                <CountryFlagBadge phone={user.phone} />
                 <AccountStatusBadge
                   role={user.role}
                   email={user.email}
@@ -1072,6 +1076,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         onChange={() => toggleContact(contact.id)}
                       />
                       <span className="truncate">{getDialogUserName(contact)}</span>
+                      <CountryFlagBadge phone={contact.phone} />
                     </label>
                   ))}
                 </div>
@@ -1307,6 +1312,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                     />
                                     <span className="flex min-w-0 flex-wrap items-center gap-2">
                                       <span className="truncate">{getDialogUserName(contact)}</span>
+                                      <CountryFlagBadge phone={contact.phone} />
                                       <AccountStatusBadge
                                         role={contact.role}
                                         email={contact.email}
@@ -1364,6 +1370,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                       {isCurrentUser ? " (Вы)" : ""}
                                       {isOwner ? " • админ" : ""}
                                     </p>
+                                    <CountryFlagBadge phone={participant.phone} />
                                     <AccountStatusBadge
                                       role={participant.role}
                                       email={participant.email}

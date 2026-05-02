@@ -129,6 +129,7 @@ export default async function ChatsPage({
       firstName: string
       lastName: string | null
       email: string
+      phone: string
       role: string
       lastSeenAt: Date | null
     }>
@@ -160,6 +161,7 @@ export default async function ChatsPage({
           firstName: true,
           lastName: true,
           email: true,
+          phone: true,
           role: true,
           isBlocked: true,
           lastSeenAt: true,
@@ -210,6 +212,7 @@ export default async function ChatsPage({
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
+          phone: user.phone,
           role: user.role,
           avatarTone: user.avatarTone,
         }}
