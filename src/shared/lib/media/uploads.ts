@@ -23,16 +23,6 @@ const MEDIA_RULES: Record<
     maxBytes: 20 * 1024 * 1024,
     mimePrefixes: [],
   },
-  VOICE: {
-    folder: "messages/voice",
-    maxBytes: 20 * 1024 * 1024,
-    mimePrefixes: ["audio/"],
-  },
-  VIDEO_CIRCLE: {
-    folder: "messages/circles",
-    maxBytes: 40 * 1024 * 1024,
-    mimePrefixes: ["video/"],
-  },
 }
 
 function sanitizeBaseName(value: string) {
@@ -106,15 +96,15 @@ async function writeBrowserFile(file: File, folder: string) {
 
 export function validateAvatarFile(file: File) {
   if (!file || file.size === 0) {
-    return "Выберите файл аватарки"
+    return "Р’С‹Р±РµСЂРёС‚Рµ С„Р°Р№Р» Р°РІР°С‚Р°СЂРєРё"
   }
 
   if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.type)) {
-    return "Аватарка должна быть картинкой PNG, JPG, WEBP или GIF"
+    return "РђРІР°С‚Р°СЂРєР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ РєР°СЂС‚РёРЅРєРѕР№ PNG, JPG, WEBP РёР»Рё GIF"
   }
 
   if (file.size > 5 * 1024 * 1024) {
-    return "Аватарка должна быть не больше 5 МБ"
+    return "РђРІР°С‚Р°СЂРєР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ РЅРµ Р±РѕР»СЊС€Рµ 5 РњР‘"
   }
 
   return null
@@ -128,29 +118,15 @@ export function validateMessageFile(kind: MediaKind, file: File) {
   const rule = MEDIA_RULES[kind]
 
   if (!file || file.size === 0) {
-    return "Выберите файл"
+    return "Р’С‹Р±РµСЂРёС‚Рµ С„Р°Р№Р»"
   }
 
   if (rule.mimePrefixes.length > 0 && !rule.mimePrefixes.some((prefix) => file.type.startsWith(prefix))) {
-    if (kind === "VOICE") {
-      return "Голосовое сообщение должно быть аудиофайлом"
-    }
-
-    if (kind === "VIDEO_CIRCLE") {
-      return "Кружок должен быть видеофайлом"
-    }
+    return "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ С„РѕСЂРјР°С‚ С„Р°Р№Р»Р°"
   }
 
   if (file.size > rule.maxBytes) {
-    if (kind === "VIDEO_CIRCLE") {
-      return "Кружок должен быть не больше 40 МБ"
-    }
-
-    if (kind === "VOICE") {
-      return "Голосовое сообщение должно быть не больше 20 МБ"
-    }
-
-    return "Файл должен быть не больше 20 МБ"
+    return "Р¤Р°Р№Р» РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РЅРµ Р±РѕР»СЊС€Рµ 20 РњР‘"
   }
 
   return null

@@ -42,6 +42,11 @@ jest.mock("@/shared/lib/user-activity", () => ({
 jest.mock("@/shared/lib/notifications/push", () => ({
   sendPushToDialogRecipients: jest.fn(),
 }))
+jest.mock("@/shared/lib/media/message-store", () => ({
+  getDialogMessages: jest.fn(),
+  createDialogMessage: jest.fn(),
+  getDialogMessageMedia: jest.fn(),
+}))
 jest.mock("@/shared/lib/direct-message-access", () => ({
   canWriteToProtectedUser: jest.fn(),
   canWriteToDialog: jest.fn(),
@@ -59,6 +64,13 @@ const { prisma } = jest.requireMock("@/shared/lib/db/prisma") as {
 const { sendPushToDialogRecipients } = jest.requireMock(
   "@/shared/lib/notifications/push"
 ) as { sendPushToDialogRecipients: jest.Mock }
+const { getDialogMessages, createDialogMessage, getDialogMessageMedia } = jest.requireMock(
+  "@/shared/lib/media/message-store"
+) as {
+  getDialogMessages: jest.Mock
+  createDialogMessage: jest.Mock
+  getDialogMessageMedia: jest.Mock
+}
 const { canWriteToProtectedUser, canWriteToDialog } = jest.requireMock(
   "@/shared/lib/direct-message-access"
 ) as {
@@ -224,7 +236,7 @@ describe("chat routes", () => {
     expect(response.status).toBe(404)
 
     prisma.dialog.findFirst.mockResolvedValueOnce({ id: 1 })
-    prisma.message.findMany.mockResolvedValueOnce([
+    getDialogMessages.mockResolvedValueOnce([
       {
         id: 5,
         content: "Hello",
@@ -261,7 +273,7 @@ describe("chat routes", () => {
 
     prisma.dialog.findFirst.mockResolvedValueOnce({ id: 1 })
     prisma.userBlacklist.findMany.mockResolvedValueOnce([])
-    prisma.message.create.mockResolvedValueOnce({
+    createDialogMessage.mockResolvedValueOnce({
       id: 6,
       content: "hello",
       status: "SENT",
@@ -330,6 +342,7 @@ describe("chat routes", () => {
     expect(response.status).toBe(400)
 
     prisma.dialog.findFirst.mockResolvedValueOnce({ id: 1 })
+    getDialogMessageMedia.mockResolvedValueOnce(null)
     response = await messageRoute.DELETE(nextRequest("http://localhost", "DELETE"), {
       params: Promise.resolve({ dialogId: "1", messageId: "5" }),
     })
@@ -341,6 +354,66 @@ describe("chat routes", () => {
       params: Promise.resolve({ dialogId: "1", messageId: "5" }),
     })
     expect(response.status).toBe(200)
+  })
+
+  test("messages route accepts multipart file uploads and rejects removed media kinds", async () => {
+    const messagesRoute = await import("@/app/api/chats/[dialogId]/messages/route")
+
+    getAuthorizedUserIdFromRequest.mockResolvedValue(1)
+    prisma.dialog.findFirst.mockResolvedValue({ id: 1 })
+    prisma.userBlacklist.findMany.mockResolvedValue([])
+
+    const uploadedMessage = {
+      id: 7,
+      content: "Р¤Р°Р№Р»",
+      status: "SENT",
+      createdAt: new Date().toISOString(),
+      dialogId: 1,
+      author: { id: 1, firstName: "Ivan", lastName: null },
+      attachment: {
+        kind: "FILE",
+        url: "/uploads/messages/files/test.txt",
+        name: "test.txt",
+        mime: "text/plain",
+        size: 4,
+      },
+    }
+    createDialogMessage.mockResolvedValueOnce(uploadedMessage)
+
+    const formData = new FormData()
+    formData.set("content", "")
+    formData.set("kind", "FILE")
+    formData.set("attachment", new File(["test"], "test.txt", { type: "text/plain" }))
+
+    let response = await messagesRoute.POST(
+      new NextRequest("http://localhost/api/chats/1/messages", {
+        method: "POST",
+        body: formData,
+      }),
+      {
+        params: Promise.resolve({ dialogId: "1" }),
+      }
+    )
+
+    expect(response.status).toBe(201)
+    expect(await readJson(response)).toEqual({ message: uploadedMessage })
+
+    const voiceFormData = new FormData()
+    voiceFormData.set("content", "")
+    voiceFormData.set("kind", "VOICE")
+    voiceFormData.set("attachment", new File(["audio"], "voice.ogg", { type: "audio/ogg" }))
+
+    response = await messagesRoute.POST(
+      new NextRequest("http://localhost/api/chats/1/messages", {
+        method: "POST",
+        body: voiceFormData,
+      }),
+      {
+        params: Promise.resolve({ dialogId: "1" }),
+      }
+    )
+
+    expect(response.status).toBe(400)
   })
 
   test("participants and unread routes handle group management and snapshots", async () => {

@@ -1,4 +1,4 @@
-export const MEDIA_KIND_VALUES = ["FILE", "VOICE", "VIDEO_CIRCLE"] as const
+export const MEDIA_KIND_VALUES = ["FILE"] as const
 
 export type MediaKind = (typeof MEDIA_KIND_VALUES)[number]
 
@@ -11,7 +11,5 @@ export type MediaAttachment = {
 }
 
 export const DEFAULT_MEDIA_LABELS: Record<MediaKind, string> = {
-  FILE: "Файл",
-  VOICE: "Голосовое сообщение",
-  VIDEO_CIRCLE: "Видео-кружок",
+  FILE: "Р¤Р°Р№Р»",
 }

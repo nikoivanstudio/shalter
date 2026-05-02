@@ -5,8 +5,6 @@ import {
   CheckIcon,
   EllipsisVerticalIcon,
   FileImageIcon,
-  MicIcon,
-  PlayCircleIcon,
   XIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
@@ -236,8 +234,6 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const voiceInputRef = useRef<HTMLInputElement | null>(null)
-  const circleInputRef = useRef<HTMLInputElement | null>(null)
   const [dialogs, setDialogs] = useState(initialDialogs)
   const [selectedDialogId, setSelectedDialogId] = useState<number | null>(
     initialDialogId ?? null
@@ -305,12 +301,6 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
     setAttachmentFile(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
-    }
-    if (voiceInputRef.current) {
-      voiceInputRef.current.value = ""
-    }
-    if (circleInputRef.current) {
-      circleInputRef.current.value = ""
     }
   }
 
@@ -1460,13 +1450,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                   <div className="space-y-2 rounded-[1.85rem] border border-white/45 bg-card/92 p-2.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
                     {attachmentFile && attachmentKind ? (
                       <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/78 px-3 py-2 text-sm">
-                        <span className="min-w-0 truncate">
-                          {attachmentKind === "VOICE"
-                            ? "Р“РѕР»РѕСЃРѕРІРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ"
-                            : attachmentKind === "VIDEO_CIRCLE"
-                              ? "Р’РёРґРµРѕ-РєСЂСѓР¶РѕРє"
-                              : attachmentFile.name}
-                        </span>
+                        <span className="min-w-0 truncate">{attachmentFile.name}</span>
                         <Button type="button" size="icon" variant="outline" onClick={resetComposer}>
                           <XIcon className="size-4" />
                         </Button>
@@ -1479,20 +1463,6 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       className="hidden"
                       onChange={(event) => selectAttachment("FILE", event.target.files?.[0] ?? null)}
                     />
-                    <input
-                      ref={voiceInputRef}
-                      type="file"
-                      accept="audio/*"
-                      className="hidden"
-                      onChange={(event) => selectAttachment("VOICE", event.target.files?.[0] ?? null)}
-                    />
-                    <input
-                      ref={circleInputRef}
-                      type="file"
-                      accept="video/*"
-                      className="hidden"
-                      onChange={(event) => selectAttachment("VIDEO_CIRCLE", event.target.files?.[0] ?? null)}
-                    />
                     <div className="flex items-center gap-2">
                       <Button
                         type="button"
@@ -1503,26 +1473,6 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         aria-label="РћС‚РїСЂР°РІРёС‚СЊ С„Р°Р№Р» РёР»Рё РєР°СЂС‚РёРЅРєСѓ"
                       >
                         <FileImageIcon className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        onClick={() => voiceInputRef.current?.click()}
-                        disabled={!activeDialogId || isSending}
-                        aria-label="РћС‚РїСЂР°РІРёС‚СЊ РіРѕР»РѕСЃРѕРІРѕРµ"
-                      >
-                        <MicIcon className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        onClick={() => circleInputRef.current?.click()}
-                        disabled={!activeDialogId || isSending}
-                        aria-label="РћС‚РїСЂР°РІРёС‚СЊ РєСЂСѓР¶РѕРє"
-                      >
-                        <PlayCircleIcon className="size-4" />
                       </Button>
                       <Input
                         value={messageText}

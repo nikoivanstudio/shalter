@@ -23,28 +23,6 @@ export function MessageAttachmentView({
     return null
   }
 
-  if (attachment.kind === "VIDEO_CIRCLE") {
-    return (
-      <div className="mt-2">
-        <video
-          src={attachment.url}
-          controls
-          playsInline
-          preload="metadata"
-          className={`${compact ? "size-32" : "size-40"} rounded-full object-cover bg-black/80`}
-        />
-      </div>
-    )
-  }
-
-  if (attachment.kind === "VOICE") {
-    return (
-      <div className="mt-2 rounded-2xl bg-black/10 p-2">
-        <audio src={attachment.url} controls preload="metadata" className="w-full max-w-64" />
-      </div>
-    )
-  }
-
   if (attachment.mime.startsWith("image/")) {
     return (
       <div className="mt-2 space-y-2">
@@ -76,7 +54,7 @@ export function MessageAttachmentView({
         <span className="block truncate text-sm font-medium">{attachment.name}</span>
         <span className="block text-xs opacity-75">{formatBytes(attachment.size)}</span>
       </span>
-      <span className="shrink-0 text-xs underline underline-offset-2">Открыть</span>
+      <span className="shrink-0 text-xs underline underline-offset-2">РћС‚РєСЂС‹С‚СЊ</span>
     </a>
   )
 }
