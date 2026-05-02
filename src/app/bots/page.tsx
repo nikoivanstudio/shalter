@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 
 import { Providers } from "@/app/providers"
 import { PwaRegisterClient } from "@/app/pwa-register-client"
+import type { BotConfig } from "@/features/bots/lib/runtime"
 import { BotsHome } from "@/features/bots/ui/bots-home"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
@@ -36,6 +37,7 @@ export default async function BotsPage() {
           niche: bot.niche,
           audience: bot.audience as "client" | "user",
           publishedAt: bot.publishedAt.toISOString(),
+          config: bot.config as BotConfig,
         }))}
       />
     </Providers>

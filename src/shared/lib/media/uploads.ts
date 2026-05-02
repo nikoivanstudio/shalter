@@ -96,15 +96,15 @@ async function writeBrowserFile(file: File, folder: string) {
 
 export function validateAvatarFile(file: File) {
   if (!file || file.size === 0) {
-    return "Р’С‹Р±РµСЂРёС‚Рµ С„Р°Р№Р» Р°РІР°С‚Р°СЂРєРё"
+    return "Выберите файл аватарки"
   }
 
   if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.type)) {
-    return "РђРІР°С‚Р°СЂРєР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ РєР°СЂС‚РёРЅРєРѕР№ PNG, JPG, WEBP РёР»Рё GIF"
+    return "Аватарка должна быть картинкой PNG, JPG, WEBP или GIF"
   }
 
   if (file.size > 5 * 1024 * 1024) {
-    return "РђРІР°С‚Р°СЂРєР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ РЅРµ Р±РѕР»СЊС€Рµ 5 РњР‘"
+    return "Аватарка должна быть не больше 5 МБ"
   }
 
   return null
@@ -118,15 +118,15 @@ export function validateMessageFile(kind: MediaKind, file: File) {
   const rule = MEDIA_RULES[kind]
 
   if (!file || file.size === 0) {
-    return "Р’С‹Р±РµСЂРёС‚Рµ С„Р°Р№Р»"
+    return "Выберите файл"
   }
 
   if (rule.mimePrefixes.length > 0 && !rule.mimePrefixes.some((prefix) => file.type.startsWith(prefix))) {
-    return "РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ С„РѕСЂРјР°С‚ С„Р°Р№Р»Р°"
+    return "Некорректный формат файла"
   }
 
   if (file.size > rule.maxBytes) {
-    return "Р¤Р°Р№Р» РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РЅРµ Р±РѕР»СЊС€Рµ 20 РњР‘"
+    return "Файл должен быть не больше 20 МБ"
   }
 
   return null

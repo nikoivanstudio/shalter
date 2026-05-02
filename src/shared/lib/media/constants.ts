@@ -11,5 +11,5 @@ export type MediaAttachment = {
 }
 
 export const DEFAULT_MEDIA_LABELS: Record<MediaKind, string> = {
-  FILE: "Р¤Р°Р№Р»",
+  FILE: "Файл",
 }

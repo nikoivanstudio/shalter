@@ -76,7 +76,32 @@ describe("app pages", () => {
       avatarTone: null,
     })
     prisma.botPublication.findMany.mockResolvedValueOnce([
-      { id: 1, name: "Sales Copilot", niche: null, audience: "client", publishedAt: new Date("2026-05-01T09:00:00Z") },
+      {
+        id: 1,
+        name: "Sales Copilot",
+        niche: null,
+        audience: "client",
+        publishedAt: new Date("2026-05-01T09:00:00Z"),
+        config: {
+          name: "Sales Copilot",
+          niche: "",
+          goal: "Qualify leads",
+          tone: "Helpful",
+          greeting: "Hello",
+          knowledge: [],
+          channels: ["Web chat"],
+          skills: ["Greeting"],
+          guardrails: [],
+          escalation: "",
+          flow: [{ type: "greeting", title: "Greeting", value: "Hello" }],
+          handoffEnabled: false,
+          analytics: {
+            trackLeads: false,
+            trackFallbacks: true,
+            summaryWindow: "7d",
+          },
+        },
+      },
     ])
     render(await BotsPage())
     expect(screen.getByText("bots:bot-owner@example.com:1")).toBeInTheDocument()

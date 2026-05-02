@@ -28,11 +28,11 @@ describe("bots builder", () => {
     vi.stubGlobal("EventSource", MockEventSource as any)
 
     render(<BottomNav active="bots" />)
-    fireEvent.click(screen.getByRole("button", { name: /Боты/i }))
+    fireEvent.click(screen.getByRole("button", { name: /боты/i }))
     expect(routerMock.push).toHaveBeenCalledWith("/bots")
   })
 
-  test("constructor updates preview, copies config and publishes a bot", async () => {
+  test("constructor updates preview, copies config, publishes a bot and opens bot chat", async () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValue(undefined)
     const fetchMock = vi.fn().mockResolvedValue({
@@ -44,6 +44,29 @@ describe("bots builder", () => {
           niche: "Online sales",
           audience: "client",
           publishedAt: "2026-05-01T09:00:00.000Z",
+          config: {
+            name: "Sales Copilot",
+            niche: "Online sales",
+            goal: "Qualify leads",
+            tone: "Helpful",
+            greeting: "Здравствуйте! Я помогу подобрать решение.",
+            knowledge: ["Тарифы", "Интеграции"],
+            channels: ["Web chat", "Telegram"],
+            skills: ["Первый ответ", "Квалификация"],
+            guardrails: ["Не придумывать цены"],
+            escalation: "Передать менеджеру при сложном запросе",
+            flow: [
+              { type: "greeting", title: "Первый ответ", value: "Здравствуйте! Я помогу подобрать решение." },
+              { type: "qualification", title: "Квалификация", value: "Уточнить задачу, бюджет и сроки." },
+              { type: "faq", title: "Частые вопросы", value: "Отвечать по тарифам и интеграциям." },
+            ],
+            handoffEnabled: true,
+            analytics: {
+              trackLeads: true,
+              trackFallbacks: true,
+              summaryWindow: "7d",
+            },
+          },
         },
       }),
     })
@@ -72,9 +95,6 @@ describe("bots builder", () => {
     await user.type(screen.getByLabelText(/Имя бота/i), "Sales Copilot")
     expect(screen.getAllByText("Sales Copilot").length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole("button", { name: "Навык" }))
-    expect(screen.getAllByText("Навык").length).toBeGreaterThan(0)
-
     await user.click(screen.getByRole("button", { name: /Скопировать конфиг/i }))
     await waitFor(() => expect(writeText).toHaveBeenCalled())
     expect(toastMock.success).toHaveBeenCalled()
@@ -82,5 +102,12 @@ describe("bots builder", () => {
     await user.click(screen.getByRole("button", { name: /Опубликовать/i }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/bots", expect.any(Object)))
     expect((await screen.findAllByText("Клиенты")).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Тестовый чат с ботом Sales Copilot/i)).toBeInTheDocument()
+    expect(screen.getByText(/Здравствуйте! Я помогу подобрать решение./i)).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText(/Введите сообщение для бота/i), "Какие тарифы?")
+    await user.click(screen.getByRole("button", { name: /Отправить/i }))
+
+    expect(await screen.findByText(/Отвечать по тарифам и интеграциям./i)).toBeInTheDocument()
   })
 })

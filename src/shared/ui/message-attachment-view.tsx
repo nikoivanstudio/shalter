@@ -54,7 +54,7 @@ export function MessageAttachmentView({
         <span className="block truncate text-sm font-medium">{attachment.name}</span>
         <span className="block text-xs opacity-75">{formatBytes(attachment.size)}</span>
       </span>
-      <span className="shrink-0 text-xs underline underline-offset-2">РћС‚РєСЂС‹С‚СЊ</span>
+      <span className="shrink-0 text-xs underline underline-offset-2">Открыть</span>
     </a>
   )
 }

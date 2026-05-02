@@ -1,18 +1,18 @@
-﻿import { z } from "zod"
+import { z } from "zod"
 
 export const loginSchema = z.object({
-  email: z.email("РЈРєР°Р¶РёС‚Рµ РєРѕСЂСЂРµРєС‚РЅС‹Р№ email"),
+  email: z.email("Укажите корректный email"),
   password: z
     .string()
-    .min(8, "РџР°СЂРѕР»СЊ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РЅРµ РєРѕСЂРѕС‡Рµ 8 СЃРёРјРІРѕР»РѕРІ")
-    .max(72, "РџР°СЂРѕР»СЊ СЃР»РёС€РєРѕРј РґР»РёРЅРЅС‹Р№"),
+    .min(8, "Пароль должен быть не короче 8 символов")
+    .max(72, "Пароль слишком длинный"),
 })
 
 const phoneSchema = z
   .string()
   .trim()
-  .min(8, "РўРµР»РµС„РѕРЅ СЃР»РёС€РєРѕРј РєРѕСЂРѕС‚РєРёР№")
-  .max(20, "РўРµР»РµС„РѕРЅ СЃР»РёС€РєРѕРј РґР»РёРЅРЅС‹Р№")
+  .min(8, "Телефон слишком короткий")
+  .max(20, "Телефон слишком длинный")
 
 export const recoveryPhoneSchema = z.object({
   phone: phoneSchema,
@@ -23,41 +23,41 @@ export const recoveryCodeSchema = z.object({
   code: z
     .string()
     .trim()
-    .regex(/^\d{6}$/, "Р’РІРµРґРёС‚Рµ РєРѕРґ РёР· 6 С†РёС„СЂ"),
+    .regex(/^\d{6}$/, "Введите код из 6 цифр"),
 })
 
 export const registerSchema = z
   .object({
-    email: z.email("РЈРєР°Р¶РёС‚Рµ РєРѕСЂСЂРµРєС‚РЅС‹Р№ email"),
+    email: z.email("Укажите корректный email"),
     password: z
       .string()
-      .min(8, "РџР°СЂРѕР»СЊ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РЅРµ РєРѕСЂРѕС‡Рµ 8 СЃРёРјРІРѕР»РѕРІ")
-      .max(72, "РџР°СЂРѕР»СЊ СЃР»РёС€РєРѕРј РґР»РёРЅРЅС‹Р№"),
-    confirmPassword: z.string().min(1, "РџРѕРґС‚РІРµСЂРґРёС‚Рµ РїР°СЂРѕР»СЊ"),
+      .min(8, "Пароль должен быть не короче 8 символов")
+      .max(72, "Пароль слишком длинный"),
+    confirmPassword: z.string().min(1, "Подтвердите пароль"),
     firstName: z
       .string()
       .trim()
-      .min(2, "РРјСЏ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РЅРµ РєРѕСЂРѕС‡Рµ 2 СЃРёРјРІРѕР»РѕРІ")
-      .max(40, "РРјСЏ СЃР»РёС€РєРѕРј РґР»РёРЅРЅРѕРµ"),
+      .min(2, "Имя должно быть не короче 2 символов")
+      .max(40, "Имя слишком длинное"),
     lastName: z
       .string()
       .trim()
-      .max(40, "Р¤Р°РјРёР»РёСЏ СЃР»РёС€РєРѕРј РґР»РёРЅРЅР°СЏ")
+      .max(40, "Фамилия слишком длинная")
       .optional()
       .or(z.literal("")),
     phone: z
       .string()
       .trim()
-      .min(8, "РўРµР»РµС„РѕРЅ СЃР»РёС€РєРѕРј РєРѕСЂРѕС‚РєРёР№")
-      .max(20, "РўРµР»РµС„РѕРЅ СЃР»РёС€РєРѕРј РґР»РёРЅРЅС‹Р№"),
+      .min(8, "Телефон слишком короткий")
+      .max(20, "Телефон слишком длинный"),
     turnstileToken: z
       .string()
       .trim()
-      .min(1, "РџРѕРґС‚РІРµСЂРґРёС‚Рµ, С‡С‚Рѕ РІС‹ РЅРµ Р±РѕС‚"),
+      .min(1, "Подтвердите, что вы не бот"),
     referrerId: z.coerce.number().int().positive().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "РџР°СЂРѕР»Рё РЅРµ СЃРѕРІРїР°РґР°СЋС‚",
+    message: "Пароли не совпадают",
     path: ["confirmPassword"],
   })
 
@@ -65,4 +65,3 @@ export type LoginInput = z.infer<typeof loginSchema>
 export type RegisterInput = z.infer<typeof registerSchema>
 export type RecoveryPhoneInput = z.infer<typeof recoveryPhoneSchema>
 export type RecoveryCodeInput = z.infer<typeof recoveryCodeSchema>
-

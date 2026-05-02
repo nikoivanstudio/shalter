@@ -51,12 +51,28 @@ function getFieldError(errors: FieldErrors, key: string) {
   return errors[key]?.[0]
 }
 
-const FIRST_NAME_MIN_MESSAGE = "РРјСЏ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РЅРµ РєРѕСЂРѕС‡Рµ 2 СЃРёРјРІРѕР»РѕРІ"
+function withAvatarCacheBuster(url: string | null | undefined) {
+  if (!url) {
+    return null
+  }
+
+  try {
+    const nextUrl = new URL(url, window.location.origin)
+    nextUrl.searchParams.set("v", Date.now().toString())
+    return nextUrl.pathname + nextUrl.search + nextUrl.hash
+  } catch {
+    const separator = url.includes("?") ? "&" : "?"
+    return `${url}${separator}v=${Date.now()}`
+  }
+}
+
+const FIRST_NAME_MIN_MESSAGE = "Имя должно быть не короче 2 символов"
 
 export function ProfileHome({ user }: { user: EditableUser }) {
   const router = useRouter()
   const { tr } = useI18n()
-  const [isPending, startTransition] = useTransition()
+  const [isSavingProfile, startSavingProfile] = useTransition()
+  const [isChangingPassword, startChangingPassword] = useTransition()
   const [isDeletingAccount, startDeletingAccount] = useTransition()
   const [isRewardPending, startRewardTransition] = useTransition()
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -64,6 +80,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
   const [serverMessage, setServerMessage] = useState("")
   const [passwordMessage, setPasswordMessage] = useState("")
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [savedAvatarUrl, setSavedAvatarUrl] = useState<string | null>(user.avatarUrl ?? null)
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(user.avatarUrl ?? null)
   const [form, setForm] = useState<UpdateProfileInput>({
     email: user.email,
@@ -92,6 +109,11 @@ export function ProfileHome({ user }: { user: EditableUser }) {
   const selectedGift = giftCatalog.find((gift) => gift.key === giftKey) ?? giftCatalog[0]
 
   useEffect(() => {
+    setSavedAvatarUrl(user.avatarUrl ?? null)
+    setAvatarPreviewUrl(user.avatarUrl ?? null)
+  }, [user.avatarUrl])
+
+  useEffect(() => {
     return () => {
       if (avatarPreviewUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(avatarPreviewUrl)
@@ -107,9 +129,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       setFieldErrors((prev) => ({
         ...prev,
         firstName:
-          nextValue.length === 0 || nextValue.length >= 2
-            ? undefined
-            : [FIRST_NAME_MIN_MESSAGE],
+          nextValue.length === 0 || nextValue.length >= 2 ? undefined : [FIRST_NAME_MIN_MESSAGE],
       }))
     }
   }
@@ -125,7 +145,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
     })
 
     if (!file) {
-      setAvatarPreviewUrl(user.avatarUrl ?? null)
+      setAvatarPreviewUrl(savedAvatarUrl ? withAvatarCacheBuster(savedAvatarUrl) : null)
       return
     }
 
@@ -150,7 +170,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       return
     }
 
-    startTransition(async () => {
+    startSavingProfile(async () => {
       const body =
         avatarFile === null
           ? JSON.stringify(parsed.data)
@@ -174,10 +194,11 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       const data = await response.json().catch(() => null)
       if (!response.ok) {
         setFieldErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setServerMessage(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РїСЂРѕС„РёР»СЊ"))
+        setServerMessage(tr(data?.message ?? "Не удалось сохранить профиль"))
         return
       }
 
+      const nextAvatarUrl = data.user.avatarUrl ?? null
       setForm({
         email: data.user.email,
         firstName: data.user.firstName,
@@ -185,9 +206,10 @@ export function ProfileHome({ user }: { user: EditableUser }) {
         phone: data.user.phone ?? "",
         avatarTone: data.user.avatarTone ?? null,
       })
+      setSavedAvatarUrl(nextAvatarUrl)
       setAvatarFile(null)
-      setAvatarPreviewUrl(data.user.avatarUrl ?? null)
-      toast.success(tr("РџСЂРѕС„РёР»СЊ СЃРѕС…СЂР°РЅС‘РЅ"))
+      setAvatarPreviewUrl(withAvatarCacheBuster(nextAvatarUrl))
+      toast.success(tr("Профиль сохранён"))
     })
   }
 
@@ -209,7 +231,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       return
     }
 
-    startTransition(async () => {
+    startChangingPassword(async () => {
       const response = await fetch("/api/profile/password", {
         method: "PATCH",
         headers: {
@@ -221,7 +243,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
       const data = await response.json().catch(() => null)
       if (!response.ok) {
         setPasswordErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setPasswordMessage(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РёР·РјРµРЅРёС‚СЊ РїР°СЂРѕР»СЊ"))
+        setPasswordMessage(tr(data?.message ?? "Не удалось изменить пароль"))
         return
       }
 
@@ -230,13 +252,13 @@ export function ProfileHome({ user }: { user: EditableUser }) {
         newPassword: "",
         confirmNewPassword: "",
       })
-      toast.success(tr("РџР°СЂРѕР»СЊ РёР·РјРµРЅС‘РЅ"))
+      toast.success(tr("Пароль изменён"))
     })
   }
 
   function deleteAccount() {
     const confirmed = window.confirm(
-      tr("РЈРґР°Р»РёС‚СЊ Р°РєРєР°СѓРЅС‚ Р±РµР· РІРѕР·РјРѕР¶РЅРѕСЃС‚Рё РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ? Р’С‹ Р±СѓРґРµС‚Рµ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЂР°Р·Р»РѕРіРёРЅРµРЅС‹.")
+      tr("Удалить аккаунт без возможности восстановления? Вы будете автоматически разлогинены.")
     )
 
     if (!confirmed) {
@@ -250,18 +272,18 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ Р°РєРєР°СѓРЅС‚"))
+        toast.error(tr(data?.message ?? "Не удалось удалить аккаунт"))
         return
       }
 
-      toast.success(tr("РђРєРєР°СѓРЅС‚ СѓРґР°Р»С‘РЅ"))
+      toast.success(tr("Аккаунт удалён"))
       router.replace("/auth")
       router.refresh()
     })
   }
 
   async function handlePartnerProgramAction() {
-    const shareText = "РџСЂРёСЃРѕРµРґРёРЅСЏР№С‚РµСЃСЊ Рє Shalter РїРѕ РјРѕРµР№ РїР°СЂС‚РЅС‘СЂСЃРєРѕР№ СЃСЃС‹Р»РєРµ."
+    const shareText = "Присоединяйтесь к Shalter по моей партнёрской ссылке."
 
     try {
       if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
@@ -270,19 +292,19 @@ export function ProfileHome({ user }: { user: EditableUser }) {
           text: shareText,
           url: partnerLink,
         })
-        toast.success("РџР°СЂС‚РЅС‘СЂСЃРєР°СЏ СЃСЃС‹Р»РєР° РіРѕС‚РѕРІР° Рє РѕС‚РїСЂР°РІРєРµ")
+        toast.success("Партнёрская ссылка готова к отправке")
         return
       }
 
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(partnerLink)
-        toast.success("РџР°СЂС‚РЅС‘СЂСЃРєР°СЏ СЃСЃС‹Р»РєР° СЃРєРѕРїРёСЂРѕРІР°РЅР°")
+        toast.success("Партнёрская ссылка скопирована")
         return
       }
 
-      window.prompt("РЎРєРѕРїРёСЂСѓР№С‚Рµ РїР°СЂС‚РЅС‘СЂСЃРєСѓСЋ СЃСЃС‹Р»РєСѓ", partnerLink)
+      window.prompt("Скопируйте партнёрскую ссылку", partnerLink)
     } catch {
-      toast.error("РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРµР»РёС‚СЊСЃСЏ РїР°СЂС‚РЅС‘СЂСЃРєРѕР№ СЃСЃС‹Р»РєРѕР№")
+      toast.error("Не удалось поделиться партнёрской ссылкой")
     }
   }
 
@@ -376,8 +398,9 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                     className="size-20 border border-border/70"
                     textClassName="text-xl font-semibold"
                   />
-                  <label className="absolute -bottom-1 -right-1 cursor-pointer">
+                  <label className="absolute -bottom-1 -right-1 cursor-pointer" htmlFor="profile-avatar">
                     <input
+                      id="profile-avatar"
                       type="file"
                       accept="image/png,image/jpeg,image/webp,image/gif"
                       className="sr-only"
@@ -407,9 +430,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                       </span>
                     ) : null}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {tr("РќР°СЃС‚СЂРѕР№РєРё РїСЂРѕС„РёР»СЏ")}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{tr("Настройки профиля")}</p>
                 </div>
               </div>
 
@@ -421,18 +442,12 @@ export function ProfileHome({ user }: { user: EditableUser }) {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <StatPill
-                label="Звёзды"
-                value={isAdminWithInfiniteStars ? "∞" : String(starsBalance)}
-              />
+              <StatPill label="Звёзды" value={isAdminWithInfiniteStars ? "∞" : String(starsBalance)} />
               <StatPill
                 label="Партнёрские награды"
                 value={String(user.partnerStarsEarned ?? 0)}
               />
-              <StatPill
-                label="Бонус за приглашение"
-                value={`${PARTNER_REWARD_STARS}`}
-              />
+              <StatPill label="Бонус за приглашение" value={String(PARTNER_REWARD_STARS)} />
             </div>
           </CardContent>
         </Card>
@@ -441,19 +456,19 @@ export function ProfileHome({ user }: { user: EditableUser }) {
           <div className="space-y-5">
             <Card>
               <CardHeader>
-                <CardTitle>{tr("РќР°СЃС‚СЂРѕР№РєРё РїСЂРѕС„РёР»СЏ")}</CardTitle>
+                <CardTitle>{tr("Настройки профиля")}</CardTitle>
                 <CardDescription>
-                  {tr("РР·РјРµРЅРµРЅРёСЏ СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ РІ Р±Р°Р·Рµ РґР°РЅРЅС‹С… Р±РµР· СЃРјРµРЅС‹ РїР°СЂРѕР»СЏ.")}
+                  {tr("Изменения сохраняются в базе данных без смены пароля.")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form className="space-y-5" onSubmit={onSaveProfile}>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field
-                      label={tr("РРјСЏ")}
+                      label={tr("Имя")}
                       htmlFor="profile-first-name"
-                      error={getFieldError(fieldErrors, "firstName")}
                       hint="Минимум 2 символа"
+                      error={getFieldError(fieldErrors, "firstName")}
                     >
                       <Input
                         id="profile-first-name"
@@ -462,9 +477,8 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         aria-invalid={Boolean(getFieldError(fieldErrors, "firstName"))}
                       />
                     </Field>
-
                     <Field
-                      label={tr("Р¤Р°РјРёР»РёСЏ (РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ)")}
+                      label={tr("Фамилия (необязательно)")}
                       htmlFor="profile-last-name"
                       error={getFieldError(fieldErrors, "lastName")}
                     >
@@ -487,9 +501,8 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         aria-invalid={Boolean(getFieldError(fieldErrors, "email"))}
                       />
                     </Field>
-
                     <Field
-                      label={tr("РўРµР»РµС„РѕРЅ")}
+                      label={tr("Телефон")}
                       htmlFor="profile-phone"
                       error={getFieldError(fieldErrors, "phone")}
                     >
@@ -503,7 +516,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                   </div>
 
                   <div className="space-y-3">
-                    <Label>{tr("Р¦РІРµС‚ Р°РІР°С‚Р°СЂРєРё")}</Label>
+                    <Label>{tr("Цвет аватарки")}</Label>
                     <div className="flex flex-wrap gap-2">
                       {EMBLEM_TONE_OPTIONS.map((tone) => {
                         const isActive = form.avatarTone === tone.id
@@ -534,7 +547,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                       </button>
                     </div>
                     {avatarPreviewUrl ? (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => onAvatarChange(null)}>
+                      <Button type="button" variant="outline" onClick={() => onAvatarChange(null)}>
                         <XIcon className="size-4" />
                         Убрать фото
                       </Button>
@@ -546,8 +559,8 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
                   {serverMessage ? <p className="text-sm text-destructive">{serverMessage}</p> : null}
 
-                  <Button type="submit" disabled={isPending}>
-                    {tr("РЎРѕС…СЂР°РЅРёС‚СЊ РїСЂРѕС„РёР»СЊ")}
+                  <Button type="submit" disabled={isSavingProfile}>
+                    {isSavingProfile ? tr("Сохраняем...") : tr("Сохранить профиль")}
                   </Button>
                 </form>
               </CardContent>
@@ -555,32 +568,30 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
             <Card>
               <CardHeader>
-                <CardTitle>{tr("РР·РјРµРЅРµРЅРёРµ РїР°СЂРѕР»СЏ")}</CardTitle>
+                <CardTitle>{tr("Изменение пароля")}</CardTitle>
                 <CardDescription>
-                  {tr("РЈРєР°Р¶РёС‚Рµ С‚РµРєСѓС‰РёР№ РїР°СЂРѕР»СЊ Рё РґРІР°Р¶РґС‹ РІРІРµРґРёС‚Рµ РЅРѕРІС‹Р№.")}
+                  {tr("Укажите текущий пароль и дважды введите новый.")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form className="space-y-4" onSubmit={onChangePassword}>
-                    <Field
-                      label={tr("РўРµРєСѓС‰РёР№ РїР°СЂРѕР»СЊ")}
-                      htmlFor="current-password"
-                      error={getFieldError(passwordErrors, "currentPassword")}
-                    >
-                      <Input
-                        id="current-password"
-                        type="password"
-                        value={passwordForm.currentPassword}
-                        onChange={(event) =>
-                        updatePasswordField("currentPassword", event.target.value)
-                      }
+                  <Field
+                    label={tr("Текущий пароль")}
+                    htmlFor="current-password"
+                    error={getFieldError(passwordErrors, "currentPassword")}
+                  >
+                    <Input
+                      id="current-password"
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(event) => updatePasswordField("currentPassword", event.target.value)}
                       aria-invalid={Boolean(getFieldError(passwordErrors, "currentPassword"))}
                     />
                   </Field>
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field
-                      label={tr("РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ")}
+                      label={tr("Новый пароль")}
                       htmlFor="new-password"
                       error={getFieldError(passwordErrors, "newPassword")}
                     >
@@ -592,9 +603,8 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         aria-invalid={Boolean(getFieldError(passwordErrors, "newPassword"))}
                       />
                     </Field>
-
                     <Field
-                      label={tr("РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РЅРѕРІРѕРіРѕ РїР°СЂРѕР»СЏ")}
+                      label={tr("Подтверждение нового пароля")}
                       htmlFor="confirm-new-password"
                       error={getFieldError(passwordErrors, "confirmNewPassword")}
                     >
@@ -612,8 +622,8 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
                   {passwordMessage ? <p className="text-sm text-destructive">{passwordMessage}</p> : null}
 
-                  <Button type="submit" disabled={isPending}>
-                    {tr("РР·РјРµРЅРёС‚СЊ РїР°СЂРѕР»СЊ")}
+                  <Button type="submit" disabled={isChangingPassword}>
+                    {isChangingPassword ? tr("Сохраняем...") : tr("Изменить пароль")}
                   </Button>
                 </form>
               </CardContent>
@@ -637,17 +647,17 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                 </div>
                 <Button type="button" onClick={handlePartnerProgramAction}>
                   <RocketIcon className="size-4" />
-                  РЎРєРѕРїРёСЂРѕРІР°С‚СЊ СЃСЃС‹Р»РєСѓ
+                  Скопировать ссылку
                 </Button>
               </CardContent>
             </Card>
 
             <PromoCard
-              icon={<GemIcon className="size-5" />}
               title="Подарок за звёзды"
               badge={isAdminWithInfiniteStars ? "∞ баланс" : `${starsBalance} звёзд`}
               badgeTone="bg-primary/10 text-primary"
-              description="Отправьте готовый подарок другому пользователю и приложите короткую заметку."
+              icon={<GemIcon className="size-5" />}
+              description="Отправьте готовый подарок другому пользователю и добавьте короткую заметку."
               bullets={[
                 "Получатель увидит подарок сразу в своём профиле.",
                 "Стоимость списывается только после успешной отправки.",
@@ -658,42 +668,48 @@ export function ProfileHome({ user }: { user: EditableUser }) {
               onAction={sendGift}
               details={
                 <div className="space-y-3">
-                  <Label htmlFor="giftRecipientEmail">Email получателя подарка</Label>
-                  <Input
-                    id="giftRecipientEmail"
-                    type="email"
-                    value={giftRecipientEmail}
-                    onChange={(event) => setGiftRecipientEmail(event.target.value)}
-                  />
-                  <Label htmlFor="giftKey">Подарок</Label>
-                  <select
-                    id="giftKey"
-                    className="h-11 w-full rounded-[1.1rem] border border-input bg-input/85 px-4 text-sm"
-                    value={giftKey}
-                    onChange={(event) => setGiftKey(event.target.value as GiftKey)}
-                  >
-                    {giftCatalog.map((gift) => (
-                      <option key={gift.key} value={gift.key}>
-                        {gift.name} - {gift.cost}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-sm text-muted-foreground">{selectedGift?.description}</p>
-                  <Label htmlFor="giftNote">Комментарий</Label>
-                  <Input
-                    id="giftNote"
-                    value={giftNote}
-                    onChange={(event) => setGiftNote(event.target.value)}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="giftRecipientEmail">Email получателя подарка</Label>
+                    <Input
+                      id="giftRecipientEmail"
+                      type="email"
+                      value={giftRecipientEmail}
+                      onChange={(event) => setGiftRecipientEmail(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="giftKey">Подарок</Label>
+                    <select
+                      id="giftKey"
+                      className="h-11 w-full rounded-[1.1rem] border border-input bg-input/85 px-4 text-sm"
+                      value={giftKey}
+                      onChange={(event) => setGiftKey(event.target.value as GiftKey)}
+                    >
+                      {giftCatalog.map((gift) => (
+                        <option key={gift.key} value={gift.key}>
+                          {gift.name} - {gift.cost}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-sm text-muted-foreground">{selectedGift?.description}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="giftNote">Комментарий</Label>
+                    <Input
+                      id="giftNote"
+                      value={giftNote}
+                      onChange={(event) => setGiftNote(event.target.value)}
+                    />
+                  </div>
                 </div>
               }
             />
 
             <PromoCard
-              icon={<HandCoinsIcon className="size-5" />}
               title="Перевод звёзд"
               badge={isAdminWithInfiniteStars ? "без лимита" : "моментально"}
-              badgeTone="bg-amber-100 text-amber-800"
+              badgeTone="bg-amber-500/10 text-amber-700 dark:text-amber-300"
+              icon={<HandCoinsIcon className="size-5" />}
               description="Передайте звёзды напрямую пользователю по email."
               bullets={[
                 "Подходит для быстрых поощрений внутри команды.",
@@ -705,40 +721,45 @@ export function ProfileHome({ user }: { user: EditableUser }) {
               onAction={sendStars}
               details={
                 <div className="space-y-3">
-                  <Label htmlFor="starRecipientEmail">Email получателя звёзд</Label>
-                  <Input
-                    id="starRecipientEmail"
-                    type="email"
-                    value={starRecipientEmail}
-                    onChange={(event) => setStarRecipientEmail(event.target.value)}
-                  />
-                  <Label htmlFor="starAmount">Количество звёзд</Label>
-                  <Input
-                    id="starAmount"
-                    inputMode="numeric"
-                    value={starAmount}
-                    onChange={(event) => setStarAmount(event.target.value)}
-                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="starRecipientEmail">Email получателя звёзд</Label>
+                    <Input
+                      id="starRecipientEmail"
+                      type="email"
+                      value={starRecipientEmail}
+                      onChange={(event) => setStarRecipientEmail(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="starAmount">Количество звёзд</Label>
+                    <Input
+                      id="starAmount"
+                      inputMode="numeric"
+                      value={starAmount}
+                      onChange={(event) => setStarAmount(event.target.value)}
+                    />
+                  </div>
                 </div>
               }
             />
 
             <Card className="border-destructive/20">
               <CardHeader>
-                <CardTitle>{tr("РЈРґР°Р»РµРЅРёРµ Р°РєРєР°СѓРЅС‚Р°")}</CardTitle>
+                <CardTitle>{tr("Удаление аккаунта")}</CardTitle>
                 <CardDescription>
-                  {tr("РђРєРєР°СѓРЅС‚, РІР°С€Рё СЃРѕРѕР±С‰РµРЅРёСЏ Рё РґРѕСЃС‚СѓРї Рє РїСЂРёР»РѕР¶РµРЅРёСЋ Р±СѓРґСѓС‚ СѓРґР°Р»РµРЅС‹ Р±РµР· РІРѕР·РјРѕР¶РЅРѕСЃС‚Рё РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ.")}
+                  {tr(
+                    "Аккаунт, ваши сообщения и доступ к приложению будут удалены без возможности восстановления."
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Separator />
                 <Button
-                  type="button"
                   variant="destructive"
                   disabled={isDeletingAccount}
                   onClick={deleteAccount}
                 >
-                  {tr("РЈРґР°Р»РёС‚СЊ Р°РєРєР°СѓРЅС‚")}
+                  {isDeletingAccount ? tr("Удаляем...") : tr("Удалить аккаунт")}
                 </Button>
               </CardContent>
             </Card>

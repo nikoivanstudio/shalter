@@ -14,13 +14,13 @@ export async function DELETE(
 ) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
+    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
   }
 
   const { channelId: rawChannelId } = await context.params
   const channelId = parseChannelId(rawChannelId)
   if (!channelId) {
-    return NextResponse.json({ message: "РќРµРІРµСЂРЅС‹Р№ id РєР°РЅР°Р»Р°" }, { status: 400 })
+    return NextResponse.json({ message: "Неверный id канала" }, { status: 400 })
   }
 
   const channel = await prisma.channel.findFirst({
@@ -39,12 +39,12 @@ export async function DELETE(
   })
 
   if (!channel) {
-    return NextResponse.json({ message: "РљР°РЅР°Р» РЅРµ РЅР°Р№РґРµРЅ" }, { status: 404 })
+    return NextResponse.json({ message: "Канал не найден" }, { status: 404 })
   }
 
   if (channel.ownerId !== userId) {
     return NextResponse.json(
-      { message: "РЈРґР°Р»СЏС‚СЊ РєР°РЅР°Р» РјРѕР¶РµС‚ С‚РѕР»СЊРєРѕ РІР»Р°РґРµР»РµС†" },
+      { message: "Удалять канал может только владелец" },
       { status: 403 }
     )
   }

@@ -1,4 +1,5 @@
 import { z } from "zod"
+
 import { EMBLEM_TONE_OPTIONS } from "@/features/profile/lib/emblem"
 
 const avatarToneIds = EMBLEM_TONE_OPTIONS.map((tone) => tone.id) as [

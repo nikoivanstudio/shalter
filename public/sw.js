@@ -1,4 +1,4 @@
-const CACHE_NAME = "shalter-static-v1";
+const CACHE_NAME = "shalter-static-v2";
 const OFFLINE_URLS = ["/", "/auth", "/contacts", "/chats"];
 
 self.addEventListener("install", (event) => {

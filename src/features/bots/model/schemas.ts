@@ -15,7 +15,11 @@ export const publishBotSchema = z.object({
     niche: z.string().trim().max(120, "Ниша слишком длинная"),
     goal: z.string().trim().min(1, "Укажите цель бота").max(2000, "Цель слишком длинная"),
     tone: z.string().trim().max(500, "Описание стиля слишком длинное"),
-    greeting: z.string().trim().min(1, "Добавьте первое сообщение").max(2000, "Приветствие слишком длинное"),
+    greeting: z
+      .string()
+      .trim()
+      .min(1, "Добавьте первое сообщение")
+      .max(2000, "Приветствие слишком длинное"),
     knowledge: z.array(z.string().trim().min(1).max(200)).max(50),
     channels: z.array(z.string().trim().min(1).max(80)).min(1, "Добавьте хотя бы один канал").max(20),
     skills: z.array(z.string().trim().min(1).max(200)).max(50),

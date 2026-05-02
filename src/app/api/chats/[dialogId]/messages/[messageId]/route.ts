@@ -27,7 +27,7 @@ export async function PATCH(
 ) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
+    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
   }
 
   const { dialogId: dialogIdParam, messageId: messageIdParam } = await context.params
@@ -35,12 +35,12 @@ export async function PATCH(
   const messageId = parsePositiveInt(messageIdParam)
 
   if (!dialogId || !messageId) {
-    return NextResponse.json({ message: "РќРµРІРµСЂРЅС‹Рµ РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂС‹" }, { status: 400 })
+    return NextResponse.json({ message: "Неверные идентификаторы" }, { status: 400 })
   }
 
   const hasAccess = await canAccessDialog(dialogId, userId)
   if (!hasAccess) {
-    return NextResponse.json({ message: "Р§Р°С‚ РЅРµ РЅР°Р№РґРµРЅ" }, { status: 404 })
+    return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
   }
 
   const existing = await prisma.message.findFirst({
@@ -49,11 +49,11 @@ export async function PATCH(
   })
 
   if (!existing) {
-    return NextResponse.json({ message: "РЎРѕРѕР±С‰РµРЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ" }, { status: 404 })
+    return NextResponse.json({ message: "Сообщение не найдено" }, { status: 404 })
   }
 
   if (existing.authorId !== userId) {
-    return NextResponse.json({ message: "РњРѕР¶РЅРѕ СЂРµРґР°РєС‚РёСЂРѕРІР°С‚СЊ С‚РѕР»СЊРєРѕ СЃРІРѕРё СЃРѕРѕР±С‰РµРЅРёСЏ" }, { status: 403 })
+    return NextResponse.json({ message: "Можно редактировать только свои сообщения" }, { status: 403 })
   }
 
   const media = await getDialogMessageMedia(messageId, dialogId)
@@ -68,7 +68,7 @@ export async function PATCH(
   if (!writeAccess.ok && writeAccess.code === "CONTACT_REQUIRED") {
     return NextResponse.json(
       {
-        message: "Р­С‚РѕРјСѓ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ РјРѕРіСѓС‚ РїРёСЃР°С‚СЊ С‚РѕР»СЊРєРѕ Р»СЋРґРё РёР· РµРіРѕ РєРѕРЅС‚Р°РєС‚РѕРІ",
+        message: "Этому пользователю могут писать только люди из его контактов",
       },
       { status: 403 }
     )
@@ -79,7 +79,7 @@ export async function PATCH(
   if (!parsed.success) {
     return NextResponse.json(
       {
-        message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
+        message: "Ошибка валидации",
         fieldErrors: parsed.error.flatten().fieldErrors,
       },
       { status: 400 }
@@ -112,7 +112,7 @@ export async function PATCH(
     const names = blockedByUsers.map((item) => formatBlacklistUserName(item.owner)).join(", ")
     return NextResponse.json(
       {
-        message: `Р’С‹ РЅРµ РјРѕР¶РµС‚Рµ РїРёСЃР°С‚СЊ РІ СЌС‚РѕС‚ С‡Р°С‚. Р’Р°СЃ РґРѕР±Р°РІРёР»Рё РІ С‡С‘СЂРЅС‹Р№ СЃРїРёСЃРѕРє: ${names}`,
+        message: `Вы не можете писать в этот чат. Вас добавили в чёрный список: ${names}`,
       },
       { status: 403 }
     )
@@ -156,7 +156,7 @@ export async function DELETE(
 ) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
+    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
   }
 
   const { dialogId: dialogIdParam, messageId: messageIdParam } = await context.params
@@ -164,12 +164,12 @@ export async function DELETE(
   const messageId = parsePositiveInt(messageIdParam)
 
   if (!dialogId || !messageId) {
-    return NextResponse.json({ message: "РќРµРІРµСЂРЅС‹Рµ РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂС‹" }, { status: 400 })
+    return NextResponse.json({ message: "Неверные идентификаторы" }, { status: 400 })
   }
 
   const hasAccess = await canAccessDialog(dialogId, userId)
   if (!hasAccess) {
-    return NextResponse.json({ message: "Р§Р°С‚ РЅРµ РЅР°Р№РґРµРЅ" }, { status: 404 })
+    return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
   }
 
   const existing = await prisma.message.findFirst({
@@ -178,11 +178,11 @@ export async function DELETE(
   })
 
   if (!existing) {
-    return NextResponse.json({ message: "РЎРѕРѕР±С‰РµРЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ" }, { status: 404 })
+    return NextResponse.json({ message: "Сообщение не найдено" }, { status: 404 })
   }
 
   if (existing.authorId !== userId) {
-    return NextResponse.json({ message: "РњРѕР¶РЅРѕ СѓРґР°Р»СЏС‚СЊ С‚РѕР»СЊРєРѕ СЃРІРѕРё СЃРѕРѕР±С‰РµРЅРёСЏ" }, { status: 403 })
+    return NextResponse.json({ message: "Можно удалять только свои сообщения" }, { status: 403 })
   }
 
   const media = await getDialogMessageMedia(messageId, dialogId)

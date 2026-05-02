@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
         niche: publication.niche,
         audience: publication.audience,
         publishedAt: publication.publishedAt.toISOString(),
+        config: publication.config,
       },
     },
     { status: 201 }

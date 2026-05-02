@@ -1,3 +1,7 @@
+"use client"
+
+import { useEffect, useState } from "react"
+
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 
 export function UserAvatar({
@@ -15,15 +19,21 @@ export function UserAvatar({
   className?: string
   textClassName?: string
 }) {
+  const [hasImageError, setHasImageError] = useState(false)
   const emblem = buildEmblem(firstName, lastName)
   const emblemTone = getEmblemTone(firstName, lastName, avatarTone ?? null)
 
-  if (avatarUrl) {
+  useEffect(() => {
+    setHasImageError(false)
+  }, [avatarUrl])
+
+  if (avatarUrl && !hasImageError) {
     return (
       <img
         src={avatarUrl}
         alt={`${firstName} ${lastName ?? ""}`.trim() || "Аватар"}
         className={`rounded-full object-cover ${className}`.trim()}
+        onError={() => setHasImageError(true)}
       />
     )
   }

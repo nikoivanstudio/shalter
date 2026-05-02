@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       const fieldErrors = parsed.error.flatten().fieldErrors
       return NextResponse.json(
         {
-          message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
+          message: "Ошибка валидации",
           fieldErrors,
         },
         { status: 400 }
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
         {
           message: turnstileResult.message,
           fieldErrors: {
-            turnstileToken: ["РџРѕРґС‚РІРµСЂРґРёС‚Рµ, С‡С‚Рѕ РІС‹ РЅРµ Р±РѕС‚"],
+            turnstileToken: ["Подтвердите, что вы не бот"],
           },
         },
         { status: 400 }
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     return response
   } catch (error) {
     console.error("POST /api/auth/register failed", error)
-    return NextResponse.json({ message: "Р’РЅСѓС‚СЂРµРЅРЅСЏСЏ РѕС€РёР±РєР° СЃРµСЂРІРµСЂР°" }, { status: 500 })
+    return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
   }
 }
 

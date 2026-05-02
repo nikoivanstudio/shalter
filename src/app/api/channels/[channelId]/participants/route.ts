@@ -253,42 +253,42 @@ export async function DELETE(
 ) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
+    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
   }
 
   const { channelId: rawChannelId } = await context.params
   const channelId = parseChannelId(rawChannelId)
   if (!channelId) {
-    return NextResponse.json({ message: "РќРµРІРµСЂРЅС‹Р№ id РєР°РЅР°Р»Р°" }, { status: 400 })
+    return NextResponse.json({ message: "Неверный id канала" }, { status: 400 })
   }
 
   const targetUserId = Number(request.nextUrl.searchParams.get("targetUserId"))
   if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-    return NextResponse.json({ message: "РќРµРІРµСЂРЅС‹Р№ id СѓС‡Р°СЃС‚РЅРёРєР°" }, { status: 400 })
+    return NextResponse.json({ message: "Неверный id участника" }, { status: 400 })
   }
 
   const channel = await getOwnerMembership(channelId, userId)
   if (!channel) {
-    return NextResponse.json({ message: "РљР°РЅР°Р» РЅРµ РЅР°Р№РґРµРЅ" }, { status: 404 })
+    return NextResponse.json({ message: "Канал не найден" }, { status: 404 })
   }
 
   if (channel.ownerId !== userId) {
     return NextResponse.json(
-      { message: "Р’С‹РіРѕРЅСЏС‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ РјРѕР¶РµС‚ С‚РѕР»СЊРєРѕ РІР»Р°РґРµР»РµС† РєР°РЅР°Р»Р°" },
+      { message: "Выгонять участников может только владелец канала" },
       { status: 403 }
     )
   }
 
   if (targetUserId === userId) {
     return NextResponse.json(
-      { message: "Р’Р»Р°РґРµР»РµС† РЅРµ РјРѕР¶РµС‚ РІС‹РіРЅР°С‚СЊ СЃР°РјРѕРіРѕ СЃРµР±СЏ" },
+      { message: "Владелец не может выгнать самого себя" },
       { status: 400 }
     )
   }
 
   const participant = channel.participants.find((item) => item.userId === targetUserId)
   if (!participant) {
-    return NextResponse.json({ message: "РЈС‡Р°СЃС‚РЅРёРє РЅРµ РЅР°Р№РґРµРЅ" }, { status: 404 })
+    return NextResponse.json({ message: "Участник не найден" }, { status: 404 })
   }
 
   await prisma.channelParticipant.delete({

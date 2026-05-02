@@ -34,12 +34,12 @@ export async function PATCH(request: NextRequest) {
     const sessionId = request.cookies.get(AUTH_SESSION_COOKIE)?.value
 
     if (!token || !sessionId) {
-      return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
+      return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
     }
 
     const payload = await verifyAuthToken(token)
     if (!payload || payload.sid !== sessionId) {
-      return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
+      return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
     }
 
     await touchUserActivity(payload.userId)
@@ -64,7 +64,7 @@ export async function PATCH(request: NextRequest) {
       const fieldErrors = parsed.error.flatten().fieldErrors
       return NextResponse.json(
         {
-          message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
+          message: "Ошибка валидации",
           fieldErrors,
         },
         { status: 400 }
@@ -147,16 +147,16 @@ export async function PATCH(request: NextRequest) {
     if (isPrismaKnownRequestError(error, "P2002")) {
       return NextResponse.json(
         {
-          message: "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃ С‚Р°РєРёРј email СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚",
+          message: "Пользователь с таким email уже существует",
           fieldErrors: {
-            email: ["РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃ С‚Р°РєРёРј email СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚"],
+            email: ["Пользователь с таким email уже существует"],
           },
         },
         { status: 409 }
       )
     }
 
-    return NextResponse.json({ message: "Р’РЅСѓС‚СЂРµРЅРЅСЏСЏ РѕС€РёР±РєР° СЃРµСЂРІРµСЂР°" }, { status: 500 })
+    return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
   }
 }
 
@@ -166,12 +166,12 @@ export async function DELETE(request: NextRequest) {
     const sessionId = request.cookies.get(AUTH_SESSION_COOKIE)?.value
 
     if (!token || !sessionId) {
-      return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
+      return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
     }
 
     const payload = await verifyAuthToken(token)
     if (!payload || payload.sid !== sessionId) {
-      return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
+      return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
     }
 
     await touchUserActivity(payload.userId)
@@ -243,6 +243,6 @@ export async function DELETE(request: NextRequest) {
     clearAuthCookies(response)
     return response
   } catch {
-    return NextResponse.json({ message: "Р’РЅСѓС‚СЂРµРЅРЅСЏСЏ РѕС€РёР±РєР° СЃРµСЂРІРµСЂР°" }, { status: 500 })
+    return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
   }
 }
