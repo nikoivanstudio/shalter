@@ -9,7 +9,6 @@ COPY . .
 RUN npx prisma generate \
   && npm run build \
   && npm prune --omit=dev --legacy-peer-deps \
-  && npm install --no-save prisma@7.7.0 --legacy-peer-deps \
   && npm cache clean --force \
   && rm -rf .next/cache
 
@@ -21,13 +20,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOST=0.0.0.0
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/scripts ./scripts
-COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
 
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs \
@@ -37,4 +36,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "node scripts/db-prepare.mjs && ./node_modules/.bin/next start -p ${PORT:-3000} -H ${HOST:-0.0.0.0}"]
+CMD ["sh", "-c", "node scripts/db-prepare.mjs && node server.js"]
