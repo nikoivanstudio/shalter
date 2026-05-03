@@ -3,6 +3,24 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createChannelSchema } from "@/features/channels/model/schemas"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import {
+  deleteUploadedFileByUrl,
+  saveAvatarFile,
+  validateAvatarFile,
+} from "@/shared/lib/media/uploads"
+
+function isFileLike(value: FormDataEntryValue | null): value is File {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "size" in value &&
+    typeof value.size === "number" &&
+    "name" in value &&
+    typeof value.name === "string" &&
+    "arrayBuffer" in value &&
+    typeof value.arrayBuffer === "function"
+  )
+}
 
 export async function POST(request: NextRequest) {
   const userId = await getAuthorizedUserIdFromRequest(request)
@@ -10,8 +28,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
   }
 
-  const json = await request.json().catch(() => null)
-  const parsed = createChannelSchema.safeParse(json)
+  const contentType = request.headers.get("content-type") ?? ""
+  let payload: unknown = null
+  let avatarFile: File | null = null
+
+  try {
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData().catch(() => null)
+      const channelValue = formData?.get("channel") ?? null
+      if (typeof channelValue === "string") {
+        payload = JSON.parse(channelValue)
+      }
+      const avatarValue = formData?.get("avatarFile") ?? null
+      avatarFile = isFileLike(avatarValue) && avatarValue.size > 0 ? avatarValue : null
+    } else {
+      payload = await request.json().catch(() => null)
+    }
+  } catch {
+    return NextResponse.json(
+      {
+        message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
+        fieldErrors: {
+          channel: ["РќРµРєРѕСЂСЂРµРєС‚РЅС‹Рµ РґР°РЅРЅС‹Рµ РєР°РЅР°Р»Р°"],
+        },
+      },
+      { status: 400 }
+    )
+  }
+
+  const parsed = createChannelSchema.safeParse(payload)
   if (!parsed.success) {
     return NextResponse.json(
       {
@@ -22,57 +67,86 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const channel = await prisma.channel.create({
-    data: {
-      title: parsed.data.title,
-      description: parsed.data.description?.trim() || null,
-      ownerId: userId,
-      participants: {
-        create: {
-          userId,
-          role: "OWNER",
-        },
-      },
-    },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      ownerId: true,
-      participants: {
-        select: {
-          userId: true,
-          role: true,
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              role: true,
-              isBlocked: true,
-            },
+  let avatarUrl: string | null = null
+  if (avatarFile) {
+    const avatarError = validateAvatarFile(avatarFile)
+    if (avatarError) {
+      return NextResponse.json(
+        {
+          message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
+          fieldErrors: {
+            avatarFile: [avatarError],
           },
         },
-        orderBy: { id: "asc" },
-      },
-    },
-  })
+        { status: 400 }
+      )
+    }
 
-  return NextResponse.json(
-    {
-      channel: {
-        id: channel.id,
-        title: channel.title,
-        description: channel.description,
-        ownerId: channel.ownerId,
-        participants: channel.participants.map((participant) => ({
-          channelRole: participant.role,
-          ...participant.user,
-        })),
-        lastMessage: null,
+    avatarUrl = (await saveAvatarFile(avatarFile)).url
+  }
+
+  try {
+    const channel = await prisma.channel.create({
+      data: {
+        title: parsed.data.title,
+        description: parsed.data.description?.trim() || null,
+        avatarUrl,
+        ownerId: userId,
+        participants: {
+          create: {
+            userId,
+            role: "OWNER",
+          },
+        },
       },
-    },
-    { status: 201 }
-  )
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        avatarUrl: true,
+        ownerId: true,
+        participants: {
+          select: {
+            userId: true,
+            role: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+                avatarTone: true,
+                avatarUrl: true,
+                isBlocked: true,
+              },
+            },
+          },
+          orderBy: { id: "asc" },
+        },
+      },
+    })
+
+    return NextResponse.json(
+      {
+        channel: {
+          id: channel.id,
+          title: channel.title,
+          description: channel.description,
+          avatarUrl: channel.avatarUrl,
+          ownerId: channel.ownerId,
+          participants: channel.participants.map((participant) => ({
+            channelRole: participant.role,
+            ...participant.user,
+          })),
+          lastMessage: null,
+        },
+      },
+      { status: 201 }
+    )
+  } catch (error) {
+    await deleteUploadedFileByUrl(avatarUrl)
+    throw error
+  }
 }

@@ -33,6 +33,8 @@ export default async function ChannelsPage({
           email: true,
           phone: true,
           role: true,
+          avatarTone: true,
+          avatarUrl: true,
           isBlocked: true,
         },
       },
@@ -52,6 +54,7 @@ export default async function ChannelsPage({
       id: true,
       title: true,
       description: true,
+      avatarUrl: true,
       ownerId: true,
       participants: {
         select: {
@@ -64,6 +67,8 @@ export default async function ChannelsPage({
               email: true,
               phone: true,
               role: true,
+              avatarTone: true,
+              avatarUrl: true,
               isBlocked: true,
             },
           },
@@ -79,6 +84,8 @@ export default async function ChannelsPage({
               id: true,
               firstName: true,
               lastName: true,
+              avatarTone: true,
+              avatarUrl: true,
             },
           },
         },
@@ -104,6 +111,7 @@ export default async function ChannelsPage({
           phone: user.phone,
           role: user.role,
           avatarTone: user.avatarTone,
+          avatarUrl: user.avatarUrl,
         }}
         contacts={contacts.map((item) => item.contactUser)}
         initialChannelId={initialChannelId}
@@ -111,6 +119,7 @@ export default async function ChannelsPage({
           id: channel.id,
           title: channel.title,
           description: channel.description,
+          avatarUrl: channel.avatarUrl,
           ownerId: channel.ownerId,
           myRole:
             channel.participants.find((participant) => participant.user.id === user.id)?.role ?? null,
@@ -128,6 +137,20 @@ export default async function ChannelsPage({
                 content: channel.messages[0].content,
                 createdAt: channel.messages[0].createdAt.toISOString(),
                 author: channel.messages[0].author,
+                attachment:
+                  channel.messages[0].mediaKind &&
+                  channel.messages[0].mediaUrl &&
+                  channel.messages[0].mediaName &&
+                  channel.messages[0].mediaMime &&
+                  channel.messages[0].mediaSize !== null
+                    ? {
+                        kind: channel.messages[0].mediaKind as "FILE",
+                        url: channel.messages[0].mediaUrl,
+                        name: channel.messages[0].mediaName,
+                        mime: channel.messages[0].mediaMime,
+                        size: channel.messages[0].mediaSize,
+                      }
+                    : null,
               }
             : null,
         }))}

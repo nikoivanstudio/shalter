@@ -1,30 +1,27 @@
-FROM node:24-alpine AS deps
+FROM node:24-alpine AS builder
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+
 COPY package*.json ./
 RUN npm ci --legacy-peer-deps
 
-FROM node:24-alpine AS prod-deps
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev --legacy-peer-deps \
-  && npm install --no-save prisma@7.7.0 --legacy-peer-deps
-
-FROM node:24-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate \
   && npm run build \
+  && npm prune --omit=dev --legacy-peer-deps \
+  && npm install --no-save prisma@7.7.0 --legacy-peer-deps \
+  && npm cache clean --force \
   && rm -rf .next/cache
 
 FROM node:24-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOST=0.0.0.0
 
-COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma

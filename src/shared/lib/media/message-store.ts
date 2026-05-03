@@ -6,6 +6,8 @@ type MessageAuthor = {
   id: number
   firstName: string
   lastName: string | null
+  avatarTone: string | null
+  avatarUrl: string | null
 }
 
 type DialogMessageRow = {
@@ -17,6 +19,8 @@ type DialogMessageRow = {
   author_id: number
   first_name: string
   last_name: string | null
+  avatar_tone: string | null
+  avatar_url: string | null
   media_kind: MediaKind | null
   media_url: string | null
   media_name: string | null
@@ -32,6 +36,8 @@ type ChannelMessageRow = {
   author_id: number
   first_name: string
   last_name: string | null
+  avatar_tone: string | null
+  avatar_url: string | null
   media_kind: MediaKind | null
   media_url: string | null
   media_name: string | null
@@ -63,11 +69,19 @@ function mapAttachment(row: {
   }
 }
 
-function mapAuthor(row: { author_id: number; first_name: string; last_name: string | null }): MessageAuthor {
+function mapAuthor(row: {
+  author_id: number
+  first_name: string
+  last_name: string | null
+  avatar_tone: string | null
+  avatar_url: string | null
+}): MessageAuthor {
   return {
     id: row.author_id,
     firstName: row.first_name,
     lastName: row.last_name,
+    avatarTone: row.avatar_tone,
+    avatarUrl: row.avatar_url,
   }
 }
 
@@ -83,6 +97,8 @@ export async function getDialogMessages(dialogId: number) {
         u.id as author_id,
         u.first_name,
         u.last_name,
+        u.avatar_tone,
+        u.avatar_url,
         m.media_kind,
         m.media_url,
         m.media_name,
@@ -156,10 +172,16 @@ export async function createDialogMessage(input: {
 
   const created = rows[0]
   const authorRows = await prisma.$queryRawUnsafe<
-    Array<{ id: number; first_name: string; last_name: string | null }>
+    Array<{
+      id: number
+      first_name: string
+      last_name: string | null
+      avatar_tone: string | null
+      avatar_url: string | null
+    }>
   >(
     `
-      select id, first_name, last_name
+      select id, first_name, last_name, avatar_tone, avatar_url
       from users
       where id = $1
       limit 1
@@ -178,6 +200,8 @@ export async function createDialogMessage(input: {
       id: author.id,
       firstName: author.first_name,
       lastName: author.last_name,
+      avatarTone: author.avatar_tone,
+      avatarUrl: author.avatar_url,
     },
     attachment: mapAttachment(created),
   }
@@ -211,6 +235,8 @@ export async function getChannelMessages(channelId: number) {
         u.id as author_id,
         u.first_name,
         u.last_name,
+        u.avatar_tone,
+        u.avatar_url,
         m.media_kind,
         m.media_url,
         m.media_name,
@@ -279,10 +305,16 @@ export async function createChannelMessage(input: {
 
   const created = rows[0]
   const authorRows = await prisma.$queryRawUnsafe<
-    Array<{ id: number; first_name: string; last_name: string | null }>
+    Array<{
+      id: number
+      first_name: string
+      last_name: string | null
+      avatar_tone: string | null
+      avatar_url: string | null
+    }>
   >(
     `
-      select id, first_name, last_name
+      select id, first_name, last_name, avatar_tone, avatar_url
       from users
       where id = $1
       limit 1
@@ -300,6 +332,8 @@ export async function createChannelMessage(input: {
       id: author.id,
       firstName: author.first_name,
       lastName: author.last_name,
+      avatarTone: author.avatar_tone,
+      avatarUrl: author.avatar_url,
     },
     attachment: mapAttachment(created),
   }

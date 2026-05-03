@@ -1,14 +1,17 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import {
   ArrowLeftIcon,
   HashIcon,
+  PaperclipIcon,
   SearchIcon,
   ShieldIcon,
   StarIcon,
   UsersIcon,
+  XIcon,
 } from "lucide-react"
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { AccountStatusBadge } from "@/components/ui/account-status-badge"
@@ -16,12 +19,18 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
+import {
+  ContactProfileCard,
+  type ViewedContactProfile,
+} from "@/features/contacts/ui/contact-profile-card"
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
-import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import type { MediaAttachment } from "@/shared/lib/media/constants"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
+import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
+import { UserAvatar } from "@/shared/ui/user-avatar"
 
 type UserShort = {
   id: number
@@ -31,6 +40,7 @@ type UserShort = {
   phone?: string | null
   role: string
   avatarTone?: string | null
+  avatarUrl?: string | null
   isBlocked?: boolean
 }
 
@@ -42,6 +52,8 @@ type ContactUser = {
   phone: string
   role: string
   isBlocked?: boolean
+  avatarTone?: string | null
+  avatarUrl?: string | null
 }
 
 type ChannelParticipant = UserShort & {
@@ -53,10 +65,13 @@ type ChannelMessage = {
   channelId: number
   content: string
   createdAt: string
+  attachment?: MediaAttachment | null
   author: {
     id: number
     firstName: string
     lastName: string | null
+    avatarTone?: string | null
+    avatarUrl?: string | null
   }
 }
 
@@ -64,6 +79,7 @@ type ChannelItem = {
   id: number
   title: string
   description: string | null
+  avatarUrl?: string | null
   ownerId: number
   myRole: "OWNER" | "ADMIN" | "MEMBER" | null
   participants: ChannelParticipant[]
@@ -74,6 +90,7 @@ type SearchChannel = {
   id: number
   title: string
   description: string | null
+  avatarUrl?: string | null
   ownerId: number
   memberCount: number
   joined: boolean
@@ -91,17 +108,25 @@ export function ChannelsHome({
   contacts: ContactUser[]
   initialChannelId: number | null
 }) {
+  const router = useRouter()
   const { tr } = useI18n()
+  const createAvatarInputRef = useRef<HTMLInputElement | null>(null)
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null)
   const [channels, setChannels] = useState(initialChannels)
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(initialChannelId)
   const [messages, setMessages] = useState<ChannelMessage[] | null>(null)
   const [createTitle, setCreateTitle] = useState("")
   const [createDescription, setCreateDescription] = useState("")
+  const [createAvatarFile, setCreateAvatarFile] = useState<File | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SearchChannel[]>([])
   const [messageText, setMessageText] = useState("")
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
   const [selectedContactIds, setSelectedContactIds] = useState<number[]>([])
   const [showMembers, setShowMembers] = useState(false)
+  const [selectedProfile, setSelectedProfile] = useState<ViewedContactProfile | null>(null)
+  const [isProfileLoading, setIsProfileLoading] = useState(false)
+  const [createAvatarPreviewUrl, setCreateAvatarPreviewUrl] = useState<string | null>(null)
   const [isCreating, startCreating] = useTransition()
   const [isSearching, startSearching] = useTransition()
   const [isJoining, startJoining] = useTransition()
@@ -115,8 +140,6 @@ export function ChannelsHome({
     () => channels.find((channel) => channel.id === selectedChannelId) ?? null,
     [channels, selectedChannelId]
   )
-  const emblem = buildEmblem(user.firstName, user.lastName)
-  const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
   const myRole = selectedChannel?.myRole ?? null
   const canManage = myRole === "OWNER"
   const canWrite = myRole === "OWNER" || myRole === "ADMIN"
@@ -130,6 +153,20 @@ export function ChannelsHome({
   }, [contacts, selectedChannel])
 
   useEffect(() => {
+    if (!createAvatarFile) {
+      setCreateAvatarPreviewUrl(null)
+      return
+    }
+
+    const objectUrl = URL.createObjectURL(createAvatarFile)
+    setCreateAvatarPreviewUrl(objectUrl)
+
+    return () => {
+      URL.revokeObjectURL(objectUrl)
+    }
+  }, [createAvatarFile])
+
+  useEffect(() => {
     if (!selectedChannelId) {
       return
     }
@@ -139,7 +176,7 @@ export function ChannelsHome({
       .then(async (response) => {
         const data = await response.json().catch(() => null)
         if (!response.ok) {
-          throw new Error(tr(data?.message ?? "Не удалось загрузить сообщения канала"))
+          throw new Error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРѕРѕР±С‰РµРЅРёСЏ РєР°РЅР°Р»Р°"))
         }
         return data as { messages: ChannelMessage[] }
       })
@@ -165,23 +202,61 @@ export function ChannelsHome({
     setMessages(null)
     setSelectedContactIds([])
     setMessageText("")
+    setAttachmentFile(null)
     setShowMembers(false)
+  }
+
+  function openProfile(contactUserId: number) {
+    if (contactUserId === user.id) {
+      return
+    }
+
+    setSelectedProfile(null)
+    setIsProfileLoading(true)
+
+    void fetch(`/api/contacts/${contactUserId}/profile`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РєСЂС‹С‚СЊ РїСЂРѕС„РёР»СЊ"))
+        }
+
+        return data as { profile: ViewedContactProfile }
+      })
+      .then((data) => {
+        setSelectedProfile(data.profile)
+      })
+      .catch((error: Error) => {
+        toast.error(error.message)
+      })
+      .finally(() => {
+        setIsProfileLoading(false)
+      })
   }
 
   function createChannel() {
     startCreating(async () => {
-      const response = await fetch("/api/channels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const formData = new FormData()
+      formData.set(
+        "channel",
+        JSON.stringify({
           title: createTitle,
           description: createDescription,
-        }),
+        })
+      )
+
+      if (createAvatarFile) {
+        formData.set("avatarFile", createAvatarFile)
+      }
+
+      const response = await fetch("/api/channels", {
+        method: "POST",
+        body: formData,
       })
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось создать канал"))
+        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РєР°РЅР°Р»"))
         return
       }
 
@@ -189,9 +264,13 @@ export function ChannelsHome({
       setChannels((prev) => [channel, ...prev])
       setCreateTitle("")
       setCreateDescription("")
+      setCreateAvatarFile(null)
+      if (createAvatarInputRef.current) {
+        createAvatarInputRef.current.value = ""
+      }
       setSelectedChannelId(channel.id)
       setMessages([])
-      toast.success(tr("Канал создан"))
+      toast.success(tr("РљР°РЅР°Р» СЃРѕР·РґР°РЅ"))
     })
   }
 
@@ -200,7 +279,7 @@ export function ChannelsHome({
       const response = await fetch(`/api/channels/search?q=${encodeURIComponent(searchQuery)}`)
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось выполнить поиск"))
+        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ РїРѕРёСЃРє"))
         return
       }
 
@@ -215,7 +294,7 @@ export function ChannelsHome({
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось вступить в канал"))
+        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РІСЃС‚СѓРїРёС‚СЊ РІ РєР°РЅР°Р»"))
         return
       }
 
@@ -229,14 +308,26 @@ export function ChannelsHome({
     }
 
     startSending(async () => {
-      const response = await fetch(`/api/channels/${selectedChannelId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: messageText }),
-      })
+      const response = attachmentFile
+        ? await fetch(`/api/channels/${selectedChannelId}/messages`, {
+            method: "POST",
+            body: (() => {
+              const formData = new FormData()
+              formData.set("content", messageText)
+              formData.set("kind", "FILE")
+              formData.set("attachment", attachmentFile)
+              return formData
+            })(),
+          })
+        : await fetch(`/api/channels/${selectedChannelId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: messageText }),
+          })
+
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось отправить сообщение"))
+        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ СЃРѕРѕР±С‰РµРЅРёРµ"))
         return
       }
 
@@ -248,6 +339,10 @@ export function ChannelsHome({
         )
       )
       setMessageText("")
+      setAttachmentFile(null)
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = ""
+      }
     })
   }
 
@@ -264,7 +359,7 @@ export function ChannelsHome({
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось добавить участников"))
+        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РґРѕР±Р°РІРёС‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ"))
         return
       }
 
@@ -277,7 +372,7 @@ export function ChannelsHome({
         )
       )
       setSelectedContactIds([])
-      toast.success(tr("Участники добавлены"))
+      toast.success(tr("РЈС‡Р°СЃС‚РЅРёРєРё РґРѕР±Р°РІР»РµРЅС‹"))
     })
   }
 
@@ -294,7 +389,7 @@ export function ChannelsHome({
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось обновить роль"))
+        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ СЂРѕР»СЊ"))
         return
       }
 
@@ -311,7 +406,7 @@ export function ChannelsHome({
             : channel
         )
       )
-      toast.success(tr(role === "ADMIN" ? "Админ назначен" : "Права админа сняты"))
+      toast.success(tr(role === "ADMIN" ? "РђРґРјРёРЅ РЅР°Р·РЅР°С‡РµРЅ" : "РџСЂР°РІР° Р°РґРјРёРЅР° СЃРЅСЏС‚С‹"))
     })
   }
 
@@ -320,7 +415,7 @@ export function ChannelsHome({
       return
     }
 
-    const confirmed = window.confirm("Выгнать участника из канала?")
+    const confirmed = window.confirm("Р’С‹РіРЅР°С‚СЊ СѓС‡Р°СЃС‚РЅРёРєР° РёР· РєР°РЅР°Р»Р°?")
     if (!confirmed) {
       return
     }
@@ -334,7 +429,7 @@ export function ChannelsHome({
       )
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось выгнать участника"))
+        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РіРЅР°С‚СЊ СѓС‡Р°СЃС‚РЅРёРєР°"))
         return
       }
 
@@ -349,7 +444,7 @@ export function ChannelsHome({
         )
       )
       setSelectedContactIds((prev) => prev.filter((id) => id !== targetUserId))
-      toast.success(tr("Участник удалён"))
+      toast.success(tr("РЈС‡Р°СЃС‚РЅРёРє СѓРґР°Р»С‘РЅ"))
     })
   }
 
@@ -358,7 +453,7 @@ export function ChannelsHome({
       return
     }
 
-    const confirmed = window.confirm(`Удалить канал «${selectedChannel.title}»?`)
+    const confirmed = window.confirm(`РЈРґР°Р»РёС‚СЊ РєР°РЅР°Р» В«${selectedChannel.title}В»?`)
     if (!confirmed) {
       return
     }
@@ -369,7 +464,7 @@ export function ChannelsHome({
       })
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось удалить канал"))
+        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ РєР°РЅР°Р»"))
         return
       }
 
@@ -381,7 +476,7 @@ export function ChannelsHome({
         setShowMembers(false)
         return next
       })
-      toast.success(tr("Канал удалён"))
+      toast.success(tr("РљР°РЅР°Р» СѓРґР°Р»С‘РЅ"))
     })
   }
 
@@ -391,11 +486,13 @@ export function ChannelsHome({
         <header className="rounded-[2rem] border border-white/50 bg-card/88 px-5 py-4 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div
-                className={`flex size-14 items-center justify-center rounded-full border border-white/55 text-sm font-semibold shadow-lg shadow-sky-500/10 ${emblemTone}`}
-              >
-                {emblem}
-              </div>
+              <UserAvatar
+                firstName={user.firstName}
+                lastName={user.lastName}
+                avatarTone={user.avatarTone}
+                avatarUrl={user.avatarUrl}
+                className="size-14"
+              />
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate text-lg font-semibold">
@@ -411,7 +508,7 @@ export function ChannelsHome({
                   />
                 </div>
                 <p className="truncate text-sm text-muted-foreground">
-                  {tr("Управляйте каналами в том же окне, как и чатами.")}
+                  {tr("РЈРїСЂР°РІР»СЏР№С‚Рµ РєР°РЅР°Р»Р°РјРё РІ С‚РѕРј Р¶Рµ РѕРєРЅРµ, РєР°Рє Рё С‡Р°С‚Р°РјРё.")}
                 </p>
               </div>
             </div>
@@ -428,35 +525,81 @@ export function ChannelsHome({
             <CardContent className="grid min-h-0 flex-1 gap-0 p-0 lg:grid-cols-[360px_minmax(0,1fr)]">
               <aside className="flex min-h-0 flex-col border-b border-border/60 p-4 lg:border-r lg:border-b-0">
                 <div className="rounded-[1.5rem] border border-border/70 bg-background/72 p-4 shadow-sm">
-                  <p className="text-sm font-medium">{tr("Создать канал")}</p>
+                  <p className="text-sm font-medium">{tr("РЎРѕР·РґР°С‚СЊ РєР°РЅР°Р»")}</p>
                   <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-3 rounded-[1rem] border border-dashed border-border/70 bg-card/60 p-3">
+                      <UserAvatar
+                        firstName={createTitle || tr("РљР°РЅР°Р»")}
+                        lastName={null}
+                        avatarUrl={createAvatarPreviewUrl}
+                        className="size-12"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-muted-foreground">
+                          {createAvatarFile ? createAvatarFile.name : tr("РђРІР°С‚Р°СЂРєР° РєР°РЅР°Р»Р°")}
+                        </p>
+                        <div className="mt-2 flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => createAvatarInputRef.current?.click()}
+                          >
+                            {tr("Р’С‹Р±СЂР°С‚СЊ С„РѕС‚Рѕ")}
+                          </Button>
+                          {createAvatarFile && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setCreateAvatarFile(null)
+                                if (createAvatarInputRef.current) {
+                                  createAvatarInputRef.current.value = ""
+                                }
+                              }}
+                            >
+                              <XIcon className="size-4" />
+                              {tr("РЈР±СЂР°С‚СЊ")}
+                            </Button>
+                          )}
+                        </div>
+                        <input
+                          ref={createAvatarInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          className="hidden"
+                          onChange={(event) => setCreateAvatarFile(event.target.files?.[0] ?? null)}
+                        />
+                      </div>
+                    </div>
                     <Input
                       value={createTitle}
                       onChange={(event) => setCreateTitle(event.target.value)}
-                      placeholder={tr("Название канала")}
+                      placeholder={tr("РќР°Р·РІР°РЅРёРµ РєР°РЅР°Р»Р°")}
                     />
                     <Input
                       value={createDescription}
                       onChange={(event) => setCreateDescription(event.target.value)}
-                      placeholder={tr("Описание канала")}
+                      placeholder={tr("РћРїРёСЃР°РЅРёРµ РєР°РЅР°Р»Р°")}
                     />
                     <Button
                       onClick={createChannel}
                       disabled={isCreating || createTitle.trim().length < 2}
                       className="w-full"
                     >
-                      {isCreating ? tr("Создаём...") : tr("Создать канал")}
+                      {isCreating ? tr("РЎРѕР·РґР°С‘Рј...") : tr("РЎРѕР·РґР°С‚СЊ РєР°РЅР°Р»")}
                     </Button>
                   </div>
                 </div>
 
                 <div className="mt-4 rounded-[1.5rem] border border-border/70 bg-background/72 p-4 shadow-sm">
-                  <p className="text-sm font-medium">{tr("Поиск каналов")}</p>
+                  <p className="text-sm font-medium">{tr("РџРѕРёСЃРє РєР°РЅР°Р»РѕРІ")}</p>
                   <div className="mt-3 flex gap-2">
                     <Input
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder={tr("Введите название канала")}
+                      placeholder={tr("Р’РІРµРґРёС‚Рµ РЅР°Р·РІР°РЅРёРµ РєР°РЅР°Р»Р°")}
                     />
                     <Button size="icon" onClick={searchChannels} disabled={isSearching}>
                       <SearchIcon className="size-4" />
@@ -469,29 +612,37 @@ export function ChannelsHome({
                         className="rounded-[1.2rem] border border-border/70 bg-card/70 p-3"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">{channel.title}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {channel.description || tr("Без описания")}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {tr("Участников:")} {channel.memberCount}
-                            </p>
+                          <div className="flex min-w-0 gap-3">
+                            <UserAvatar
+                              firstName={channel.title}
+                              lastName={null}
+                              avatarUrl={channel.avatarUrl}
+                              className="size-11 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">{channel.title}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {channel.description || tr("Р‘РµР· РѕРїРёСЃР°РЅРёСЏ")}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {tr("РЈС‡Р°СЃС‚РЅРёРєРѕРІ:")} {channel.memberCount}
+                              </p>
+                            </div>
                           </div>
                           {channel.joined ? (
                             <Button size="sm" variant="outline" onClick={() => openChannel(channel.id)}>
-                              {tr("Открыть")}
+                              {tr("РћС‚РєСЂС‹С‚СЊ")}
                             </Button>
                           ) : (
                             <Button size="sm" onClick={() => joinChannel(channel.id)} disabled={isJoining}>
-                              {tr("Вступить")}
+                              {tr("Р’СЃС‚СѓРїРёС‚СЊ")}
                             </Button>
                           )}
                         </div>
                       </div>
                     ))}
                     {searchQuery.trim() && searchResults.length === 0 && (
-                      <p className="text-sm text-muted-foreground">{tr("Каналы не найдены.")}</p>
+                      <p className="text-sm text-muted-foreground">{tr("РљР°РЅР°Р»С‹ РЅРµ РЅР°Р№РґРµРЅС‹.")}</p>
                     )}
                   </div>
                 </div>
@@ -499,30 +650,38 @@ export function ChannelsHome({
                 <div className="mt-4 min-h-0 flex-1 rounded-[1.5rem] border border-border/70 bg-background/72 p-3 shadow-sm">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium">{tr("Мои каналы")}</p>
-                      <p className="text-xs text-muted-foreground">{tr("Мои каналы и поиск")}</p>
+                      <p className="text-sm font-medium">{tr("РњРѕРё РєР°РЅР°Р»С‹")}</p>
+                      <p className="text-xs text-muted-foreground">{tr("РњРѕРё РєР°РЅР°Р»С‹ Рё РїРѕРёСЃРє")}</p>
                     </div>
                   </div>
                   <div className="min-h-0 space-y-2 overflow-y-auto pr-1">
                     {channels.map((channel) => (
                       <button
                         key={channel.id}
-                        className={`w-full rounded-[1.25rem] border p-3 text-left transition-colors ${
+                        className={`flex w-full items-start gap-3 rounded-[1.25rem] border p-3 text-left transition-colors ${
                           selectedChannelId === channel.id
                             ? "border-primary/70 bg-primary/10"
                             : "border-border/70 bg-background/82 hover:bg-accent/40"
                         }`}
                         onClick={() => openChannel(channel.id)}
                       >
-                        <p className="truncate font-medium">{channel.title}</p>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {channel.lastMessage?.content ?? channel.description ?? tr("Сообщений пока нет")}
-                        </p>
+                        <UserAvatar
+                          firstName={channel.title}
+                          lastName={null}
+                          avatarUrl={channel.avatarUrl}
+                          className="size-11 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{channel.title}</p>
+                          <p className="truncate text-sm text-muted-foreground">
+                            {channel.lastMessage?.content ?? channel.description ?? tr("РЎРѕРѕР±С‰РµРЅРёР№ РїРѕРєР° РЅРµС‚")}
+                          </p>
+                        </div>
                       </button>
                     ))}
                     {channels.length === 0 && (
                       <p className="text-sm text-muted-foreground">
-                        {tr("Вы пока не состоите ни в одном канале.")}
+                        {tr("Р’С‹ РїРѕРєР° РЅРµ СЃРѕСЃС‚РѕРёС‚Рµ РЅРё РІ РѕРґРЅРѕРј РєР°РЅР°Р»Рµ.")}
                       </p>
                     )}
                   </div>
@@ -531,23 +690,37 @@ export function ChannelsHome({
 
               <section className="flex min-h-0 flex-col">
                 <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-background/72 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-2 truncate text-sm font-semibold">
-                      <HashIcon className="size-4" />
-                      {selectedChannel?.title ?? tr("Канал")}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {selectedChannel?.description ?? tr("Откройте канал из списка или создайте новый.")}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    {selectedChannel ? (
+                      <UserAvatar
+                        firstName={selectedChannel.title}
+                        lastName={null}
+                        avatarUrl={selectedChannel.avatarUrl}
+                        className="size-12 shrink-0"
+                      />
+                    ) : (
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-full border border-border/70 bg-card/70">
+                        <HashIcon className="size-4" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 truncate text-sm font-semibold">
+                        <HashIcon className="size-4" />
+                        {selectedChannel?.title ?? tr("РљР°РЅР°Р»")}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {selectedChannel?.description ?? tr("РћС‚РєСЂРѕР№С‚Рµ РєР°РЅР°Р» РёР· СЃРїРёСЃРєР° РёР»Рё СЃРѕР·РґР°Р№С‚Рµ РЅРѕРІС‹Р№.")}
+                      </p>
+                    </div>
                   </div>
                   {selectedChannel && canManage && (
                     <div className="flex items-center gap-2">
                       <Button size="sm" variant="outline" onClick={() => setShowMembers((prev) => !prev)}>
                         <UsersIcon className="size-4" />
-                        {showMembers ? tr("Скрыть участников") : tr("Участники")}
+                        {showMembers ? tr("РЎРєСЂС‹С‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ") : tr("РЈС‡Р°СЃС‚РЅРёРєРё")}
                       </Button>
                       <Button size="sm" variant="destructive" onClick={deleteChannel} disabled={isDeletingChannel}>
-                        {isDeletingChannel ? "Удаляем..." : "Удалить канал"}
+                        {isDeletingChannel ? "РЈРґР°Р»СЏРµРј..." : "РЈРґР°Р»РёС‚СЊ РєР°РЅР°Р»"}
                       </Button>
                     </div>
                   )}
@@ -557,46 +730,59 @@ export function ChannelsHome({
                   <div className="max-h-[40dvh] overflow-y-auto border-b border-border/60 bg-muted/28 px-4 py-3">
                     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
                       <div className="space-y-2">
-                        <p className="text-sm font-medium">{tr("Участники канала")}</p>
+                        <p className="text-sm font-medium">{tr("РЈС‡Р°СЃС‚РЅРёРєРё РєР°РЅР°Р»Р°")}</p>
                         {selectedChannel.participants.map((participant) => (
                           <div
                             key={participant.id}
                             className="rounded-[1.2rem] border border-border/70 bg-background/86 px-3 py-2.5"
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="truncate text-sm font-medium">
-                                    {participant.firstName} {participant.lastName ?? ""}
+                              <button
+                                type="button"
+                                className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                                onClick={() => openProfile(participant.id)}
+                              >
+                                <UserAvatar
+                                  firstName={participant.firstName}
+                                  lastName={participant.lastName}
+                                  avatarTone={participant.avatarTone}
+                                  avatarUrl={participant.avatarUrl}
+                                  className="size-11 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="truncate text-sm font-medium">
+                                      {participant.firstName} {participant.lastName ?? ""}
+                                    </p>
+                                    <CountryFlagBadge phone={participant.phone} />
+                                    <AccountStatusBadge
+                                      role={participant.role}
+                                      email={participant.email}
+                                      firstName={participant.firstName}
+                                      lastName={participant.lastName}
+                                      isBlocked={participant.isBlocked}
+                                    />
+                                  </div>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {participant.email}
                                   </p>
-                                  <CountryFlagBadge phone={participant.phone} />
-                                  <AccountStatusBadge
-                                    role={participant.role}
-                                    email={participant.email}
-                                    firstName={participant.firstName}
-                                    lastName={participant.lastName}
-                                    isBlocked={participant.isBlocked}
-                                  />
+                                  <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                    {participant.channelRole === "OWNER" && (
+                                      <span className="inline-flex items-center gap-1">
+                                        <StarIcon className="size-3" />
+                                        {tr("Р’Р»Р°РґРµР»РµС†")}
+                                      </span>
+                                    )}
+                                    {participant.channelRole === "ADMIN" && (
+                                      <span className="inline-flex items-center gap-1">
+                                        <ShieldIcon className="size-3" />
+                                        {tr("РђРґРјРёРЅ")}
+                                      </span>
+                                    )}
+                                    {participant.channelRole === "MEMBER" && <span>{tr("РЈС‡Р°СЃС‚РЅРёРє")}</span>}
+                                  </div>
                                 </div>
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {participant.email}
-                                </p>
-                                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                                  {participant.channelRole === "OWNER" && (
-                                    <span className="inline-flex items-center gap-1">
-                                      <StarIcon className="size-3" />
-                                      {tr("Владелец")}
-                                    </span>
-                                  )}
-                                  {participant.channelRole === "ADMIN" && (
-                                    <span className="inline-flex items-center gap-1">
-                                      <ShieldIcon className="size-3" />
-                                      {tr("Админ")}
-                                    </span>
-                                  )}
-                                  {participant.channelRole === "MEMBER" && <span>{tr("Участник")}</span>}
-                                </div>
-                              </div>
+                              </button>
                               {canManage && participant.channelRole !== "OWNER" && (
                                 <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
                                   <Button
@@ -611,8 +797,8 @@ export function ChannelsHome({
                                     }
                                   >
                                     {participant.channelRole === "ADMIN"
-                                      ? tr("Снять админа")
-                                      : tr("Сделать админом")}
+                                      ? tr("РЎРЅСЏС‚СЊ Р°РґРјРёРЅР°")
+                                      : tr("РЎРґРµР»Р°С‚СЊ Р°РґРјРёРЅРѕРј")}
                                   </Button>
                                   <Button
                                     size="sm"
@@ -620,7 +806,7 @@ export function ChannelsHome({
                                     disabled={isRemovingParticipant}
                                     onClick={() => removeParticipant(participant.id)}
                                   >
-                                    {isRemovingParticipant ? "Удаляем..." : "Выгнать"}
+                                    {isRemovingParticipant ? "РЈРґР°Р»СЏРµРј..." : "Р’С‹РіРЅР°С‚СЊ"}
                                   </Button>
                                 </div>
                               )}
@@ -630,9 +816,9 @@ export function ChannelsHome({
                       </div>
 
                       <div className="rounded-[1.2rem] border border-border/70 bg-background/86 p-3">
-                        <p className="text-sm font-medium">{tr("Добавить участников")}</p>
+                        <p className="text-sm font-medium">{tr("Р”РѕР±Р°РІРёС‚СЊ СѓС‡Р°СЃС‚РЅРёРєРѕРІ")}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {tr("Доступны только пользователи из ваших контактов.")}
+                          {tr("Р”РѕСЃС‚СѓРїРЅС‹ С‚РѕР»СЊРєРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»Рё РёР· РІР°С€РёС… РєРѕРЅС‚Р°РєС‚РѕРІ.")}
                         </p>
                         <div className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1">
                           {availableContacts.map((contact) => (
@@ -652,6 +838,13 @@ export function ChannelsHome({
                                   )
                                 }
                               />
+                              <UserAvatar
+                                firstName={contact.firstName}
+                                lastName={contact.lastName}
+                                avatarTone={contact.avatarTone}
+                                avatarUrl={contact.avatarUrl}
+                                className="size-9 shrink-0"
+                              />
                               <span className="flex min-w-0 flex-wrap items-center gap-2">
                                 <span className="truncate">
                                   {contact.firstName} {contact.lastName ?? ""}
@@ -669,7 +862,7 @@ export function ChannelsHome({
                           ))}
                           {availableContacts.length === 0 && (
                             <p className="text-sm text-muted-foreground">
-                              {tr("Нет доступных контактов для добавления.")}
+                              {tr("РќРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РєРѕРЅС‚Р°РєС‚РѕРІ РґР»СЏ РґРѕР±Р°РІР»РµРЅРёСЏ.")}
                             </p>
                           )}
                         </div>
@@ -678,32 +871,52 @@ export function ChannelsHome({
                           onClick={addParticipants}
                           disabled={isAddingParticipants || selectedContactIds.length === 0}
                         >
-                          {isAddingParticipants ? tr("Добавляем...") : tr("Добавить выбранных")}
+                          {isAddingParticipants ? tr("Р”РѕР±Р°РІР»СЏРµРј...") : tr("Р”РѕР±Р°РІРёС‚СЊ РІС‹Р±СЂР°РЅРЅС‹С…")}
                         </Button>
                       </div>
                     </div>
                   </div>
                 )}
 
+                <div className="px-4 pt-4">
+                  <ContactProfileCard
+                    profile={selectedProfile}
+                    isLoading={isProfileLoading}
+                    onClose={() => {
+                      setSelectedProfile(null)
+                      setIsProfileLoading(false)
+                    }}
+                    onOpenChat={(contactId) => router.push(`/chats?contactId=${contactId}`)}
+                  />
+                </div>
+
                 <div className="chat-wall min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-24">
                   {!selectedChannel && (
                     <p className="text-sm text-muted-foreground">
-                      {tr("Откройте канал из списка или создайте новый.")}
+                      {tr("РћС‚РєСЂРѕР№С‚Рµ РєР°РЅР°Р» РёР· СЃРїРёСЃРєР° РёР»Рё СЃРѕР·РґР°Р№С‚Рµ РЅРѕРІС‹Р№.")}
                     </p>
                   )}
                   {selectedChannel && messages === null && (
-                    <p className="text-sm text-muted-foreground">{tr("Загружаем сообщения...")}</p>
+                    <p className="text-sm text-muted-foreground">{tr("Р—Р°РіСЂСѓР¶Р°РµРј СЃРѕРѕР±С‰РµРЅРёСЏ...")}</p>
                   )}
                   {selectedChannel && messages?.length === 0 && (
-                    <p className="text-sm text-muted-foreground">{tr("Сообщений пока нет.")}</p>
+                    <p className="text-sm text-muted-foreground">{tr("РЎРѕРѕР±С‰РµРЅРёР№ РїРѕРєР° РЅРµС‚.")}</p>
                   )}
                   {messages?.map((message) => {
                     const mine = message.author.id === user.id
                     return (
-                      <div
-                        key={message.id}
-                        className={`mb-3 flex ${mine ? "justify-end" : "justify-start"}`}
-                      >
+                      <div key={message.id} className={`mb-3 flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+                        {!mine && (
+                          <button type="button" onClick={() => openProfile(message.author.id)}>
+                            <UserAvatar
+                              firstName={message.author.firstName}
+                              lastName={message.author.lastName}
+                              avatarTone={message.author.avatarTone}
+                              avatarUrl={message.author.avatarUrl}
+                              className="size-9 shrink-0"
+                            />
+                          </button>
+                        )}
                         <div
                           className={`w-fit max-w-[85%] rounded-[1.35rem] px-3.5 py-2.5 text-sm shadow-sm ${
                             mine
@@ -712,9 +925,9 @@ export function ChannelsHome({
                           }`}
                         >
                           <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                          <MessageAttachmentView attachment={message.attachment} compact />
                           <p className="mt-1 text-[11px] opacity-75">
-                            {!mine &&
-                              `${message.author.firstName} ${message.author.lastName ?? ""} · `}
+                            {!mine && `${message.author.firstName} ${message.author.lastName ?? ""} В· `}
                             {new Date(message.createdAt).toLocaleString("ru-RU")}
                           </p>
                         </div>
@@ -724,6 +937,24 @@ export function ChannelsHome({
                 </div>
 
                 <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-3 backdrop-blur-xl">
+                  {attachmentFile && (
+                    <div className="mb-2 flex items-center justify-between gap-3 rounded-[1rem] border border-border/70 bg-card/80 px-3 py-2">
+                      <p className="truncate text-sm text-muted-foreground">{attachmentFile.name}</p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setAttachmentFile(null)
+                          if (attachmentInputRef.current) {
+                            attachmentInputRef.current.value = ""
+                          }
+                        }}
+                      >
+                        <XIcon className="size-4" />
+                      </Button>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 rounded-[1.85rem] border border-white/45 bg-card/92 p-2.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
                     <Button
                       size="sm"
@@ -734,12 +965,29 @@ export function ChannelsHome({
                     >
                       <ArrowLeftIcon className="size-4" />
                     </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="shrink-0 rounded-full"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      disabled={!canWrite || isSending || !selectedChannel}
+                    >
+                      <PaperclipIcon className="size-4" />
+                    </Button>
+                    <input
+                      ref={attachmentInputRef}
+                      type="file"
+                      accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                      className="hidden"
+                      onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)}
+                    />
                     <Input
                       value={messageText}
                       onChange={(event) => setMessageText(event.target.value)}
                       className="border-0 bg-transparent shadow-none focus-visible:ring-0"
                       placeholder={
-                        canWrite ? tr("Сообщение в канал") : tr("Писать могут только владелец и админы")
+                        canWrite ? tr("РЎРѕРѕР±С‰РµРЅРёРµ РІ РєР°РЅР°Р»") : tr("РџРёСЃР°С‚СЊ РјРѕРіСѓС‚ С‚РѕР»СЊРєРѕ РІР»Р°РґРµР»РµС† Рё Р°РґРјРёРЅС‹")
                       }
                       disabled={!canWrite || isSending || !selectedChannel}
                       onKeyDown={(event) => {
@@ -752,9 +1000,9 @@ export function ChannelsHome({
                     <Button
                       className="min-w-28 rounded-full"
                       onClick={sendMessage}
-                      disabled={!canWrite || isSending || !messageText.trim() || !selectedChannel}
+                      disabled={!canWrite || isSending || (!messageText.trim() && !attachmentFile) || !selectedChannel}
                     >
-                      {isSending ? tr("Отправляем...") : tr("Отправить")}
+                      {isSending ? tr("РћС‚РїСЂР°РІР»СЏРµРј...") : tr("РћС‚РїСЂР°РІРёС‚СЊ")}
                     </Button>
                   </div>
                 </div>

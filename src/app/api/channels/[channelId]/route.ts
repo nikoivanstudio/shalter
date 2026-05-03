@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { deleteUploadedFileByUrl } from "@/shared/lib/media/uploads"
 
 function parseChannelId(value: string) {
   const channelId = Number(value)
@@ -34,6 +35,7 @@ export async function DELETE(
     },
     select: {
       id: true,
+      avatarUrl: true,
       ownerId: true,
     },
   })
@@ -54,6 +56,7 @@ export async function DELETE(
       id: channelId,
     },
   })
+  await deleteUploadedFileByUrl(channel.avatarUrl)
 
   return NextResponse.json({ ok: true }, { status: 200 })
 }

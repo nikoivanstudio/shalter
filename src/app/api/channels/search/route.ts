@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
       id: true,
       title: true,
       description: true,
+      avatarUrl: true,
       ownerId: true,
       _count: {
         select: {
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
         id: channel.id,
         title: channel.title,
         description: channel.description,
+        avatarUrl: channel.avatarUrl,
         ownerId: channel.ownerId,
         memberCount: channel._count.participants,
         joined: channel.participants.length > 0,

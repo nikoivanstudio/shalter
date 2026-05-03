@@ -14,6 +14,8 @@ export const createChannelSchema = z.object({
     .or(z.literal("")),
 })
 
+export const updateChannelSchema = createChannelSchema
+
 export const addChannelParticipantsSchema = z.object({
   participantIds: z
     .array(z.number().int().positive())

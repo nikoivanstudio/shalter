@@ -8,6 +8,7 @@ model Channel {
   id           Int                  @id @default(autoincrement())
   title        String               @db.VarChar(80)
   description  String?              @db.VarChar(280)
+  avatarUrl    String?              @map("avatar_url") @db.VarChar(512)
   ownerId      Int                  @map("owner_id")
   owner        User                 @relation("OwnedChannels", fields: [ownerId], references: [id], onDelete: Cascade)
   createdAt    DateTime             @default(now()) @map("created_at")
