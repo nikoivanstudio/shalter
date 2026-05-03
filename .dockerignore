@@ -1,0 +1,16 @@
+.git
+.gitignore
+.idea
+.vscode
+.next
+node_modules
+coverage
+test
+storage
+public/uploads
+*.log
+*.tsbuildinfo
+.env
+.env.*
+README.md
+CLAUDE.md

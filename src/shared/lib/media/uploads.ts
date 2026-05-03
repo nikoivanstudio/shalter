@@ -19,13 +19,20 @@ const SERVER_UPLOADS_DIR = path.resolve(
 const SERVER_UPLOADS_PREFIX = "/api/uploads/"
 const LEGACY_UPLOADS_PREFIX = "/uploads/"
 
+const MB = 1024 * 1024
+const GB = 1024 * MB
+
+const DOCUMENT_MAX_BYTES = 25 * MB
+const PHOTO_MAX_BYTES = 1 * GB
+const VIDEO_MAX_BYTES = 2 * GB
+
 const MEDIA_RULES: Record<
   MediaKind,
   { folder: string; maxBytes: number; mimePrefixes: string[] }
 > = {
   FILE: {
     folder: "messages/files",
-    maxBytes: 20 * 1024 * 1024,
+    maxBytes: VIDEO_MAX_BYTES,
     mimePrefixes: [],
   },
 }
@@ -125,6 +132,27 @@ async function writeBrowserFile(file: File, folder: string) {
   } satisfies SavedUpload
 }
 
+function getFileSizeLimitMessage(file: File) {
+  if (file.type.startsWith("video/")) {
+    return {
+      maxBytes: VIDEO_MAX_BYTES,
+      message: "Видео должно быть не больше 2 ГБ",
+    }
+  }
+
+  if (file.type.startsWith("image/")) {
+    return {
+      maxBytes: PHOTO_MAX_BYTES,
+      message: "Фото должно быть не больше 1 ГБ",
+    }
+  }
+
+  return {
+    maxBytes: DOCUMENT_MAX_BYTES,
+    message: "Документ должен быть не больше 25 МБ",
+  }
+}
+
 export function validateAvatarFile(file: File) {
   if (!file || file.size === 0) {
     return "Выберите файл аватарки"
@@ -134,7 +162,7 @@ export function validateAvatarFile(file: File) {
     return "Аватарка должна быть картинкой PNG, JPG, WEBP или GIF"
   }
 
-  if (file.size > 5 * 1024 * 1024) {
+  if (file.size > 5 * MB) {
     return "Аватарка должна быть не больше 5 МБ"
   }
 
@@ -159,8 +187,10 @@ export function validateMessageFile(kind: MediaKind, file: File) {
     return "Некорректный формат файла"
   }
 
-  if (file.size > rule.maxBytes) {
-    return "Файл должен быть не больше 20 МБ"
+  const { maxBytes, message } = getFileSizeLimitMessage(file)
+
+  if (file.size > Math.min(rule.maxBytes, maxBytes)) {
+    return message
   }
 
   return null
