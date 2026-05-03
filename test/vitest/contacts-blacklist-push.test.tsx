@@ -32,6 +32,7 @@ describe("contacts, blacklist and push components", () => {
               phone: "555",
               email: "b@example.com",
               role: "user",
+              isBlocked: false,
               isAlreadyContact: false,
               isBlacklisted: false,
             },
@@ -48,17 +49,18 @@ describe("contacts, blacklist and push components", () => {
             phone: "555",
             email: "b@example.com",
             role: "user",
+            isBlocked: false,
           },
         }),
       })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ blockedUser: { id: 2, firstName: "Anna", lastName: null, phone: "123", email: "a@example.com", role: "user" } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ blockedUser: { id: 2, firstName: "Anna", lastName: null, phone: "123", email: "a@example.com", role: "user", isBlocked: false } }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
 
     render(
       <ContactsHome
-        user={{ id: 1, email: "user@example.com", firstName: "Ivan", lastName: null, role: "user" }}
-        contacts={[{ id: 2, email: "a@example.com", firstName: "Anna", lastName: null, phone: "123", role: "user" }]}
+        user={{ id: 1, email: "user@example.com", firstName: "Ivan", lastName: null, role: "user", avatarTone: null }}
+        contacts={[{ id: 2, email: "a@example.com", firstName: "Anna", lastName: null, phone: "123", role: "user", isBlocked: false }]}
         blacklist={[]}
       />
     )
@@ -96,6 +98,7 @@ describe("contacts, blacklist and push components", () => {
               phone: "555",
               email: "p@example.com",
               role: "user",
+              isBlocked: false,
               isAlreadyContact: false,
               isBlacklisted: false,
             },
@@ -112,6 +115,7 @@ describe("contacts, blacklist and push components", () => {
             phone: "555",
             email: "p@example.com",
             role: "user",
+            isBlocked: false,
           },
         }),
       })
@@ -119,8 +123,8 @@ describe("contacts, blacklist and push components", () => {
 
     render(
       <BlacklistHome
-        user={{ id: 1, email: "user@example.com", firstName: "Ivan", lastName: null, role: "user" }}
-        blacklist={[{ id: 2, email: "a@example.com", firstName: "Anna", lastName: null, phone: "123", role: "user" }]}
+        user={{ id: 1, email: "user@example.com", firstName: "Ivan", lastName: null, role: "user", avatarTone: null }}
+        blacklist={[{ id: 2, email: "a@example.com", firstName: "Anna", lastName: null, phone: "123", role: "user", isBlocked: false }]}
       />
     )
 

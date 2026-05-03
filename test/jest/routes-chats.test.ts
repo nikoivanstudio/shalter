@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server"
+﻿import { NextRequest } from "next/server"
 
 jest.mock("@/shared/lib/auth/request-user", () => ({
   getAuthorizedUserIdFromRequest: jest.fn(),
@@ -101,7 +101,7 @@ describe("chat routes", () => {
     const { POST } = await import("@/app/api/chats/route")
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(null)
-    let response = await POST(nextRequest("http://localhost/api/chats", "POST", {}))
+    let response: Response = await POST(nextRequest("http://localhost/api/chats", "POST", {}))
     expect(response.status).toBe(401)
 
     getAuthorizedUserIdFromRequest.mockResolvedValue(1)
@@ -161,7 +161,7 @@ describe("chat routes", () => {
     const leaveRoute = await import("@/app/api/chats/[dialogId]/leave/route")
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(null)
-    let response = await removeRoute.DELETE(nextRequest("http://localhost", "DELETE"), {
+    let response: Response = await removeRoute.DELETE(nextRequest("http://localhost", "DELETE"), {
       params: Promise.resolve({ dialogId: "1" }),
     })
     expect(response.status).toBe(401)
@@ -230,7 +230,7 @@ describe("chat routes", () => {
     getAuthorizedUserIdFromRequest.mockResolvedValue(1)
     prisma.dialog.findFirst.mockResolvedValueOnce(null)
     prisma.dialog.findUnique.mockResolvedValueOnce({ id: 1 })
-    let response = await messagesRoute.GET(nextRequest("http://localhost", "GET"), {
+    let response: Response = await messagesRoute.GET(nextRequest("http://localhost", "GET"), {
       params: Promise.resolve({ dialogId: "1" }),
     })
     expect(response.status).toBe(404)
@@ -243,7 +243,8 @@ describe("chat routes", () => {
         status: "DELIVERED",
         createdAt: new Date(),
         dialogId: 1,
-        author: { id: 2, firstName: "Anna", lastName: null },
+        author: { id: 2, firstName: "Anna", lastName: null, avatarTone: null, avatarUrl: null },
+        attachment: null,
       },
     ])
     response = await messagesRoute.GET(nextRequest("http://localhost", "GET"), {
@@ -279,7 +280,8 @@ describe("chat routes", () => {
       status: "SENT",
       createdAt: new Date(),
       dialogId: 1,
-      author: { id: 1, firstName: "Ivan", lastName: null },
+      author: { id: 1, firstName: "Ivan", lastName: null, avatarTone: null, avatarUrl: null },
+      attachment: null,
     })
     response = await messagesRoute.POST(nextRequest("http://localhost", "POST", { content: "hello" }), {
       params: Promise.resolve({ dialogId: "1" }),
@@ -329,7 +331,8 @@ describe("chat routes", () => {
       status: "READ",
       createdAt: new Date(),
       dialogId: 1,
-      author: { id: 1, firstName: "Ivan", lastName: null },
+      author: { id: 1, firstName: "Ivan", lastName: null, avatarTone: null, avatarUrl: null },
+      attachment: null,
     })
     response = await messageRoute.PATCH(nextRequest("http://localhost", "PATCH", { content: "hello" }), {
       params: Promise.resolve({ dialogId: "1", messageId: "5" }),
@@ -365,11 +368,11 @@ describe("chat routes", () => {
 
     const uploadedMessage = {
       id: 7,
-      content: "Р¤Р°Р№Р»",
+      content: "Файл",
       status: "SENT",
       createdAt: new Date().toISOString(),
       dialogId: 1,
-      author: { id: 1, firstName: "Ivan", lastName: null },
+      author: { id: 1, firstName: "Ivan", lastName: null, avatarTone: null, avatarUrl: null },
       attachment: {
         kind: "FILE",
         url: "/uploads/messages/files/test.txt",
@@ -385,7 +388,7 @@ describe("chat routes", () => {
     formData.set("kind", "FILE")
     formData.set("attachment", new File(["test"], "test.txt", { type: "text/plain" }))
 
-    let response = await messagesRoute.POST(
+    let response: Response = await messagesRoute.POST(
       new NextRequest("http://localhost/api/chats/1/messages", {
         method: "POST",
         body: formData,
@@ -426,7 +429,7 @@ describe("chat routes", () => {
       .mockResolvedValueOnce({ id: 1, ownerId: 2, title: "Group", users: [{ id: 1, firstName: "Ivan", lastName: null, email: "u@example.com" }] })
       .mockResolvedValueOnce({ id: 1, ownerId: 1, title: null, users: [{ id: 1, firstName: "Ivan", lastName: null, email: "u@example.com" }, { id: 2, firstName: "Anna", lastName: null, email: "a@example.com" }] })
       .mockResolvedValueOnce({ id: 1, ownerId: 1, title: "Group", users: [{ id: 1, firstName: "Ivan", lastName: null, email: "u@example.com" }, { id: 2, firstName: "Anna", lastName: null, email: "a@example.com" }] })
-    let response = await participantsRoute.POST(nextRequest("http://localhost", "POST", { participantIds: [2] }), {
+    let response: Response = await participantsRoute.POST(nextRequest("http://localhost", "POST", { participantIds: [2] }), {
       params: Promise.resolve({ dialogId: "1" }),
     })
     expect(response.status).toBe(404)
@@ -448,7 +451,8 @@ describe("chat routes", () => {
       status: null,
       createdAt: new Date(),
       dialogId: 1,
-      author: { id: 1, firstName: "Ivan", lastName: null },
+      author: { id: 1, firstName: "Ivan", lastName: null, avatarTone: null, avatarUrl: null },
+      attachment: null,
     })
     response = await participantsRoute.POST(nextRequest("http://localhost", "POST", { participantIds: [3] }), {
       params: Promise.resolve({ dialogId: "1" }),
@@ -469,7 +473,8 @@ describe("chat routes", () => {
       status: null,
       createdAt: new Date(),
       dialogId: 1,
-      author: { id: 1, firstName: "Ivan", lastName: null },
+      author: { id: 1, firstName: "Ivan", lastName: null, avatarTone: null, avatarUrl: null },
+      attachment: null,
     })
     response = await participantsRoute.DELETE(nextRequest("http://localhost", "DELETE", { targetUserId: 3 }), {
       params: Promise.resolve({ dialogId: "1" }),

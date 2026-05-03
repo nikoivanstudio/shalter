@@ -81,10 +81,13 @@ describe("theme and shell", () => {
   })
 
   test("layout, manifest and error pages render expected metadata", () => {
-    const layout = RootLayout({ children: <div>Body</div> }) as ReactElement
+    const layout = RootLayout({ children: <div>Body</div> }) as ReactElement<{
+      className?: string
+      children: ReactElement<{ className?: string }>
+    }>
     expect(layout.type).toBe("html")
     expect(layout.props.className).toContain("font-geist")
-    expect((layout.props.children as ReactElement).props.className).toContain("flex")
+    expect(layout.props.children.props.className).toContain("flex")
     expect(metadata.title).toBe("Shalter")
     expect(manifest().display).toBe("fullscreen")
     expect(manifest().icons).toHaveLength(3)

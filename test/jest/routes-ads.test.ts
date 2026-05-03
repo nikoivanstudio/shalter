@@ -47,7 +47,7 @@ describe("ads routes", () => {
     const adsRoute = await import("@/app/api/ads/route")
 
     listPublicAdCampaigns.mockResolvedValueOnce([{ id: 1 }])
-    let response = await adsRoute.GET(nextRequest("http://localhost/api/ads", "GET"))
+    let response: Response = await adsRoute.GET(nextRequest("http://localhost/api/ads", "GET"))
     expect(response.status).toBe(200)
     expect(await readJson(response)).toEqual({ campaigns: [{ id: 1 }] })
 
@@ -93,7 +93,7 @@ describe("ads routes", () => {
     const clickRoute = await import("@/app/api/ads/[adId]/click/route")
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(null)
-    let response = await adRoute.PATCH(nextRequest("http://localhost/api/ads/1", "PATCH", { status: "active" }), {
+    let response: Response = await adRoute.PATCH(nextRequest("http://localhost/api/ads/1", "PATCH", { status: "active" }), {
       params: Promise.resolve({ adId: "1" }),
     })
     expect(response.status).toBe(401)

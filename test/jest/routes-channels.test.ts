@@ -60,7 +60,7 @@ describe("channel routes", () => {
     const joinRoute = await import("@/app/api/channels/[channelId]/join/route")
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(null)
-    let response = await createRoute.POST(nextRequest("http://localhost/api/channels", "POST", {}))
+    let response: Response = await createRoute.POST(nextRequest("http://localhost/api/channels", "POST", {}))
     expect(response.status).toBe(401)
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(1)
@@ -72,11 +72,23 @@ describe("channel routes", () => {
       id: 1,
       title: "News",
       description: "desc",
+      avatarUrl: null,
       ownerId: 1,
+      lastMessage: null,
       participants: [
         {
           role: "OWNER",
-          user: { id: 1, firstName: "Ivan", lastName: null, email: "u@example.com" },
+          user: {
+            id: 1,
+            firstName: "Ivan",
+            lastName: null,
+            email: "u@example.com",
+            phone: "123",
+            role: "user",
+            avatarTone: null,
+            avatarUrl: null,
+            isBlocked: false,
+          },
         },
       ],
     })
@@ -95,6 +107,7 @@ describe("channel routes", () => {
         id: 1,
         title: "News",
         description: "desc",
+        avatarUrl: null,
         ownerId: 1,
         _count: { participants: 2 },
         participants: [{ role: "OWNER" }],
@@ -119,7 +132,7 @@ describe("channel routes", () => {
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(1)
     prisma.channelParticipant.findFirst.mockResolvedValueOnce(null)
-    let response = await messagesRoute.GET(nextRequest("http://localhost", "GET"), {
+    let response: Response = await messagesRoute.GET(nextRequest("http://localhost", "GET"), {
       params: Promise.resolve({ channelId: "1" }),
     })
     expect(response.status).toBe(404)
@@ -140,8 +153,15 @@ describe("channel routes", () => {
       id: 5,
       channelId: 1,
       content: "hello",
-      createdAt: new Date(),
-      author: { id: 1, firstName: "Ivan", lastName: null },
+      createdAt: new Date().toISOString(),
+      author: {
+        id: 1,
+        firstName: "Ivan",
+        lastName: null,
+        avatarTone: null,
+        avatarUrl: null,
+      },
+      attachment: null,
     })
     response = await messagesRoute.POST(
       nextRequest("http://localhost", "POST", { content: "hello" }),
@@ -175,7 +195,17 @@ describe("channel routes", () => {
     prisma.channelParticipant.findMany.mockResolvedValueOnce([
       {
         role: "MEMBER",
-        user: { id: 2, firstName: "Anna", lastName: null, email: "a@example.com" },
+        user: {
+          id: 2,
+          firstName: "Anna",
+          lastName: null,
+          email: "a@example.com",
+          phone: "321",
+          role: "user",
+          avatarTone: null,
+          avatarUrl: null,
+          isBlocked: false,
+        },
       },
     ])
     response = await participantsRoute.POST(
@@ -197,7 +227,17 @@ describe("channel routes", () => {
     })
     prisma.channelParticipant.update.mockResolvedValueOnce({
       role: "ADMIN",
-      user: { id: 2, firstName: "Anna", lastName: null, email: "a@example.com" },
+      user: {
+        id: 2,
+        firstName: "Anna",
+        lastName: null,
+        email: "a@example.com",
+        phone: "321",
+        role: "user",
+        avatarTone: null,
+        avatarUrl: null,
+        isBlocked: false,
+      },
     })
     response = await participantsRoute.PATCH(
       nextRequest("http://localhost", "PATCH", { targetUserId: 2, role: "ADMIN" }),
@@ -226,6 +266,7 @@ describe("channel routes", () => {
     prisma.channel.findFirst.mockResolvedValueOnce({
       id: 1,
       ownerId: 1,
+      avatarUrl: null,
     })
     response = await channelRoute.DELETE(nextRequest("http://localhost", "DELETE"), {
       params: Promise.resolve({ channelId: "1" }),

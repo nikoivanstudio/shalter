@@ -47,9 +47,9 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json(
       {
-        message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
+        message: "Ошибка валидации",
         fieldErrors: {
-          channel: ["РќРµРєРѕСЂСЂРµРєС‚РЅС‹Рµ РґР°РЅРЅС‹Рµ РєР°РЅР°Р»Р°"],
+          channel: ["Некорректные данные канала"],
         },
       },
       { status: 400 }
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     if (avatarError) {
       return NextResponse.json(
         {
-          message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
+          message: "Ошибка валидации",
           fieldErrors: {
             avatarFile: [avatarError],
           },

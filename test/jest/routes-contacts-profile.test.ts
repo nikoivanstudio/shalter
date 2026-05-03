@@ -120,7 +120,7 @@ describe("contacts, blacklist and profile routes", () => {
     const { GET } = await import("@/app/api/contacts/search/route")
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(null)
-    let response = await GET(nextRequest("http://localhost/api/contacts/search?q=test"))
+    let response: Response = await GET(nextRequest("http://localhost/api/contacts/search?q=test"))
     expect(response.status).toBe(401)
 
     getAuthorizedUserIdFromRequest.mockResolvedValue(5)
@@ -153,7 +153,7 @@ describe("contacts, blacklist and profile routes", () => {
     const route = await import("@/app/api/contacts/route")
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(null)
-    let response = await route.POST(nextRequest("http://localhost/api/contacts", {}))
+    let response: Response = await route.POST(nextRequest("http://localhost/api/contacts", {}))
     expect(response.status).toBe(401)
 
     getAuthorizedUserIdFromRequest.mockResolvedValue(5)
@@ -227,7 +227,7 @@ describe("contacts, blacklist and profile routes", () => {
     const route = await import("@/app/api/blacklist/route")
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(null)
-    let response = await route.POST(nextRequest("http://localhost/api/blacklist", {}))
+    let response: Response = await route.POST(nextRequest("http://localhost/api/blacklist", {}))
     expect(response.status).toBe(401)
 
     getAuthorizedUserIdFromRequest.mockResolvedValue(5)
@@ -287,7 +287,7 @@ describe("contacts, blacklist and profile routes", () => {
   test("profile patch route handles auth, validation, success and conflicts", async () => {
     const { PATCH } = await import("@/app/api/profile/route")
 
-    let response = await PATCH(nextRequest("http://localhost/api/profile", {}))
+    let response: Response = await PATCH(nextRequest("http://localhost/api/profile", {}))
     expect(response.status).toBe(401)
 
     verifyAuthToken.mockResolvedValueOnce(null)
@@ -358,7 +358,7 @@ describe("contacts, blacklist and profile routes", () => {
   test("profile password route handles auth, validation, wrong password and success", async () => {
     const { PATCH } = await import("@/app/api/profile/password/route")
 
-    let response = await PATCH(nextRequest("http://localhost/api/profile/password", {}))
+    let response: Response = await PATCH(nextRequest("http://localhost/api/profile/password", {}))
     expect(response.status).toBe(401)
 
     verifyAuthToken.mockResolvedValueOnce(null)
@@ -421,7 +421,7 @@ describe("contacts, blacklist and profile routes", () => {
   test("profile delete route handles auth, missing user, transaction and failures", async () => {
     const { DELETE } = await import("@/app/api/profile/route")
 
-    let response = await DELETE(nextRequest("http://localhost/api/profile"))
+    let response: Response = await DELETE(nextRequest("http://localhost/api/profile"))
     expect(response.status).toBe(401)
 
     verifyAuthToken.mockResolvedValueOnce(null)
