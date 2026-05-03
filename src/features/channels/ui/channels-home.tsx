@@ -523,7 +523,7 @@ export function ChannelsHome({
         <section className="mx-auto flex min-h-0 w-full max-w-6xl">
           <Card className="flex min-h-[78dvh] w-full flex-col border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
             <CardContent className="grid min-h-0 flex-1 gap-0 p-0 lg:grid-cols-[360px_minmax(0,1fr)]">
-              <aside className="flex min-h-0 flex-col border-b border-border/60 p-4 lg:border-r lg:border-b-0">
+              <aside className="flex min-h-0 flex-col border-b border-border/60 p-3 sm:p-4 lg:border-r lg:border-b-0">
                 <div className="rounded-[1.5rem] border border-border/70 bg-background/72 p-4 shadow-sm">
                   <p className="text-sm font-medium">{tr("Создать канал")}</p>
                   <div className="mt-3 space-y-2">
@@ -538,7 +538,7 @@ export function ChannelsHome({
                         <p className="truncate text-sm text-muted-foreground">
                           {createAvatarFile ? createAvatarFile.name : tr("Аватарка канала")}
                         </p>
-                        <div className="mt-2 flex gap-2">
+                        <div className="mt-2 flex flex-wrap gap-2">
                           <Button
                             type="button"
                             size="sm"
@@ -595,7 +595,7 @@ export function ChannelsHome({
 
                 <div className="mt-4 rounded-[1.5rem] border border-border/70 bg-background/72 p-4 shadow-sm">
                   <p className="text-sm font-medium">{tr("Поиск каналов")}</p>
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                     <Input
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
@@ -689,7 +689,7 @@ export function ChannelsHome({
               </aside>
 
               <section className="flex min-h-0 flex-col">
-                <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-background/72 px-4 py-3">
+                <div className="flex flex-col gap-3 border-b border-border/60 bg-background/72 px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex min-w-0 items-center gap-3">
                     {selectedChannel ? (
                       <UserAvatar
@@ -714,7 +714,7 @@ export function ChannelsHome({
                     </div>
                   </div>
                   {selectedChannel && canManage && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button size="sm" variant="outline" onClick={() => setShowMembers((prev) => !prev)}>
                         <UsersIcon className="size-4" />
                         {showMembers ? tr("Скрыть участников") : tr("Участники")}
@@ -939,7 +939,7 @@ export function ChannelsHome({
                   })}
                 </div>
 
-                <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-3 backdrop-blur-xl">
+                <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-2.5 backdrop-blur-xl sm:p-3">
                   {attachmentFile && (
                     <div className="mb-2 flex items-center justify-between gap-3 rounded-[1rem] border border-border/70 bg-card/80 px-3 py-2">
                       <p className="truncate text-sm text-muted-foreground">{attachmentFile.name}</p>
@@ -958,7 +958,7 @@ export function ChannelsHome({
                       </Button>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 rounded-[1.85rem] border border-white/45 bg-card/92 p-2.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
+                  <div className="flex items-center gap-2 rounded-[1.6rem] border border-white/45 bg-card/92 p-2 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8 sm:rounded-[1.85rem] sm:p-2.5">
                     <Button
                       size="sm"
                       variant="outline"
@@ -1003,7 +1003,7 @@ export function ChannelsHome({
                       }}
                     />
                     <Button
-                      className="min-w-28 rounded-full"
+                      className="min-w-0 rounded-full px-4 sm:min-w-28"
                       onClick={sendMessage}
                       disabled={!canWrite || isSending || (!messageText.trim() && !attachmentFile) || !selectedChannel}
                     >

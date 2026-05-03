@@ -999,9 +999,9 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
   const showDialogPanel = isDialogView
 
   return (
-    <main className="h-dvh overflow-hidden px-4 py-5 sm:px-6">
-      <header className="sticky top-0 z-20 shrink-0 rounded-[2rem] border border-white/50 bg-card/88 px-5 py-4 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
+    <main className="h-dvh overflow-hidden px-3 py-4 sm:px-6 sm:py-5">
+      <header className="sticky top-0 z-20 shrink-0 rounded-[1.7rem] border border-white/50 bg-card/88 px-4 py-3 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8 sm:rounded-[2rem] sm:px-5 sm:py-4">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div
               className={`flex size-14 items-center justify-center rounded-full border border-white/55 text-sm font-semibold shadow-lg shadow-sky-500/10 ${emblemTone}`}
@@ -1023,7 +1023,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
               <p className="truncate text-sm text-muted-foreground">Личные и групповые диалоги</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <PushToggle />
             <LanguageToggle />
             <ThemeToggle />
@@ -1032,7 +1032,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
         </div>
       </header>
 
-      <section className="mx-auto flex h-[calc(100dvh-116px)] w-full max-w-5xl min-h-0 py-4 pb-20">
+      <section className="mx-auto flex h-[calc(100dvh-144px)] w-full max-w-5xl min-h-0 py-3 pb-20 sm:h-[calc(100dvh-116px)] sm:py-4">
         <Card className="flex min-h-0 w-full flex-col border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
           {showListPanel && (
             <CardHeader className="shrink-0 gap-3 border-b border-border/55 pb-5">
@@ -1188,7 +1188,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         )
                       })()}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     {selectedDialog && (
                       <Button
                         size="sm"
@@ -1253,7 +1253,12 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                           )}
                         </div>
                       )}
-                    <Button size="sm" variant="outline" onClick={() => setIsDialogView(false)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => setIsDialogView(false)}
+                    >
                       <ArrowLeftIcon className="size-4" />
                       {tr("Список")}
                     </Button>
@@ -1445,7 +1450,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                                     onChange={(event) => setEditingText(event.target.value)}
                                     disabled={isEditing}
                                   />
-                                  <div className="flex gap-2">
+                                  <div className="flex flex-col gap-2 sm:flex-row">
                                     <Button
                                       size="sm"
                                       onClick={() => saveEdit(message.id)}
@@ -1529,7 +1534,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                       className="hidden"
                       onChange={(event) => selectAttachment("FILE", event.target.files?.[0] ?? null)}
                     />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-end gap-2">
                       <Button
                         type="button"
                         size="icon"
@@ -1554,7 +1559,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
                         }}
                       />
                       <Button
-                        className="min-w-28 rounded-full"
+                        className="min-w-0 rounded-full px-4 sm:min-w-28"
                         onClick={sendMessage}
                         disabled={!activeDialogId || isSending || (!messageText.trim() && !attachmentFile)}
                       >

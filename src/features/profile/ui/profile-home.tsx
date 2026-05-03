@@ -402,12 +402,12 @@ export function ProfileHome({ user }: { user: EditableUser }) {
   }
 
   return (
-    <main className="min-h-screen px-4 py-5 pb-28 sm:px-6">
+    <main className="min-h-screen px-3 py-4 pb-28 sm:px-6 sm:py-5">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
         <Card className="overflow-hidden border-border/70 bg-linear-to-br from-background via-background to-muted/25">
-          <CardContent className="px-5 pt-5">
+          <CardContent className="px-4 pt-4 sm:px-5 sm:pt-5">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex items-start gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                 <div className="relative shrink-0">
                   <UserAvatar
                     firstName={form.firstName}
@@ -436,7 +436,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                   </label>
                 </div>
 
-                <div className="space-y-2">
+                <div className="min-w-0 space-y-2">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h1 className="text-2xl font-semibold">{displayName || user.email}</h1>
@@ -464,7 +464,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-start">
+              <div className="flex w-full flex-wrap items-center gap-2 self-start sm:w-auto">
                 <LanguageToggle />
                 <ThemeToggle />
                 <LogoutButton />
@@ -900,13 +900,13 @@ function PromoCard({
 }) {
   return (
     <div className="overflow-hidden rounded-[1.7rem] border border-border/70 bg-linear-to-br from-background via-background to-muted/30">
-      <div className="space-y-4 p-5">
-        <div className="flex items-start justify-between gap-3">
+      <div className="space-y-4 p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             {icon}
           </div>
 
-          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${badgeTone}`}>
+          <span className={`inline-flex self-start rounded-full px-3 py-1 text-xs font-medium ${badgeTone}`}>
             {badge}
           </span>
         </div>
