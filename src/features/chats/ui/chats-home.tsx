@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
+import { ChatCallOverlay } from "@/features/calls/ui/chat-call-overlay"
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
@@ -43,6 +44,7 @@ type UserShort = {
   role: string
   phone?: string | null
   avatarTone?: string | null
+  avatarUrl?: string | null
   isBlocked?: boolean
   lastSeenAt?: string | null
   isOnline?: boolean
@@ -56,6 +58,7 @@ type ContactUser = {
   phone: string
   role: string
   avatarTone?: string | null
+  avatarUrl?: string | null
   isBlocked?: boolean
 }
 
@@ -1573,6 +1576,30 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
           </CardContent>
         </Card>
       </section>
+
+      <ChatCallOverlay
+        currentUser={{
+          userId: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          avatarTone: user.avatarTone,
+          avatarUrl: user.avatarUrl,
+        }}
+        selectedDialogId={activeDialogId}
+        dialogs={dialogs.map((dialog) => ({
+          id: dialog.id,
+          title: dialog.title,
+          users: dialog.users.map((dialogUser) => ({
+            userId: dialogUser.id,
+            firstName: dialogUser.firstName,
+            lastName: dialogUser.lastName,
+            email: dialogUser.email,
+            avatarTone: dialogUser.avatarTone,
+            avatarUrl: dialogUser.avatarUrl,
+          })),
+        }))}
+      />
 
       <BottomNav
         active={isDialogView ? undefined : "chats"}
