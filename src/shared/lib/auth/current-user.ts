@@ -23,6 +23,10 @@ export type CurrentUser = {
   avatarTone: EmblemToneId | null
   avatarUrl: string | null
   lastSeenAt: Date | null
+  profileVisibility: "everyone" | "contacts"
+  showEmailInProfile: boolean
+  showPhoneInProfile: boolean
+  showGiftsInProfile: boolean
 }
 
 export async function getCurrentUser(options?: { touchActivity?: boolean }) {
@@ -54,6 +58,10 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
       avatar_url: string | null
       is_blocked: boolean
       last_seen_at: Date | null
+      profile_visibility: "everyone" | "contacts"
+      show_email_in_profile: boolean
+      show_phone_in_profile: boolean
+      show_gifts_in_profile: boolean
     }>
   >(
     `
@@ -70,7 +78,11 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
         avatar_tone,
         avatar_url,
         is_blocked,
-        last_seen_at
+        last_seen_at,
+        profile_visibility,
+        show_email_in_profile,
+        show_phone_in_profile,
+        show_gifts_in_profile
       from users
       where id = $1
       limit 1
@@ -104,5 +116,9 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
     avatarTone: user.avatar_tone as EmblemToneId | null,
     avatarUrl: user.avatar_url,
     lastSeenAt: user.last_seen_at,
+    profileVisibility: user.profile_visibility,
+    showEmailInProfile: user.show_email_in_profile,
+    showPhoneInProfile: user.show_phone_in_profile,
+    showGiftsInProfile: user.show_gifts_in_profile,
   }
 }

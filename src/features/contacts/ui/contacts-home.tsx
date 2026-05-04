@@ -345,6 +345,10 @@ export function ContactsHome({
       })
   }
 
+  function openChatWithCall(contactId: number, media: "audio" | "video") {
+    router.push(`/chats?contactId=${contactId}&startCall=${media}`)
+  }
+
   return (
     <main className="h-dvh overflow-hidden px-4 py-5 sm:px-6">
       <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-5 pb-28">
@@ -412,6 +416,8 @@ export function ContactsHome({
                 setIsProfileLoading(false)
               }}
               onOpenChat={(contactId) => router.push(`/chats?contactId=${contactId}`)}
+              onStartAudioCall={(contactId) => openChatWithCall(contactId, "audio")}
+              onStartVideoCall={(contactId) => openChatWithCall(contactId, "video")}
             />
 
             <Input

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import {
   ArrowLeftIcon,
+  EllipsisVerticalIcon,
   HashIcon,
   PaperclipIcon,
   SearchIcon,
@@ -17,6 +18,12 @@ import { toast } from "sonner"
 import { AccountStatusBadge } from "@/components/ui/account-status-badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
 import {
@@ -27,6 +34,7 @@ import { useI18n } from "@/features/i18n/model/i18n-provider"
 import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import type { MediaAttachment } from "@/shared/lib/media/constants"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
@@ -118,7 +126,6 @@ export function ChannelsHome({
   const [createTitle, setCreateTitle] = useState("")
   const [createDescription, setCreateDescription] = useState("")
   const [createAvatarFile, setCreateAvatarFile] = useState<File | null>(null)
-  const [createAvatarPreviewUrl, setCreateAvatarPreviewUrl] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SearchChannel[]>([])
   const [messageText, setMessageText] = useState("")
@@ -135,6 +142,9 @@ export function ChannelsHome({
   const [isAddingParticipants, startAddingParticipants] = useTransition()
   const [isRemovingParticipant, startRemovingParticipant] = useTransition()
   const [isDeletingChannel, startDeletingChannel] = useTransition()
+  const [isLeavingChannel, startLeavingChannel] = useTransition()
+  const [, startEditingMessage] = useTransition()
+  const [isDeletingMessage, startDeletingMessage] = useTransition()
 
   const selectedChannel = useMemo(
     () => channels.find((channel) => channel.id === selectedChannelId) ?? null,
@@ -143,6 +153,8 @@ export function ChannelsHome({
   const myRole = selectedChannel?.myRole ?? null
   const canManage = myRole === "OWNER"
   const canWrite = myRole === "OWNER" || myRole === "ADMIN"
+  const canModerateChannels = hasAdministrativeAccess(user.role)
+  const canDeleteSelectedChannel = canManage || canModerateChannels
   const availableContacts = useMemo(() => {
     if (!selectedChannel) {
       return []
@@ -151,20 +163,20 @@ export function ChannelsHome({
     const participantIds = new Set(selectedChannel.participants.map((participant) => participant.id))
     return contacts.filter((contact) => !participantIds.has(contact.id))
   }, [contacts, selectedChannel])
+  const createAvatarPreviewUrl = useMemo(
+    () => (createAvatarFile ? URL.createObjectURL(createAvatarFile) : null),
+    [createAvatarFile]
+  )
 
   useEffect(() => {
-    if (!createAvatarFile) {
-      setCreateAvatarPreviewUrl(null)
+    if (!createAvatarPreviewUrl) {
       return
     }
 
-    const objectUrl = URL.createObjectURL(createAvatarFile)
-    setCreateAvatarPreviewUrl(objectUrl)
-
     return () => {
-      URL.revokeObjectURL(objectUrl)
+      URL.revokeObjectURL(createAvatarPreviewUrl)
     }
-  }, [createAvatarFile])
+  }, [createAvatarPreviewUrl])
 
   useEffect(() => {
     if (!selectedChannelId) {
@@ -232,6 +244,10 @@ export function ChannelsHome({
       .finally(() => {
         setIsProfileLoading(false)
       })
+  }
+
+  function openChatWithCall(contactId: number, media: "audio" | "video") {
+    router.push(`/chats?contactId=${contactId}&startCall=${media}`)
   }
 
   function createChannel() {
@@ -343,6 +359,82 @@ export function ChannelsHome({
       if (attachmentInputRef.current) {
         attachmentInputRef.current.value = ""
       }
+    })
+  }
+
+  function beginEditMessage(message: ChannelMessage) {
+    const nextContent = window.prompt("Введите новый текст сообщения", message.content)
+    if (nextContent === null || nextContent === message.content) {
+      return
+    }
+
+    saveEditedMessage(message.id, nextContent)
+  }
+
+  function saveEditedMessage(messageId: number, nextContent: string) {
+    if (!selectedChannelId) {
+      return
+    }
+
+    startEditingMessage(async () => {
+      const response = await fetch(
+        `/api/channels/${selectedChannelId}/messages/${messageId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: nextContent }),
+        }
+      )
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(tr(data?.message ?? "Не удалось обновить сообщение"))
+        return
+      }
+
+      const updatedMessage = data.message as ChannelMessage
+      setMessages((prev) =>
+        prev?.map((message) => (message.id === updatedMessage.id ? updatedMessage : message)) ?? prev
+      )
+      setChannels((prev) =>
+        prev.map((channel) =>
+          channel.id === selectedChannelId && channel.lastMessage?.id === updatedMessage.id
+            ? { ...channel, lastMessage: updatedMessage }
+            : channel
+        )
+      )
+      toast.success(tr("Сообщение обновлено"))
+    })
+  }
+
+  function deleteMessage(messageId: number) {
+    if (!selectedChannelId) {
+      return
+    }
+
+    startDeletingMessage(async () => {
+      const response = await fetch(`/api/channels/${selectedChannelId}/messages/${messageId}`, {
+        method: "DELETE",
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(tr(data?.message ?? "Не удалось удалить сообщение"))
+        return
+      }
+
+      setMessages((prev) => {
+        const next = prev?.filter((message) => message.id !== messageId) ?? prev
+        setChannels((channelsPrev) =>
+          channelsPrev.map((channel) =>
+            channel.id === selectedChannelId && channel.lastMessage?.id === messageId
+              ? { ...channel, lastMessage: next?.at(-1) ?? null }
+              : channel
+          )
+        )
+        return next
+      })
+      toast.success(tr("Сообщение удалено"))
     })
   }
 
@@ -477,6 +569,71 @@ export function ChannelsHome({
         return next
       })
       toast.success(tr("Канал удалён"))
+    })
+  }
+
+  function deleteChannelFromSearch(channelId: number, channelTitle: string) {
+    const confirmed = window.confirm(`РЈРґР°Р»РёС‚СЊ РєР°РЅР°Р» В«${channelTitle}В»?`)
+    if (!confirmed) {
+      return
+    }
+
+    startDeletingChannel(async () => {
+      const response = await fetch(`/api/channels/${channelId}`, {
+        method: "DELETE",
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ РєР°РЅР°Р»"))
+        return
+      }
+
+      setChannels((prev) => {
+        const next = prev.filter((channel) => channel.id !== channelId)
+        if (selectedChannelId === channelId) {
+          const nextSelectedId = next[0]?.id ?? null
+          setSelectedChannelId(nextSelectedId)
+          setMessages(nextSelectedId ? null : [])
+          setShowMembers(false)
+        }
+        return next
+      })
+      setSearchResults((prev) => prev.filter((channel) => channel.id !== channelId))
+      toast.success(tr("РљР°РЅР°Р» СѓРґР°Р»С‘РЅ"))
+    })
+  }
+
+  function leaveChannel() {
+    if (!selectedChannelId || !selectedChannel) {
+      return
+    }
+
+    const confirmed = window.confirm(`Покинуть канал «${selectedChannel.title}»?`)
+    if (!confirmed) {
+      return
+    }
+
+    startLeavingChannel(async () => {
+      const response = await fetch(`/api/channels/${selectedChannelId}/leave`, {
+        method: "POST",
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(tr(data?.message ?? "Не удалось покинуть канал"))
+        return
+      }
+
+      setChannels((prev) => {
+        const next = prev.filter((channel) => channel.id !== selectedChannelId)
+        const nextSelectedId = next[0]?.id ?? null
+        setSelectedChannelId(nextSelectedId)
+        setMessages(nextSelectedId ? null : [])
+        setShowMembers(false)
+        return next
+      })
+      setSelectedProfile(null)
+      setIsProfileLoading(false)
+      toast.success(tr("Вы покинули канал"))
     })
   }
 
@@ -629,7 +786,8 @@ export function ChannelsHome({
                               </p>
                             </div>
                           </div>
-                          {channel.joined ? (
+                          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                            {channel.joined ? (
                             <Button size="sm" variant="outline" onClick={() => openChannel(channel.id)}>
                               {tr("Открыть")}
                             </Button>
@@ -637,7 +795,18 @@ export function ChannelsHome({
                             <Button size="sm" onClick={() => joinChannel(channel.id)} disabled={isJoining}>
                               {tr("Вступить")}
                             </Button>
-                          )}
+                            )}
+                            {(canModerateChannels || channel.ownerId === user.id) ? (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={isDeletingChannel}
+                                onClick={() => deleteChannelFromSearch(channel.id, channel.title)}
+                              >
+                                {tr("РЈРґР°Р»РёС‚СЊ")}
+                              </Button>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -713,15 +882,20 @@ export function ChannelsHome({
                       </p>
                     </div>
                   </div>
-                  {selectedChannel && canManage && (
+                  {selectedChannel && (
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setShowMembers((prev) => !prev)}>
+                      {canManage ? <Button size="sm" variant="outline" onClick={() => setShowMembers((prev) => !prev)}>
                         <UsersIcon className="size-4" />
                         {showMembers ? tr("Скрыть участников") : tr("Участники")}
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={deleteChannel} disabled={isDeletingChannel}>
+                      </Button> : null}
+                      {selectedChannel.myRole !== "OWNER" ? (
+                        <Button size="sm" variant="outline" onClick={leaveChannel} disabled={isLeavingChannel}>
+                          {isLeavingChannel ? "Выходим..." : "Покинуть канал"}
+                        </Button>
+                      ) : null}
+                      {canDeleteSelectedChannel ? <Button size="sm" variant="destructive" onClick={deleteChannel} disabled={isDeletingChannel}>
                         {isDeletingChannel ? tr("Удаляем...") : tr("Удалить канал")}
-                      </Button>
+                      </Button> : null}
                     </div>
                   )}
                 </div>
@@ -887,6 +1061,8 @@ export function ChannelsHome({
                       setIsProfileLoading(false)
                     }}
                     onOpenChat={(contactId) => router.push(`/chats?contactId=${contactId}`)}
+                    onStartAudioCall={(contactId) => openChatWithCall(contactId, "audio")}
+                    onStartVideoCall={(contactId) => openChatWithCall(contactId, "video")}
                   />
                 </div>
 
@@ -934,6 +1110,30 @@ export function ChannelsHome({
                             {new Date(message.createdAt).toLocaleString("ru-RU")}
                           </p>
                         </div>
+                        {mine && canWrite ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              className="inline-flex size-8 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
+                              aria-label="Действия с сообщением"
+                            >
+                              <EllipsisVerticalIcon className="size-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              {!message.attachment ? (
+                                <DropdownMenuItem onClick={() => beginEditMessage(message)}>
+                                  Редактировать
+                                </DropdownMenuItem>
+                              ) : null}
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={isDeletingMessage}
+                                onClick={() => deleteMessage(message.id)}
+                              >
+                                Удалить
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
                       </div>
                     )
                   })}

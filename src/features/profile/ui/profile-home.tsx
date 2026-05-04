@@ -50,6 +50,10 @@ type EditableUser = {
   partnerStarsEarned?: number
   avatarTone?: UpdateProfileInput["avatarTone"]
   avatarUrl?: string | null
+  profileVisibility: UpdateProfileInput["profileVisibility"]
+  showEmailInProfile: boolean
+  showPhoneInProfile: boolean
+  showGiftsInProfile: boolean
 }
 
 type FieldErrors = Record<string, string[] | undefined>
@@ -96,6 +100,10 @@ export function ProfileHome({ user }: { user: EditableUser }) {
     lastName: user.lastName ?? "",
     phone: user.phone ?? "",
     avatarTone: user.avatarTone ?? null,
+    profileVisibility: user.profileVisibility,
+    showEmailInProfile: user.showEmailInProfile,
+    showPhoneInProfile: user.showPhoneInProfile,
+    showGiftsInProfile: user.showGiftsInProfile,
   })
 
   const [passwordForm, setPasswordForm] = useState<ChangePasswordInput>({
@@ -215,6 +223,10 @@ export function ProfileHome({ user }: { user: EditableUser }) {
         lastName: data.user.lastName ?? "",
         phone: data.user.phone ?? "",
         avatarTone: data.user.avatarTone ?? null,
+        profileVisibility: data.user.profileVisibility,
+        showEmailInProfile: data.user.showEmailInProfile,
+        showPhoneInProfile: data.user.showPhoneInProfile,
+        showGiftsInProfile: data.user.showGiftsInProfile,
       })
 
       setSavedAvatarUrl(nextAvatarUrl)
@@ -600,6 +612,70 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         {getFieldError(fieldErrors, "avatarFile")}
                       </p>
                     ) : null}
+                  </div>
+
+                  <div className="space-y-4 rounded-[1.25rem] border border-border/70 bg-background/60 p-4">
+                    <div>
+                      <p className="text-sm font-medium">Настройки приватности</p>
+                      <p className="text-xs text-muted-foreground">
+                        Управляйте тем, что видят другие пользователи в вашем профиле.
+                      </p>
+                    </div>
+
+                    <Field label="Кто может смотреть профиль" htmlFor="profile-visibility">
+                      <select
+                        id="profile-visibility"
+                        className="h-11 w-full rounded-[1.1rem] border border-input bg-input/85 px-4 text-sm"
+                        value={form.profileVisibility}
+                        onChange={(event) =>
+                          updateField(
+                            "profileVisibility",
+                            event.target.value as UpdateProfileInput["profileVisibility"]
+                          )
+                        }
+                      >
+                        <option value="everyone">Все пользователи</option>
+                        <option value="contacts">Только контакты</option>
+                      </select>
+                    </Field>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="flex items-center gap-3 rounded-[1rem] border border-border/70 bg-card/70 p-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-primary"
+                          checked={form.showEmailInProfile}
+                          onChange={(event) =>
+                            updateField("showEmailInProfile", event.target.checked)
+                          }
+                        />
+                        <span>Показывать email</span>
+                      </label>
+
+                      <label className="flex items-center gap-3 rounded-[1rem] border border-border/70 bg-card/70 p-3 text-sm">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-primary"
+                          checked={form.showPhoneInProfile}
+                          onChange={(event) =>
+                            updateField("showPhoneInProfile", event.target.checked)
+                          }
+                        />
+                        <span>Показывать телефон</span>
+                      </label>
+
+                      <label className="flex items-center gap-3 rounded-[1rem] border border-border/70 bg-card/70 p-3 text-sm sm:col-span-2">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-primary"
+                          checked={form.showGiftsInProfile}
+                          onChange={(event) =>
+                            updateField("showGiftsInProfile", event.target.checked)
+                          }
+                        />
+                        <span>Показывать подарки в профиле</span>
+                      </label>
+                    </div>
                   </div>
 
                   {serverMessage ? <p className="text-sm text-destructive">{serverMessage}</p> : null}

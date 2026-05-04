@@ -33,6 +33,7 @@ import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { PushToggle } from "@/features/notifications/ui/push-toggle"
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import type { MediaAttachment } from "@/shared/lib/media/constants"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
@@ -96,12 +97,15 @@ export function FeedHome({
   const [isPosting, startPosting] = useTransition()
   const [isLiking, startLiking] = useTransition()
   const [isCommenting, startCommenting] = useTransition()
+  const [isUpdatingComment, startUpdatingComment] = useTransition()
+  const [isDeletingComment, startDeletingComment] = useTransition()
   const [isDeletingPost, startDeletingPost] = useTransition()
   const [isSubmittingAd, startSubmittingAd] = useTransition()
   const [isUpdatingAd, startUpdatingAd] = useTransition()
   const postAttachmentInputRef = useRef<HTMLInputElement | null>(null)
   const emblem = buildEmblem(user.firstName, user.lastName)
   const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
+  const canModeratePosts = hasAdministrativeAccess(user.role)
 
   function createPost() {
     startPosting(async () => {
@@ -196,6 +200,66 @@ export function FeedHome({
       setCommentTextByPostId((prev) => ({ ...prev, [postId]: "" }))
       setExpandedPostIds((prev) => ({ ...prev, [postId]: true }))
       toast.success("Комментарий добавлен")
+    })
+  }
+
+  function editComment(postId: number, comment: FeedComment) {
+    const nextContent = window.prompt("Введите новый текст комментария", comment.content)
+    if (nextContent === null || nextContent === comment.content) {
+      return
+    }
+
+    startUpdatingComment(async () => {
+      const response = await fetch(`/api/feed/${postId}/comments/${comment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: nextContent }),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось обновить комментарий")
+        return
+      }
+
+      const updatedComment = data.comment as FeedComment
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                comments: post.comments.map((item) =>
+                  item.id === updatedComment.id ? updatedComment : item
+                ),
+              }
+            : post
+        )
+      )
+      toast.success("Комментарий обновлён")
+    })
+  }
+
+  function deleteComment(postId: number, commentId: number) {
+    startDeletingComment(async () => {
+      const response = await fetch(`/api/feed/${postId}/comments/${commentId}`, {
+        method: "DELETE",
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось удалить комментарий")
+        return
+      }
+
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId
+            ? {
+                ...post,
+                comments: post.comments.filter((item) => item.id !== commentId),
+              }
+            : post
+        )
+      )
+      toast.success("Комментарий удалён")
     })
   }
 
@@ -460,7 +524,7 @@ export function FeedHome({
                               {new Date(post.createdAt).toLocaleString("ru-RU")}
                             </p>
                           </div>
-                          {post.author.id === user.id && (
+                          {(post.author.id === user.id || canModeratePosts) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger
                                 className="inline-flex size-8 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
@@ -514,17 +578,44 @@ export function FeedHome({
                               )}
                               {post.comments.map((comment) => (
                                 <div key={comment.id} className="rounded-[1.15rem] bg-muted/55 p-3">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-sm font-medium">
-                                      {comment.author.firstName} {comment.author.lastName ?? ""}
-                                    </p>
-                                    <AccountStatusBadge
-                                      role={comment.author.role}
-                                      email={comment.author.email}
-                                      firstName={comment.author.firstName}
-                                      lastName={comment.author.lastName}
-                                      isBlocked={comment.author.isBlocked}
-                                    />
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="text-sm font-medium">
+                                        {comment.author.firstName} {comment.author.lastName ?? ""}
+                                      </p>
+                                      <AccountStatusBadge
+                                        role={comment.author.role}
+                                        email={comment.author.email}
+                                        firstName={comment.author.firstName}
+                                        lastName={comment.author.lastName}
+                                        isBlocked={comment.author.isBlocked}
+                                      />
+                                    </div>
+                                    {comment.author.id === user.id ? (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger
+                                          className="inline-flex size-8 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent"
+                                          aria-label="Действия с комментарием"
+                                        >
+                                          <EllipsisVerticalIcon className="size-4" />
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-44">
+                                          <DropdownMenuItem
+                                            disabled={isUpdatingComment}
+                                            onClick={() => editComment(post.id, comment)}
+                                          >
+                                            Редактировать
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem
+                                            variant="destructive"
+                                            disabled={isDeletingComment}
+                                            onClick={() => deleteComment(post.id, comment.id)}
+                                          >
+                                            Удалить
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    ) : null}
                                   </div>
                                   <p className="mt-1 whitespace-pre-wrap text-sm">{comment.content}</p>
                                 </div>

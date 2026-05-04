@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 import { deleteUploadedFileByUrl } from "@/shared/lib/media/uploads"
@@ -24,21 +25,30 @@ export async function DELETE(
     return NextResponse.json({ message: "Некорректная публикация" }, { status: 400 })
   }
 
-  const post = await prisma.newsPost.findUnique({
-    where: { id: postId },
-    select: {
-      id: true,
-      authorId: true,
-      mediaUrl: true,
-    },
-  })
+  const [post, requester] = await Promise.all([
+    prisma.newsPost.findUnique({
+      where: { id: postId },
+      select: {
+        id: true,
+        authorId: true,
+        mediaUrl: true,
+      },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    }),
+  ])
 
   if (!post) {
     return NextResponse.json({ message: "Публикация не найдена" }, { status: 404 })
   }
 
-  if (post.authorId !== userId) {
-    return NextResponse.json({ message: "Можно удалять только свои публикации" }, { status: 403 })
+  if (post.authorId !== userId && !hasAdministrativeAccess(requester?.role)) {
+    return NextResponse.json(
+      { message: "Можно удалять только свои публикации" },
+      { status: 403 }
+    )
   }
 
   await prisma.newsPost.delete({

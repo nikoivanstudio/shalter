@@ -12,7 +12,7 @@ import { isUserOnline } from "@/shared/lib/user-activity"
 export default async function ChatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ contactId?: string; dialogId?: string }>
+  searchParams: Promise<{ contactId?: string; dialogId?: string; startCall?: string }>
 }) {
   const user = await getCurrentUser()
 
@@ -27,6 +27,8 @@ export default async function ChatsPage({
     Number.isInteger(parsedContactId) && parsedContactId > 0 ? parsedContactId : null
   const requestedDialogId =
     Number.isInteger(parsedDialogId) && parsedDialogId > 0 ? parsedDialogId : null
+  const requestedStartCall =
+    params.startCall === "audio" || params.startCall === "video" ? params.startCall : null
 
   const contacts = await prisma.contact.findMany({
     where: { ownerId: user.id },
@@ -224,6 +226,7 @@ export default async function ChatsPage({
           avatarUrl: user.avatarUrl,
         }}
         initialDialogId={initialDialogId}
+        initialCallMode={requestedStartCall}
         contacts={contacts.map((item) => item.contactUser)}
         dialogs={dialogs.map((dialog) => ({
           id: dialog.id,

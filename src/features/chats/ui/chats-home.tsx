@@ -90,6 +90,7 @@ export type ChatsHomeProps = {
   dialogs: ChatDialog[]
   contacts: ContactUser[]
   initialDialogId: number | null
+  initialCallMode?: "audio" | "video" | null
 }
 
 function formatTime(value: string) {
@@ -244,7 +245,13 @@ function parseEventPayload<T>(event: Event) {
   }
 }
 
-export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDialogId }: ChatsHomeProps) {
+export function ChatsHome({
+  user,
+  dialogs: initialDialogs,
+  contacts,
+  initialDialogId,
+  initialCallMode = null,
+}: ChatsHomeProps) {
   const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1587,6 +1594,7 @@ export function ChatsHome({ user, dialogs: initialDialogs, contacts, initialDial
           avatarUrl: user.avatarUrl,
         }}
         selectedDialogId={activeDialogId}
+        initialAutoStartCall={initialCallMode}
         dialogs={dialogs.map((dialog) => ({
           id: dialog.id,
           title: dialog.title,

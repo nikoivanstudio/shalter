@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 import { deleteUploadedFileByUrl } from "@/shared/lib/media/uploads"
@@ -24,29 +25,30 @@ export async function DELETE(
     return NextResponse.json({ message: "Неверный id канала" }, { status: 400 })
   }
 
-  const channel = await prisma.channel.findFirst({
-    where: {
-      id: channelId,
-      participants: {
-        some: {
-          userId,
-        },
+  const [requester, channel] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    }),
+    prisma.channel.findFirst({
+      where: {
+        id: channelId,
       },
-    },
-    select: {
-      id: true,
-      avatarUrl: true,
-      ownerId: true,
-    },
-  })
+      select: {
+        id: true,
+        avatarUrl: true,
+        ownerId: true,
+      },
+    }),
+  ])
 
   if (!channel) {
     return NextResponse.json({ message: "Канал не найден" }, { status: 404 })
   }
 
-  if (channel.ownerId !== userId) {
+  if (channel.ownerId !== userId && !hasAdministrativeAccess(requester?.role)) {
     return NextResponse.json(
-      { message: "Удалять канал может только владелец" },
+      { message: "Удалять канал может только владелец или администратор" },
       { status: 403 }
     )
   }

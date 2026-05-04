@@ -1,6 +1,12 @@
 "use client"
 
-import { GiftIcon, MessageCircleIcon, XIcon } from "lucide-react"
+import {
+  GiftIcon,
+  MessageCircleIcon,
+  PhoneCallIcon,
+  VideoIcon,
+  XIcon,
+} from "lucide-react"
 
 import { AccountStatusBadge } from "@/components/ui/account-status-badge"
 import { Button } from "@/components/ui/button"
@@ -24,10 +30,10 @@ type ProfileGift = {
 
 export type ViewedContactProfile = {
   id: number
-  email: string
+  email: string | null
   firstName: string
   lastName: string | null
-  phone: string
+  phone: string | null
   role: string
   avatarTone: string | null
   avatarUrl: string | null
@@ -35,6 +41,7 @@ export type ViewedContactProfile = {
   starsBalance: number
   partnerStarsEarned: number
   createdAt: string
+  giftsVisible: boolean
   gifts: ProfileGift[]
 }
 
@@ -43,18 +50,22 @@ export function ContactProfileCard({
   isLoading,
   onClose,
   onOpenChat,
+  onStartAudioCall,
+  onStartVideoCall,
 }: {
   profile: ViewedContactProfile | null
   isLoading: boolean
   onClose: () => void
   onOpenChat: (contactId: number) => void
+  onStartAudioCall?: (contactId: number) => void
+  onStartVideoCall?: (contactId: number) => void
 }) {
   if (!profile && !isLoading) {
     return null
   }
 
   return (
-    <div className="rounded-[1.7rem] border border-border/70 bg-card/88 p-4 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
+    <div className="flex max-h-[min(72dvh,42rem)] min-h-0 flex-col overflow-hidden rounded-[1.7rem] border border-border/70 bg-card/88 p-4 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
@@ -70,9 +81,13 @@ export function ContactProfileCard({
       </div>
 
       {isLoading ? (
-        <p className="mt-4 text-sm text-muted-foreground">Собираем подарки и данные профиля...</p>
+        <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+          <p className="text-sm text-muted-foreground">
+            Собираем подарки и данные профиля...
+          </p>
+        </div>
       ) : profile ? (
-        <div className="mt-4 space-y-4">
+        <div className="mt-4 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <UserAvatar
               firstName={profile.firstName}
@@ -97,15 +112,24 @@ export function ContactProfileCard({
                   lastName={profile.lastName}
                   isBlocked={profile.isBlocked}
                 />
-                <span className="text-sm text-muted-foreground">{profile.phone}</span>
+                {profile.phone ? (
+                  <span className="text-sm text-muted-foreground">{profile.phone}</span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Телефон скрыт</span>
+                )}
               </div>
-              <p className="break-all text-sm text-muted-foreground">{profile.email}</p>
+              <p className="break-all text-sm text-muted-foreground">
+                {profile.email ?? "Email скрыт"}
+              </p>
               <p className="text-sm text-muted-foreground">
                 В сервисе с {new Date(profile.createdAt).toLocaleDateString("ru-RU")}
               </p>
               <div className="flex flex-wrap gap-2">
                 <BadgeStat label="Подарков" value={String(profile.gifts.length)} />
-                <BadgeStat label="Партнёрские звёзды" value={String(profile.partnerStarsEarned)} />
+                <BadgeStat
+                  label="Партнёрские звёзды"
+                  value={String(profile.partnerStarsEarned)}
+                />
               </div>
             </div>
           </div>
@@ -121,8 +145,14 @@ export function ContactProfileCard({
               <GiftIcon className="size-5 text-primary" />
             </div>
 
-            {profile.gifts.length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">Пока нет полученных подарков.</p>
+            {!profile.giftsVisible ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Пользователь скрыл подарки в настройках приватности.
+              </p>
+            ) : profile.gifts.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Пока нет полученных подарков.
+              </p>
             ) : (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {profile.gifts.map((gift) => {
@@ -171,6 +201,18 @@ export function ContactProfileCard({
               <MessageCircleIcon className="size-4" />
               Открыть чат
             </Button>
+            {onStartAudioCall ? (
+              <Button type="button" variant="outline" onClick={() => onStartAudioCall(profile.id)}>
+                <PhoneCallIcon className="size-4" />
+                Аудио
+              </Button>
+            ) : null}
+            {onStartVideoCall ? (
+              <Button type="button" variant="outline" onClick={() => onStartVideoCall(profile.id)}>
+                <VideoIcon className="size-4" />
+                Видео
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}

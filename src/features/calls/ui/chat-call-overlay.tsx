@@ -10,7 +10,7 @@ import {
   VideoIcon,
   VideoOffIcon,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -142,6 +142,7 @@ export function ChatCallOverlay({
   currentUser,
   dialogs,
   selectedDialogId,
+  initialAutoStartCall = null,
 }: {
   currentUser: CallUser
   dialogs: Array<{
@@ -150,6 +151,7 @@ export function ChatCallOverlay({
     users: CallUser[]
   }>
   selectedDialogId: number | null
+  initialAutoStartCall?: CallMediaMode | null
 }) {
   const [activeCall, setActiveCall] = useState<CallSnapshot | null>(null)
   const [incomingCall, setIncomingCall] = useState<CallSnapshot | null>(null)
@@ -162,6 +164,10 @@ export function ChatCallOverlay({
   const localStreamRef = useRef<MediaStream | null>(null)
   const peerConnectionsRef = useRef(new Map<number, RTCPeerConnection>())
   const activeCallRef = useRef<CallSnapshot | null>(null)
+  const autoStartDoneRef = useRef(false)
+  const startCallEffect = useEffectEvent((media: CallMediaMode) => {
+    void startCall(media)
+  })
 
   const activeDialog = useMemo(
     () => dialogs.find((dialog) => dialog.id === (activeCall?.dialogId ?? selectedDialogId)) ?? null,
@@ -171,6 +177,22 @@ export function ChatCallOverlay({
   useEffect(() => {
     activeCallRef.current = activeCall
   }, [activeCall])
+
+  useEffect(() => {
+    if (
+      autoStartDoneRef.current ||
+      !initialAutoStartCall ||
+      !selectedDialogId ||
+      activeCall ||
+      incomingCall ||
+      isConnecting
+    ) {
+      return
+    }
+
+    autoStartDoneRef.current = true
+    startCallEffect(initialAutoStartCall)
+  }, [activeCall, incomingCall, initialAutoStartCall, isConnecting, selectedDialogId])
 
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
@@ -667,7 +689,7 @@ export function ChatCallOverlay({
 
             {activeCall ? (
               <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="grid min-h-0 gap-4 md:grid-cols-2">
+                <div className="grid min-h-0 content-start gap-4 overflow-y-auto pr-1 md:grid-cols-2">
                   {remoteTiles.length > 0 ? (
                     remoteTiles.map((entry) => (
                       <VideoTile
@@ -683,7 +705,7 @@ export function ChatCallOverlay({
                   )}
                 </div>
 
-                <div className="space-y-4 rounded-[1.6rem] border border-white/10 bg-white/4 p-4">
+                <div className="flex min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/4 p-4">
                   <VideoTile
                     label="Вы"
                     user={localUser}
@@ -691,9 +713,9 @@ export function ChatCallOverlay({
                     muted
                   />
 
-                  <div className="space-y-2">
+                  <div className="mt-4 flex min-h-0 flex-1 flex-col space-y-2">
                     <p className="text-sm font-medium text-white/80">Участники</p>
-                    <div className="space-y-2">
+                    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                       {activeCall.participants.map((participant) => (
                         <div
                           key={participant.userId}

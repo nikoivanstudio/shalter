@@ -113,6 +113,10 @@ export async function PATCH(request: NextRequest) {
         lastName: data.lastName || null,
         phone: data.phone,
         avatarTone: data.avatarTone,
+        profileVisibility: data.profileVisibility,
+        showEmailInProfile: data.showEmailInProfile,
+        showPhoneInProfile: data.showPhoneInProfile,
+        showGiftsInProfile: data.showGiftsInProfile,
         updatedAt: new Date(),
       },
       select: {
@@ -122,6 +126,10 @@ export async function PATCH(request: NextRequest) {
         lastName: true,
         phone: true,
         avatarTone: true,
+        profileVisibility: true,
+        showEmailInProfile: true,
+        showPhoneInProfile: true,
+        showGiftsInProfile: true,
       },
     })
 

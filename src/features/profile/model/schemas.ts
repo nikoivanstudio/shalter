@@ -30,6 +30,10 @@ export const updateProfileSchema = z.object({
     .nullable()
     .optional()
     .transform((value) => value ?? null),
+  profileVisibility: z.enum(["everyone", "contacts"]).default("everyone"),
+  showEmailInProfile: z.boolean().default(true),
+  showPhoneInProfile: z.boolean().default(true),
+  showGiftsInProfile: z.boolean().default(true),
 })
 
 export const changePasswordSchema = z

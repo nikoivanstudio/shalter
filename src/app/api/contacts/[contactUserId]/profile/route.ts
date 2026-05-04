@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 
@@ -27,7 +28,11 @@ export async function GET(
     return NextResponse.json({ message: "Откройте свой профиль в настройках" }, { status: 400 })
   }
 
-  const [user, blacklistEntry] = await Promise.all([
+  const [requester, user, blacklistEntry, isViewerInContacts] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    }),
     prisma.user.findUnique({
       where: { id: contactUserId },
       select: {
@@ -43,6 +48,10 @@ export async function GET(
         starsBalance: true,
         partnerStarsEarned: true,
         createdAt: true,
+        profileVisibility: true,
+        showEmailInProfile: true,
+        showPhoneInProfile: true,
+        showGiftsInProfile: true,
         receivedGiftTransactions: {
           orderBy: { createdAt: "desc" },
           take: 12,
@@ -71,6 +80,13 @@ export async function GET(
       },
       select: { id: true },
     }),
+    prisma.contact.findFirst({
+      where: {
+        ownerId: contactUserId,
+        contactUserId: userId,
+      },
+      select: { id: true },
+    }),
   ])
 
   if (!user) {
@@ -81,12 +97,35 @@ export async function GET(
     return NextResponse.json({ message: "Пользователь находится в чёрном списке" }, { status: 403 })
   }
 
+  const isPrivilegedViewer = hasAdministrativeAccess(requester?.role)
+  const canViewByPrivacy =
+    isPrivilegedViewer || user.profileVisibility === "everyone" || Boolean(isViewerInContacts)
+
+  if (!canViewByPrivacy) {
+    return NextResponse.json({ message: "Профиль доступен только контактам" }, { status: 403 })
+  }
+
+  const canSeeEmail = isPrivilegedViewer || user.showEmailInProfile
+  const canSeePhone = isPrivilegedViewer || user.showPhoneInProfile
+  const canSeeGifts = isPrivilegedViewer || user.showGiftsInProfile
+
   return NextResponse.json(
     {
       profile: {
-        ...user,
+        id: user.id,
+        email: canSeeEmail ? user.email : null,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: canSeePhone ? user.phone : null,
+        role: user.role,
+        avatarTone: user.avatarTone,
+        avatarUrl: user.avatarUrl,
+        isBlocked: user.isBlocked,
+        starsBalance: user.starsBalance,
+        partnerStarsEarned: user.partnerStarsEarned,
         createdAt: user.createdAt.toISOString(),
-        gifts: user.receivedGiftTransactions.map((gift) => ({
+        giftsVisible: canSeeGifts,
+        gifts: (canSeeGifts ? user.receivedGiftTransactions : []).map((gift) => ({
           id: gift.id,
           giftKey: gift.giftKey,
           giftName: gift.giftName,

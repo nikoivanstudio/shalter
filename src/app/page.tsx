@@ -27,6 +27,10 @@ export default async function Home() {
           partnerStarsEarned: user.partnerStarsEarned,
           avatarTone: user.avatarTone,
           avatarUrl: user.avatarUrl,
+          profileVisibility: user.profileVisibility,
+          showEmailInProfile: user.showEmailInProfile,
+          showPhoneInProfile: user.showPhoneInProfile,
+          showGiftsInProfile: user.showGiftsInProfile,
         }}
       />
     </Providers>
