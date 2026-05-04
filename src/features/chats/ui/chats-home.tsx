@@ -165,10 +165,6 @@ function getDirectDialogOtherUser(dialog: ChatDialog, currentUserId: number) {
   return dialog.users.find((item) => item.id !== currentUserId) ?? null
 }
 
-function isGroupDialog(dialog: ChatDialog) {
-  return Boolean(dialog.title?.trim()) || dialog.users.length > 2
-}
-
 function canLeaveDialog(dialog: ChatDialog, currentUserId: number) {
   return dialog.users.length > 2 && dialog.users.some((item) => item.id === currentUserId)
 }
@@ -182,7 +178,7 @@ function canDeleteDialog(dialog: ChatDialog, currentUserId: number) {
 }
 
 function canManageDialogParticipants(dialog: ChatDialog, currentUserId: number) {
-  return dialog.ownerId === currentUserId && isGroupDialog(dialog)
+  return dialog.ownerId === currentUserId
 }
 
 function canRemoveParticipant(
@@ -192,6 +188,7 @@ function canRemoveParticipant(
 ) {
   return (
     canManageDialogParticipants(dialog, currentUserId) &&
+    dialog.users.length > 2 &&
     participantId !== currentUserId &&
     participantId !== dialog.ownerId
   )

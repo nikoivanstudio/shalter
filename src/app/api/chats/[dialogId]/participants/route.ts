@@ -77,13 +77,6 @@ export async function POST(
     )
   }
 
-  if (!isGroupDialog(dialog)) {
-    return NextResponse.json(
-      { message: "Добавлять участников можно только в групповой чат" },
-      { status: 400 }
-    )
-  }
-
   const json = await request.json().catch(() => null)
   const parsed = updateDialogParticipantsSchema.safeParse(json)
   if (!parsed.success) {
@@ -98,7 +91,11 @@ export async function POST(
 
   const existingParticipantIds = new Set(dialog.users.map((item) => item.id))
   const participantIds = Array.from(
-    new Set(parsed.data.participantIds.filter((id) => id !== userId && !existingParticipantIds.has(id)))
+    new Set(
+      parsed.data.participantIds.filter(
+        (id) => id !== userId && !existingParticipantIds.has(id)
+      )
+    )
   )
 
   if (participantIds.length === 0) {

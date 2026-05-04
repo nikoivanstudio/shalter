@@ -162,6 +162,8 @@ export function ChatCallOverlay({
   const [, forceLocalStreamRender] = useState(0)
 
   const localStreamRef = useRef<MediaStream | null>(null)
+  const incomingToneIntervalRef = useRef<number | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
   const peerConnectionsRef = useRef(new Map<number, RTCPeerConnection>())
   const activeCallRef = useRef<CallSnapshot | null>(null)
   const autoStartDoneRef = useRef(false)
@@ -177,6 +179,74 @@ export function ChatCallOverlay({
   useEffect(() => {
     activeCallRef.current = activeCall
   }, [activeCall])
+
+  const stopIncomingTone = useCallback(() => {
+    if (incomingToneIntervalRef.current !== null) {
+      window.clearInterval(incomingToneIntervalRef.current)
+      incomingToneIntervalRef.current = null
+    }
+  }, [])
+
+  const playIncomingTone = useCallback(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    try {
+      const AudioContextCtor = window.AudioContext ?? (window as typeof window & {
+        webkitAudioContext?: typeof AudioContext
+      }).webkitAudioContext
+
+      if (!AudioContextCtor) {
+        return
+      }
+
+      const audioContext = audioContextRef.current ?? new AudioContextCtor()
+      audioContextRef.current = audioContext
+
+      if (audioContext.state === "suspended") {
+        void audioContext.resume().catch(() => null)
+      }
+
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      oscillator.type = "sine"
+      oscillator.frequency.value = 880
+      gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.02)
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.28)
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      oscillator.start()
+      oscillator.stop(audioContext.currentTime + 0.3)
+    } catch {
+      // Ignore ringtone failures caused by autoplay restrictions.
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!incomingCall || incomingCall.createdByUserId === currentUser.userId) {
+      stopIncomingTone()
+      return
+    }
+
+    playIncomingTone()
+    incomingToneIntervalRef.current = window.setInterval(() => {
+      playIncomingTone()
+    }, 1800)
+
+    return () => {
+      stopIncomingTone()
+    }
+  }, [currentUser.userId, incomingCall, playIncomingTone, stopIncomingTone])
+
+  useEffect(() => {
+    return () => {
+      stopIncomingTone()
+      void audioContextRef.current?.close().catch(() => null)
+      audioContextRef.current = null
+    }
+  }, [stopIncomingTone])
 
   useEffect(() => {
     if (
@@ -447,14 +517,32 @@ export function ChatCallOverlay({
   }, [ensurePeerConnection])
 
   async function ensureLocalStream(media: CallMediaMode) {
-    if (localStreamRef.current) {
-      return localStreamRef.current
+    const existingStream = localStreamRef.current
+    const needsVideoUpgrade = media === "video" && !existingStream?.getVideoTracks().length
+
+    if (existingStream && !needsVideoUpgrade) {
+      for (const track of existingStream.getAudioTracks()) {
+        track.enabled = true
+      }
+      for (const track of existingStream.getVideoTracks()) {
+        track.enabled = media === "video"
+      }
+      setIsMicrophoneMuted(false)
+      setIsCameraDisabled(media !== "video")
+      forceLocalStreamRender((value) => value + 1)
+      return existingStream
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: media === "video",
     })
+
+    if (existingStream) {
+      for (const track of existingStream.getTracks()) {
+        track.stop()
+      }
+    }
 
     localStreamRef.current = stream
     setIsMicrophoneMuted(false)
@@ -465,6 +553,7 @@ export function ChatCallOverlay({
 
   async function cleanupCall(announceLeave = true) {
     const currentCall = activeCallRef.current
+    stopIncomingTone()
 
     if (announceLeave && currentCall) {
       await fetch(`/api/calls/${currentCall.id}/leave`, { method: "POST" }).catch(() => null)
@@ -493,6 +582,7 @@ export function ChatCallOverlay({
     setIsConnecting(true)
 
     try {
+      stopIncomingTone()
       await ensureLocalStream(call.media)
 
       const response = await fetch(`/api/calls/${call.id}/join`, { method: "POST" })

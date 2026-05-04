@@ -76,9 +76,16 @@ self.addEventListener("push", (event) => {
   const options = {
     body: payload.body || "Новое сообщение",
     badge: "/icon-192x192.png",
-    icon: "/icon-192x192.png",
+    icon: payload.icon || "/icon-192x192.png",
+    image: payload.image || undefined,
+    tag: payload.tag || undefined,
+    renotify: Boolean(payload.renotify),
+    requireInteraction: Boolean(payload.requireInteraction),
+    silent: Boolean(payload.silent),
+    vibrate: payload.type === "incoming-call" ? [300, 150, 300, 150, 500] : [200, 100, 200],
     data: {
       url: payload.url || "/chats",
+      type: payload.type || "message",
     },
   };
 

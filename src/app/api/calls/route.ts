@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { createCall, type CallMediaMode } from "@/features/calls/lib/call-store"
+import { sendPushToCallRecipients } from "@/shared/lib/notifications/push"
 
 import { getAuthorizedCallContext, getDialogUsersForCalls } from "./_lib"
 
@@ -43,6 +44,14 @@ export async function POST(request: NextRequest) {
       avatarTone: user.avatarTone,
       avatarUrl: user.avatarUrl,
     })),
+  })
+
+  void sendPushToCallRecipients({
+    dialogId,
+    callerId: auth.userId,
+    callerName: `${auth.user.firstName} ${auth.user.lastName ?? ""}`.trim() || auth.user.email,
+    media,
+    callerAvatarUrl: auth.user.avatarUrl,
   })
 
   return NextResponse.json({ call }, { status: 201 })

@@ -211,3 +211,77 @@ export async function sendPushToDialogRecipients(params: {
     })
   )
 }
+
+export async function sendPushToCallRecipients(params: {
+  dialogId: number
+  callerId: number
+  callerName: string
+  media: "audio" | "video"
+  callerAvatarUrl?: string | null
+}) {
+  if (!isPushConfigured()) {
+    return
+  }
+
+  ensureVapidConfigured()
+
+  const recipients = await prisma.pushSubscription.findMany({
+    where: {
+      userId: {
+        not: params.callerId,
+      },
+      user: {
+        dialogs: {
+          some: {
+            id: params.dialogId,
+          },
+        },
+      },
+    },
+  })
+
+  if (recipients.length === 0) {
+    return
+  }
+
+  const payload = JSON.stringify({
+    title: params.callerName,
+    body:
+      params.media === "video"
+        ? "Входящий видеозвонок"
+        : "Входящий аудиозвонок",
+    url: `/chats?dialogId=${params.dialogId}`,
+    dialogId: params.dialogId,
+    type: "incoming-call",
+    tag: `call-${params.dialogId}`,
+    requireInteraction: true,
+    renotify: true,
+    silent: false,
+    icon: params.callerAvatarUrl || "/icon-192x192.png",
+    image: params.callerAvatarUrl || "/icon-512x512.png",
+  })
+
+  await Promise.all(
+    recipients.map(async (subscription) => {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: subscription.p256dh,
+              auth: subscription.auth,
+            },
+          },
+          payload
+        )
+      } catch (error) {
+        const statusCode = (error as { statusCode?: number }).statusCode
+        if (statusCode === 404 || statusCode === 410) {
+          await prisma.pushSubscription.deleteMany({
+            where: { endpoint: subscription.endpoint },
+          })
+        }
+      }
+    })
+  )
+}
