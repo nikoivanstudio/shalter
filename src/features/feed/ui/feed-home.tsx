@@ -370,9 +370,12 @@ export function FeedHome({
   }
 
   return (
-    <main className="min-h-screen px-4 py-5 pb-28 sm:px-6">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <header className="rounded-[2rem] border border-white/50 bg-card/88 px-5 py-4 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8">
+    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_30%),radial-gradient(circle_at_top_right,rgba(249,115,22,0.1),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.86))] px-4 py-5 pb-28 dark:bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_28%),radial-gradient(circle_at_top_right,rgba(249,115,22,0.08),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.92))] sm:px-6">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[linear-gradient(180deg,rgba(255,255,255,0.32),transparent)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]" />
+      <div className="pointer-events-none absolute left-[-6rem] top-24 size-48 rounded-full bg-sky-400/10 blur-3xl" />
+      <div className="pointer-events-none absolute right-[-4rem] top-40 size-44 rounded-full bg-orange-400/10 blur-3xl" />
+      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-5">
+        <header className="rounded-[2rem] border border-white/55 bg-card/82 px-5 py-4 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.5)] backdrop-blur-2xl dark:border-white/10">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div
@@ -406,7 +409,7 @@ export function FeedHome({
           </div>
         </header>
 
-        <Card className="border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
+        <Card className="overflow-hidden border-white/50 bg-card/84 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.52)] backdrop-blur-xl dark:border-white/10">
           <CardHeader className="border-b border-border/55 pb-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -417,7 +420,7 @@ export function FeedHome({
                   Публикуйте новости, просматривайте рекламу и управляйте своими размещениями.
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 rounded-full border border-border/60 bg-muted/45 p-1">
                 <Button
                   type="button"
                   variant={activeTab === "news" ? "default" : "outline"}
@@ -448,7 +451,7 @@ export function FeedHome({
           <CardContent className="space-y-5 pt-6">
             {activeTab === "news" && (
               <>
-                <div className="space-y-3 rounded-[1.6rem] border border-border/70 bg-background/78 p-4 shadow-sm">
+                <div className="space-y-3 rounded-[1.8rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(248,250,252,0.78))] p-4 shadow-[0_22px_55px_-38px_rgba(15,23,42,0.45)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.78),rgba(15,23,42,0.74))]">
                   <Input
                     value={postText}
                     onChange={(event) => setPostText(event.target.value)}
@@ -504,7 +507,7 @@ export function FeedHome({
                     return (
                       <div
                         key={post.id}
-                        className="rounded-[1.6rem] border border-border/70 bg-background/78 p-4 shadow-sm"
+                        className="rounded-[1.7rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.8))] p-4 shadow-[0_22px_55px_-38px_rgba(15,23,42,0.42)] transition-transform duration-200 hover:-translate-y-0.5 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))]"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -577,7 +580,7 @@ export function FeedHome({
                                 <p className="text-sm text-muted-foreground">Комментариев пока нет.</p>
                               )}
                               {post.comments.map((comment) => (
-                                <div key={comment.id} className="rounded-[1.15rem] bg-muted/55 p-3">
+                                <div key={comment.id} className="rounded-[1.2rem] border border-white/45 bg-white/55 p-3 dark:border-white/8 dark:bg-white/5">
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="flex flex-wrap items-center gap-2">
                                       <p className="text-sm font-medium">
@@ -658,7 +661,7 @@ export function FeedHome({
                   ads.map((ad) => (
                     <div
                       key={ad.id}
-                      className="rounded-[1.6rem] border border-border/70 bg-background/78 p-5 shadow-sm"
+                      className="rounded-[1.7rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-5 shadow-[0_20px_50px_-36px_rgba(15,23,42,0.42)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.78),rgba(15,23,42,0.76))]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -703,7 +706,7 @@ export function FeedHome({
 
             {activeTab === "cabinet" && (
               <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                <Card className="border-border/70">
+                <Card className="border-white/50 bg-card/86 shadow-[0_18px_44px_-34px_rgba(15,23,42,0.38)] dark:border-white/10">
                   <CardHeader>
                     <CardTitle className="text-base">Новое размещение</CardTitle>
                     <CardDescription>
@@ -778,7 +781,7 @@ export function FeedHome({
                   </CardContent>
                 </Card>
 
-                <Card className="border-border/70">
+                <Card className="border-white/50 bg-card/86 shadow-[0_18px_44px_-34px_rgba(15,23,42,0.38)] dark:border-white/10">
                   <CardHeader>
                     <CardTitle className="text-base">Мой рекламный кабинет</CardTitle>
                     <CardDescription>

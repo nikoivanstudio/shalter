@@ -638,9 +638,11 @@ export function ChannelsHome({
   }
 
   return (
-    <main className="min-h-screen px-4 py-5 pb-28 sm:px-6">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
-        <header className="rounded-[2rem] border border-white/50 bg-card/88 px-5 py-4 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8">
+    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_26%),radial-gradient(circle_at_center_right,rgba(16,185,129,0.1),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.88))] px-4 py-5 pb-28 dark:bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.12),transparent_24%),radial-gradient(circle_at_center_right,rgba(16,185,129,0.08),transparent_22%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.92))] sm:px-6">
+      <div className="pointer-events-none absolute left-[-5rem] top-24 size-48 rounded-full bg-sky-400/10 blur-3xl" />
+      <div className="pointer-events-none absolute right-[-4rem] top-36 size-44 rounded-full bg-emerald-400/10 blur-3xl" />
+      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-5">
+        <header className="rounded-[2rem] border border-white/55 bg-card/82 px-5 py-4 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.5)] backdrop-blur-2xl dark:border-white/10">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <UserAvatar
@@ -678,7 +680,7 @@ export function ChannelsHome({
         </header>
 
         <section className="mx-auto flex min-h-0 w-full max-w-6xl">
-          <Card className="flex min-h-[78dvh] w-full flex-col border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
+          <Card className="flex min-h-[78dvh] w-full flex-col overflow-hidden border-white/50 bg-card/84 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.52)] backdrop-blur-xl dark:border-white/10">
             <CardContent className="grid min-h-0 flex-1 gap-0 p-0 lg:grid-cols-[360px_minmax(0,1fr)]">
               <aside className="flex min-h-0 flex-col border-b border-border/60 p-3 sm:p-4 lg:border-r lg:border-b-0">
                 <div className="rounded-[1.5rem] border border-border/70 bg-background/72 p-4 shadow-sm">
@@ -750,7 +752,7 @@ export function ChannelsHome({
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-[1.5rem] border border-border/70 bg-background/72 p-4 shadow-sm">
+                <div className="mt-4 rounded-[1.65rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-4 shadow-[0_20px_52px_-38px_rgba(15,23,42,0.38)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))]">
                   <p className="text-sm font-medium">{tr("Поиск каналов")}</p>
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                     <Input
@@ -766,7 +768,7 @@ export function ChannelsHome({
                     {searchResults.map((channel) => (
                       <div
                         key={channel.id}
-                        className="rounded-[1.2rem] border border-border/70 bg-card/70 p-3"
+                        className="rounded-[1.25rem] border border-white/45 bg-card/72 p-3 shadow-[0_16px_40px_-34px_rgba(15,23,42,0.34)] dark:border-white/8"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 gap-3">
@@ -816,7 +818,7 @@ export function ChannelsHome({
                   </div>
                 </div>
 
-                <div className="mt-4 min-h-0 flex-1 rounded-[1.5rem] border border-border/70 bg-background/72 p-3 shadow-sm">
+                <div className="mt-4 min-h-0 flex-1 rounded-[1.65rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3 shadow-[0_20px_52px_-38px_rgba(15,23,42,0.38)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))]">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-medium">{tr("Мои каналы")}</p>
@@ -827,10 +829,10 @@ export function ChannelsHome({
                     {channels.map((channel) => (
                       <button
                         key={channel.id}
-                        className={`flex w-full items-start gap-3 rounded-[1.25rem] border p-3 text-left transition-colors ${
+                        className={`flex w-full items-start gap-3 rounded-[1.3rem] border p-3 text-left shadow-[0_14px_36px_-32px_rgba(15,23,42,0.28)] transition-all duration-200 ${
                           selectedChannelId === channel.id
-                            ? "border-primary/70 bg-primary/10"
-                            : "border-border/70 bg-background/82 hover:bg-accent/40"
+                            ? "border-primary/70 bg-primary/12 ring-1 ring-primary/20"
+                            : "border-white/45 bg-background/82 hover:-translate-y-0.5 hover:bg-accent/25 dark:border-white/8"
                         }`}
                         onClick={() => openChannel(channel.id)}
                       >
@@ -1066,7 +1068,7 @@ export function ChannelsHome({
                   />
                 </div>
 
-                <div className="chat-wall min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-24">
+                <div className="chat-wall min-h-0 flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.18),transparent)] px-4 py-4 pb-24 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]">
                   {!selectedChannel && (
                     <p className="text-sm text-muted-foreground">
                       {tr("Откройте канал из списка или создайте новый.")}
@@ -1139,7 +1141,7 @@ export function ChannelsHome({
                   })}
                 </div>
 
-                <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-2.5 backdrop-blur-xl sm:p-3">
+                <div className="sticky bottom-0 shrink-0 border-t border-white/45 bg-background/82 p-2.5 backdrop-blur-2xl dark:border-white/8 sm:p-3">
                   {attachmentFile && (
                     <div className="mb-2 flex items-center justify-between gap-3 rounded-[1rem] border border-border/70 bg-card/80 px-3 py-2">
                       <p className="truncate text-sm text-muted-foreground">{attachmentFile.name}</p>
@@ -1158,7 +1160,7 @@ export function ChannelsHome({
                       </Button>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 rounded-[1.6rem] border border-white/45 bg-card/92 p-2 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8 sm:rounded-[1.85rem] sm:p-2.5">
+                  <div className="flex items-center gap-2 rounded-[1.7rem] border border-white/50 bg-card/90 p-2 shadow-[0_20px_48px_-30px_rgba(15,23,42,0.58)] dark:border-white/10 sm:rounded-[1.95rem] sm:p-2.5">
                     <Button
                       size="sm"
                       variant="outline"

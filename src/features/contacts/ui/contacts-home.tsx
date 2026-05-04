@@ -1,6 +1,6 @@
 "use client"
 
-import { EllipsisVerticalIcon } from "lucide-react"
+import { EllipsisVerticalIcon, PhoneCallIcon, VideoIcon } from "lucide-react"
 import { useDeferredValue, useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -350,9 +350,11 @@ export function ContactsHome({
   }
 
   return (
-    <main className="h-dvh overflow-hidden px-4 py-5 sm:px-6">
-      <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-5 pb-28">
-        <header className="rounded-[2rem] border border-white/50 bg-card/88 px-5 py-4 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8">
+    <main className="relative h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.1),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.88))] px-4 py-5 dark:bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.08),transparent_22%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.92))] sm:px-6">
+      <div className="pointer-events-none absolute left-[-5rem] top-20 size-44 rounded-full bg-sky-400/10 blur-3xl" />
+      <div className="pointer-events-none absolute right-[-4rem] top-52 size-40 rounded-full bg-emerald-400/10 blur-3xl" />
+      <div className="relative mx-auto flex h-full w-full max-w-4xl flex-col gap-5 pb-28">
+        <header className="rounded-[2rem] border border-white/55 bg-card/82 px-5 py-4 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.5)] backdrop-blur-2xl dark:border-white/10">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div
@@ -386,7 +388,7 @@ export function ContactsHome({
           </div>
         </header>
 
-        <Card className="flex min-h-0 flex-1 flex-col border-border/70 bg-card/88 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-white/50 bg-card/84 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.5)] backdrop-blur-xl dark:border-white/10">
           <CardHeader className="border-b border-border/55 pb-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -420,6 +422,10 @@ export function ContactsHome({
               onStartVideoCall={(contactId) => openChatWithCall(contactId, "video")}
             />
 
+            <div className="rounded-[1.5rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.8))] p-3 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.78),rgba(15,23,42,0.72))]">
+              <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                {tr("РџРѕРёСЃРє")}
+              </p>
             <Input
               value={query}
               onChange={(e) => {
@@ -431,8 +437,10 @@ export function ContactsHome({
                   setLastCompletedQuery("")
                 }
               }}
+              className="border-white/55 bg-background/80 shadow-sm dark:border-white/10"
               placeholder={tr("Введите имя или телефон")}
             />
+            </div>
 
             {query.trim().length > 0 && (
               <div className="min-h-0 space-y-2">
@@ -451,7 +459,7 @@ export function ContactsHome({
                     {searchResults.map((item) => (
                       <div
                         key={item.id}
-                        className="flex flex-col gap-3 rounded-[1.35rem] border border-border/70 bg-background/72 p-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-3 rounded-[1.45rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3.5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.35)] transition-transform duration-200 hover:-translate-y-0.5 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))] sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -480,6 +488,22 @@ export function ContactsHome({
                             {tr("Профиль")}
                           </Button>
                           <Button
+                            variant="outline"
+                            disabled={isPending}
+                            onClick={() => openChatWithCall(item.id, "audio")}
+                          >
+                            <PhoneCallIcon className="size-4" />
+                            {tr("Аудио")}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            disabled={isPending}
+                            onClick={() => openChatWithCall(item.id, "video")}
+                          >
+                            <VideoIcon className="size-4" />
+                            {tr("Видео")}
+                          </Button>
+                          <Button
                             variant={item.isAlreadyContact ? "secondary" : "default"}
                             disabled={item.isAlreadyContact || isPending}
                             onClick={() => addContact(item.id)}
@@ -499,7 +523,7 @@ export function ContactsHome({
                           </Button>
                         </div>
                         {canManageRoles && item.id !== user.id && (
-                          <div className="w-full rounded-[1.1rem] border border-border/70 bg-card/70 p-2.5">
+                          <div className="w-full rounded-[1.15rem] border border-white/45 bg-card/76 p-2.5 dark:border-white/8">
                             <p className="mb-2 text-xs font-medium text-muted-foreground">
                               {tr("Управление ролями")}
                             </p>
@@ -550,7 +574,7 @@ export function ContactsHome({
                 {contacts.map((contact) => (
                   <div
                     key={contact.id}
-                    className="flex items-center justify-between gap-3 rounded-[1.35rem] border border-border/70 bg-background/72 p-3.5 transition-colors hover:bg-accent/50"
+                    className="flex items-center justify-between gap-3 rounded-[1.45rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3.5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/20 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))]"
                   >
                     <button
                       className="min-w-0 flex-1 text-left"
@@ -573,6 +597,24 @@ export function ContactsHome({
                         {contact.phone} · {contact.email}
                       </p>
                     </button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openChatWithCall(contact.id, "audio")}
+                      disabled={isPending}
+                    >
+                      <PhoneCallIcon className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openChatWithCall(contact.id, "video")}
+                      disabled={isPending}
+                    >
+                      <VideoIcon className="size-4" />
+                    </Button>
                     <Button
                       type="button"
                       size="sm"

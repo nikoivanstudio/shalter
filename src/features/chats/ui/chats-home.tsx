@@ -1,10 +1,13 @@
 ﻿"use client"
 
+import { useRouter } from "next/navigation"
 import {
   ArrowLeftIcon,
   CheckIcon,
   EllipsisVerticalIcon,
   FileImageIcon,
+  PhoneCallIcon,
+  VideoIcon,
   XIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
@@ -252,6 +255,7 @@ export function ChatsHome({
   initialDialogId,
   initialCallMode = null,
 }: ChatsHomeProps) {
+  const router = useRouter()
   const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -326,6 +330,14 @@ export function ChatsHome({
     [contacts, selectedDialog]
   )
   const isMessageListReady = messages !== null
+
+  function startDialogCall(media: "audio" | "video") {
+    if (!activeDialogId) {
+      return
+    }
+
+    router.replace(`/chats?dialogId=${activeDialogId}&startCall=${media}`)
+  }
 
   function resetComposer() {
     setMessageText("")
@@ -1199,6 +1211,26 @@ export function ChatsHome({
                       })()}
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
+                    {selectedDialog && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startDialogCall("audio")}
+                        >
+                          <PhoneCallIcon className="size-4" />
+                          Аудио
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startDialogCall("video")}
+                        >
+                          <VideoIcon className="size-4" />
+                          Видео
+                        </Button>
+                      </>
+                    )}
                     {selectedDialog && (
                       <Button
                         size="sm"
