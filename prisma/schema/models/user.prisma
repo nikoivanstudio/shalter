@@ -5,6 +5,7 @@ model User {
   phone        String    @unique @db.VarChar(20)
   createdAt    DateTime  @default(now()) @map("created_at")
   firstName    String    @map("first_name") @db.VarChar(40)
+  username     String    @unique @db.VarChar(32)
   role         String    @db.VarChar(20)
   lastName     String?   @map("last_name") @db.VarChar(40)
   avatarId     Int?      @map("avatar_id")

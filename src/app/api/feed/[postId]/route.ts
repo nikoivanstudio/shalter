@@ -32,6 +32,11 @@ export async function DELETE(
         id: true,
         authorId: true,
         mediaUrl: true,
+        attachments: {
+          select: {
+            url: true,
+          },
+        },
       },
     }),
     prisma.user.findUnique({
@@ -55,6 +60,9 @@ export async function DELETE(
     where: { id: postId },
   })
   await deleteUploadedFileByUrl(post.mediaUrl)
+  for (const attachment of post.attachments) {
+    await deleteUploadedFileByUrl(attachment.url)
+  }
 
   return NextResponse.json({ ok: true }, { status: 200 })
 }

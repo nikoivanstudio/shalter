@@ -60,7 +60,7 @@ type FeedPost = {
   content: string
   createdAt: string
   author: FeedUser
-  attachment?: MediaAttachment | null
+  attachment?: MediaAttachment | MediaAttachment[] | null
   likesCount: number
   likedByMe: boolean
   comments: FeedComment[]
@@ -85,7 +85,7 @@ export function FeedHome({
   const [ads, setAds] = useState(initialAds)
   const [myAds, setMyAds] = useState(initialMyAds)
   const [postText, setPostText] = useState("")
-  const [postAttachment, setPostAttachment] = useState<File | null>(null)
+  const [postAttachments, setPostAttachments] = useState<File[]>([])
   const [commentTextByPostId, setCommentTextByPostId] = useState<Record<number, string>>({})
   const [expandedPostIds, setExpandedPostIds] = useState<Record<number, boolean>>({})
   const [adTitle, setAdTitle] = useState("")
@@ -110,11 +110,13 @@ export function FeedHome({
   function createPost() {
     startPosting(async () => {
       const trimmedContent = postText.trim()
-      const body = postAttachment
+      const body = postAttachments.length > 0
         ? (() => {
             const formData = new FormData()
             formData.set("content", trimmedContent)
-            formData.set("attachment", postAttachment)
+            for (const file of postAttachments) {
+              formData.append("attachments", file)
+            }
             return formData
           })()
         : JSON.stringify({ content: trimmedContent })
@@ -141,7 +143,7 @@ export function FeedHome({
 
       setPosts((prev) => [data.post as FeedPost, ...prev])
       setPostText("")
-      setPostAttachment(null)
+      setPostAttachments([])
       if (postAttachmentInputRef.current) {
         postAttachmentInputRef.current.value = ""
       }
@@ -460,26 +462,36 @@ export function FeedHome({
                   <input
                     ref={postAttachmentInputRef}
                     type="file"
-                    accept="image/*,video/*"
+                    multiple
+                    accept="*/*"
                     className="hidden"
-                    onChange={(event) => setPostAttachment(event.target.files?.[0] ?? null)}
+                    onChange={(event) =>
+                      setPostAttachments((prev) => [
+                        ...prev,
+                        ...(event.target.files ? Array.from(event.target.files) : []),
+                      ])
+                    }
                   />
-                  {postAttachment ? (
-                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/78 px-3 py-2 text-sm">
-                      <span className="min-w-0 truncate">{postAttachment.name}</span>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="outline"
-                        onClick={() => {
-                          setPostAttachment(null)
-                          if (postAttachmentInputRef.current) {
-                            postAttachmentInputRef.current.value = ""
-                          }
-                        }}
-                      >
-                        <XIcon className="size-4" />
-                      </Button>
+                  {postAttachments.length > 0 ? (
+                    <div className="space-y-2 rounded-2xl border border-border/70 bg-background/78 px-3 py-2 text-sm">
+                      {postAttachments.map((file, index) => (
+                        <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-3">
+                          <span className="min-w-0 truncate">{file.name}</span>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => {
+                              setPostAttachments((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                              if (postAttachmentInputRef.current && postAttachments.length === 1) {
+                                postAttachmentInputRef.current.value = ""
+                              }
+                            }}
+                          >
+                            <XIcon className="size-4" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   ) : null}
                   <div className="flex flex-wrap gap-2">
@@ -489,9 +501,12 @@ export function FeedHome({
                       onClick={() => postAttachmentInputRef.current?.click()}
                     >
                       <FileImageIcon className="size-4" />
-                      Добавить фото или видео
+                      Добавить файлы
                     </Button>
-                    <Button onClick={createPost} disabled={isPosting || (!postText.trim().length && !postAttachment)}>
+                    <Button
+                      onClick={createPost}
+                      disabled={isPosting || (!postText.trim().length && postAttachments.length === 0)}
+                    >
                     {isPosting ? "Публикуем..." : "Опубликовать"}
                   </Button>
                   </div>

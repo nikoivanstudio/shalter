@@ -4,6 +4,7 @@ import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 import { deleteUploadedFileByUrl } from "@/shared/lib/media/uploads"
+import { releaseUsername } from "@/shared/lib/usernames"
 
 function parseChannelId(value: string) {
   const channelId = Number(value)
@@ -53,10 +54,13 @@ export async function DELETE(
     )
   }
 
-  await prisma.channel.delete({
-    where: {
-      id: channelId,
-    },
+  await prisma.$transaction(async (tx) => {
+    await releaseUsername(tx, "channel", channelId)
+    await tx.channel.delete({
+      where: {
+        id: channelId,
+      },
+    })
   })
   await deleteUploadedFileByUrl(channel.avatarUrl)
 

@@ -1,12 +1,14 @@
 ﻿"use client"
 
-import { useRouter } from "next/navigation"
 import {
   ArrowLeftIcon,
+  CircleIcon,
   CheckIcon,
   EllipsisVerticalIcon,
   FileImageIcon,
+  MicIcon,
   PhoneCallIcon,
+  StopCircleIcon,
   VideoIcon,
   XIcon,
 } from "lucide-react"
@@ -71,7 +73,7 @@ type ChatMessage = {
   status?: string | null
   createdAt: string
   dialogId: number
-  attachment?: MediaAttachment | null
+  attachment?: MediaAttachment | MediaAttachment[] | null
   author: {
     id: number
     firstName: string
@@ -92,8 +94,25 @@ export type ChatsHomeProps = {
   user: UserShort
   dialogs: ChatDialog[]
   contacts: ContactUser[]
+  channels?: Array<{
+    id: number
+    title: string
+    username?: string | null
+    description: string | null
+  }>
+  bots?: Array<{
+    id: number
+    name: string
+    username?: string | null
+    niche: string | null
+  }>
   initialDialogId: number | null
   initialCallMode?: "audio" | "video" | null
+}
+
+type ComposerAttachment = {
+  kind: MediaKind
+  file: File
 }
 
 function formatTime(value: string) {
@@ -245,18 +264,30 @@ function parseEventPayload<T>(event: Event) {
   }
 }
 
+function createRecordedFile(parts: BlobPart[], mimeType: string, baseName: string) {
+  const extension =
+    mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : mimeType.includes("webm") ? "webm" : "bin"
+
+  return new File(parts, `${baseName}.${extension}`, { type: mimeType })
+}
+
 export function ChatsHome({
   user,
   dialogs: initialDialogs,
   contacts,
+  channels = [],
+  bots = [],
   initialDialogId,
   initialCallMode = null,
 }: ChatsHomeProps) {
-  const router = useRouter()
   const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordingStreamRef = useRef<MediaStream | null>(null)
+  const pendingRecordingKindRef = useRef<"VOICE" | "VIDEO_NOTE" | null>(null)
   const lastDialogResyncAtRef = useRef(0)
+  const callRequestNonceRef = useRef(1)
   const [dialogs, setDialogs] = useState(initialDialogs)
   const [selectedDialogId, setSelectedDialogId] = useState<number | null>(
     initialDialogId ?? null
@@ -266,8 +297,13 @@ export function ChatsHome({
   const [messagesReloadKey, setMessagesReloadKey] = useState(0)
   const [sseSince, setSseSince] = useState(0)
   const [messageText, setMessageText] = useState("")
-  const [attachmentKind, setAttachmentKind] = useState<MediaKind | null>(null)
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
+  const [composerAttachments, setComposerAttachments] = useState<ComposerAttachment[]>([])
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false)
+  const [isRecordingVideoNote, setIsRecordingVideoNote] = useState(false)
+  const [callStartRequest, setCallStartRequest] = useState<{
+    media: "audio" | "video"
+    nonce: number
+  } | null>(initialDialogId && initialCallMode ? { media: initialCallMode, nonce: 1 } : null)
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
   const [editingText, setEditingText] = useState("")
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -333,21 +369,138 @@ export function ChatsHome({
       return
     }
 
-    router.replace(`/chats?dialogId=${activeDialogId}&startCall=${media}`)
+    callRequestNonceRef.current += 1
+    setCallStartRequest({ media, nonce: callRequestNonceRef.current })
+  }
+
+  function openPublicProfile(userId: number) {
+    if (userId === user.id) {
+      location.assign("/")
+      return
+    }
+
+    location.assign(`/people/${userId}`)
   }
 
   function resetComposer() {
     setMessageText("")
-    setAttachmentKind(null)
-    setAttachmentFile(null)
+    setComposerAttachments([])
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
   }
 
-  function selectAttachment(kind: MediaKind, file: File | null) {
-    setAttachmentKind(file ? kind : null)
-    setAttachmentFile(file)
+  function addAttachment(kind: MediaKind, file: File | null) {
+    if (!file) {
+      return
+    }
+
+    setComposerAttachments((prev) => [...prev, { kind, file }])
+  }
+
+  function stopActiveRecorderTracks() {
+    for (const track of recordingStreamRef.current?.getTracks() ?? []) {
+      track.stop()
+    }
+    recordingStreamRef.current = null
+  }
+
+  function resetRecordingState() {
+    mediaRecorderRef.current = null
+    pendingRecordingKindRef.current = null
+    setIsRecordingVoice(false)
+    setIsRecordingVideoNote(false)
+    stopActiveRecorderTracks()
+  }
+
+  async function startMediaRecording(kind: "VOICE" | "VIDEO_NOTE") {
+    if (!activeDialogId || mediaRecorderRef.current) {
+      return
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      toast.error("Запись не поддерживается в этом браузере")
+      return
+    }
+
+    const mimeType =
+      kind === "VOICE"
+        ? MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : "audio/webm"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+          ? "video/webm;codecs=vp9,opus"
+          : "video/webm"
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(
+        kind === "VOICE"
+          ? { audio: true }
+          : {
+              audio: true,
+              video: {
+                facingMode: "user",
+                width: { ideal: 480 },
+                height: { ideal: 480 },
+              },
+            }
+      )
+
+      const recorder = new MediaRecorder(stream, { mimeType })
+      const chunks: BlobPart[] = []
+
+      mediaRecorderRef.current = recorder
+      recordingStreamRef.current = stream
+      pendingRecordingKindRef.current = kind
+      setIsRecordingVoice(kind === "VOICE")
+      setIsRecordingVideoNote(kind === "VIDEO_NOTE")
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data)
+        }
+      }
+
+      recorder.onerror = () => {
+        resetRecordingState()
+        toast.error(kind === "VOICE" ? "Не удалось записать голосовое" : "Не удалось записать кружок")
+      }
+
+      recorder.onstop = () => {
+        const nextKind = pendingRecordingKindRef.current
+        const finalMimeType = recorder.mimeType || mimeType
+        resetRecordingState()
+
+        if (!nextKind || chunks.length === 0) {
+          return
+        }
+
+        const nextFile = createRecordedFile(
+          chunks,
+          finalMimeType,
+          nextKind === "VOICE" ? "voice-message" : "video-note"
+        )
+        addAttachment(nextKind, nextFile)
+      }
+
+      recorder.start()
+    } catch {
+      resetRecordingState()
+      toast.error(kind === "VOICE" ? "Не удалось включить микрофон" : "Не удалось включить камеру")
+    }
+  }
+
+  function stopMediaRecording() {
+    const recorder = mediaRecorderRef.current
+    if (!recorder) {
+      return
+    }
+
+    if (recorder.state !== "inactive") {
+      recorder.stop()
+    } else {
+      resetRecordingState()
+    }
   }
 
   useEffect(() => {
@@ -357,6 +510,15 @@ export function ChatsHome({
   useEffect(() => {
     activeDialogIdRef.current = activeDialogId
   }, [activeDialogId])
+
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop()
+      }
+      stopActiveRecorderTracks()
+    }
+  }, [])
 
   const handleDialogAccessLost = useCallback(
     (dialogId: number, reason: "deleted" | "removed") => {
@@ -736,18 +898,20 @@ export function ChatsHome({
     }
 
     const content = messageText.trim()
-    if (!content && !attachmentFile) {
+    if (!content && composerAttachments.length === 0) {
       return
     }
 
     startSending(async () => {
       const body =
-        attachmentFile && attachmentKind
+        composerAttachments.length > 0
           ? (() => {
               const formData = new FormData()
               formData.set("content", content)
-              formData.set("kind", attachmentKind)
-              formData.set("attachment", attachmentFile)
+              for (const attachment of composerAttachments) {
+                formData.append("attachmentKinds", attachment.kind)
+                formData.append("attachments", attachment.file)
+              }
               return formData
             })()
           : JSON.stringify({ content })
@@ -1176,6 +1340,47 @@ export function ChatsHome({
                     )}
                   </div>
                 ))}
+                {(channels.length > 0 || bots.length > 0) && (
+                  <div className="space-y-3 rounded-[1.2rem] border border-border/60 bg-background/80 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">Каналы и боты</p>
+                        <p className="text-xs text-muted-foreground">
+                          Всё собрано в одной вкладке рядом с диалогами.
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => location.assign("/bots")}>
+                        Конструктор
+                      </Button>
+                    </div>
+                    {channels.map((channel) => (
+                      <button
+                        key={`channel-${channel.id}`}
+                        type="button"
+                        className="w-full rounded-[1.1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
+                        onClick={() => location.assign(`/channels?channelId=${channel.id}`)}
+                      >
+                        <p className="truncate text-sm font-medium"># {channel.title}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {channel.username ? `@${channel.username}` : channel.description || "Открыть канал"}
+                        </p>
+                      </button>
+                    ))}
+                    {bots.map((bot) => (
+                      <button
+                        key={`bot-${bot.id}`}
+                        type="button"
+                        className="w-full rounded-[1.1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
+                        onClick={() => location.assign(`/bots?botId=${bot.id}`)}
+                      >
+                        <p className="truncate text-sm font-medium">{bot.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {bot.username ? `@${bot.username}` : bot.niche || "Открыть бота"}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1183,11 +1388,22 @@ export function ChatsHome({
               <div className="flex min-h-0 flex-1 flex-col rounded-[1.75rem] border border-border/70 bg-background/68">
                 <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-background/72 px-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">
-                      {selectedDialog
-                        ? getDialogDisplayTitle(selectedDialog, user.id)
-                        : tr("Выберите чат")}
-                    </p>
+                    {selectedDialog ? (
+                      <button
+                        type="button"
+                        className="truncate text-left text-sm font-semibold hover:text-primary"
+                        onClick={() => {
+                          const otherUser = getDirectDialogOtherUser(selectedDialog, user.id)
+                          if (otherUser) {
+                            openPublicProfile(otherUser.id)
+                          }
+                        }}
+                      >
+                        {getDialogDisplayTitle(selectedDialog, user.id)}
+                      </button>
+                    ) : (
+                      <p className="truncate text-sm font-semibold">{tr("Выберите чат")}</p>
+                    )}
                     {selectedDialog &&
                       (() => {
                         const otherUser = getDirectDialogOtherUser(selectedDialog, user.id)
@@ -1208,7 +1424,7 @@ export function ChatsHome({
                       })()}
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    {selectedDialog && (
+                    {selectedDialog && getDirectDialogOtherUser(selectedDialog, user.id) ? (
                       <>
                         <Button
                           size="sm"
@@ -1227,7 +1443,7 @@ export function ChatsHome({
                           Видео
                         </Button>
                       </>
-                    )}
+                    ) : null}
                     {selectedDialog && (
                       <Button
                         size="sm"
@@ -1409,11 +1625,17 @@ export function ChatsHome({
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <p className="truncate text-sm font-medium">
+                                    <button
+                                      type="button"
+                                      className="truncate text-left text-sm font-medium hover:text-primary"
+                                      onClick={() =>
+                                        isCurrentUser ? location.assign("/") : openPublicProfile(participant.id)
+                                      }
+                                    >
                                       {getDialogUserName(participant)}
                                       {isCurrentUser ? " (Вы)" : ""}
                                       {isOwner ? " • админ" : ""}
-                                    </p>
+                                    </button>
                                     <CountryFlagBadge phone={participant.phone} />
                                     <AccountStatusBadge
                                       role={participant.role}
@@ -1516,7 +1738,18 @@ export function ChatsHome({
                                   ) : null}
                                   <MessageAttachmentView attachment={message.attachment} compact />
                                   <p className="mt-1 text-[11px] opacity-75">
-                                    {!mine ? `${getDialogUserName(message.author)} · ` : null}
+                                    {!mine ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="hover:underline"
+                                          onClick={() => openPublicProfile(message.author.id)}
+                                        >
+                                          {getDialogUserName(message.author)}
+                                        </button>
+                                        {" · "}
+                                      </>
+                                    ) : null}
                                     {formatTime(message.createdAt)}
                                     {mine && (
                                       <span className="ml-2 inline-flex align-middle">
@@ -1558,20 +1791,51 @@ export function ChatsHome({
 
                 <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-3 backdrop-blur-xl">
                   <div className="space-y-2 rounded-[1.85rem] border border-white/45 bg-card/92 p-2.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
-                    {attachmentFile && attachmentKind ? (
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/78 px-3 py-2 text-sm">
-                        <span className="min-w-0 truncate">{attachmentFile.name}</span>
-                        <Button type="button" size="icon" variant="outline" onClick={resetComposer}>
-                          <XIcon className="size-4" />
+                    {isRecordingVoice || isRecordingVideoNote ? (
+                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-500/30 bg-red-500/8 px-3 py-2 text-sm">
+                        <span>
+                          {isRecordingVoice ? "Идёт запись голосового..." : "Идёт запись видеокружка..."}
+                        </span>
+                        <Button type="button" size="sm" variant="destructive" onClick={stopMediaRecording}>
+                          <StopCircleIcon className="size-4" />
+                          Стоп
                         </Button>
+                      </div>
+                    ) : null}
+                    {composerAttachments.length > 0 ? (
+                      <div className="space-y-2 rounded-2xl border border-border/70 bg-background/78 px-3 py-2 text-sm">
+                        {composerAttachments.map((attachment, index) => (
+                          <div key={`${attachment.file.name}-${index}`} className="flex items-center justify-between gap-3">
+                            <span className="min-w-0 truncate">{attachment.file.name}</span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              onClick={() =>
+                                setComposerAttachments((prev) =>
+                                  prev.filter((_, itemIndex) => itemIndex !== index)
+                                )
+                              }
+                            >
+                              <XIcon className="size-4" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
                     ) : null}
                     <input
                       ref={fileInputRef}
                       type="file"
+                      multiple
                       accept="image/*,*/*"
                       className="hidden"
-                      onChange={(event) => selectAttachment("FILE", event.target.files?.[0] ?? null)}
+                      onChange={(event) => {
+                        const nextFiles = event.target.files ? Array.from(event.target.files) : []
+                        setComposerAttachments((prev) => [
+                          ...prev,
+                          ...nextFiles.map((file) => ({ kind: "FILE" as const, file })),
+                        ])
+                      }}
                     />
                     <div className="flex items-end gap-2">
                       <Button
@@ -1584,12 +1848,32 @@ export function ChatsHome({
                       >
                         <FileImageIcon className="size-4" />
                       </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => void startMediaRecording("VOICE")}
+                        disabled={!activeDialogId || isSending || isRecordingVoice || isRecordingVideoNote}
+                        aria-label="Записать голосовое"
+                      >
+                        <MicIcon className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => void startMediaRecording("VIDEO_NOTE")}
+                        disabled={!activeDialogId || isSending || isRecordingVoice || isRecordingVideoNote}
+                        aria-label="Записать видеокружок"
+                      >
+                        <CircleIcon className="size-4" />
+                      </Button>
                       <Input
                         value={messageText}
                         onChange={(event) => setMessageText(event.target.value)}
                         className="border-0 bg-transparent shadow-none focus-visible:ring-0"
                         placeholder="Введите сообщение"
-                        disabled={!activeDialogId || isSending}
+                        disabled={!activeDialogId || isSending || isRecordingVoice || isRecordingVideoNote}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" && !event.shiftKey) {
                             event.preventDefault()
@@ -1600,7 +1884,13 @@ export function ChatsHome({
                       <Button
                         className="min-w-0 rounded-full px-4 sm:min-w-28"
                         onClick={sendMessage}
-                        disabled={!activeDialogId || isSending || (!messageText.trim() && !attachmentFile)}
+                        disabled={
+                          !activeDialogId ||
+                          isSending ||
+                          isRecordingVoice ||
+                          isRecordingVideoNote ||
+                          (!messageText.trim() && composerAttachments.length === 0)
+                        }
                       >
                         {isSending ? "Отправка..." : "Отправить"}
                       </Button>
@@ -1624,6 +1914,7 @@ export function ChatsHome({
         }}
         selectedDialogId={activeDialogId}
         initialAutoStartCall={initialCallMode}
+        startRequest={callStartRequest}
         dialogs={dialogs.map((dialog) => ({
           id: dialog.id,
           title: dialog.title,

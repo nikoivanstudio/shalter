@@ -6,6 +6,7 @@ export type BotFlowItem = {
 
 export type BotConfig = {
   name: string
+  username?: string
   niche: string
   goal: string
   tone: string

@@ -50,6 +50,7 @@ export async function POST(request: Request) {
       password: parsed.data.password,
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
+      username: parsed.data.username,
       phone: parsed.data.phone,
       referrerId: parsed.data.referrerId,
     })

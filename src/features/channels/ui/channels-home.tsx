@@ -73,7 +73,7 @@ type ChannelMessage = {
   channelId: number
   content: string
   createdAt: string
-  attachment?: MediaAttachment | null
+  attachment?: MediaAttachment | MediaAttachment[] | null
   author: {
     id: number
     firstName: string
@@ -86,6 +86,7 @@ type ChannelMessage = {
 type ChannelItem = {
   id: number
   title: string
+  username?: string
   description: string | null
   avatarUrl?: string | null
   ownerId: number
@@ -97,6 +98,7 @@ type ChannelItem = {
 type SearchChannel = {
   id: number
   title: string
+  username?: string
   description: string | null
   avatarUrl?: string | null
   ownerId: number
@@ -124,12 +126,13 @@ export function ChannelsHome({
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(initialChannelId)
   const [messages, setMessages] = useState<ChannelMessage[] | null>(null)
   const [createTitle, setCreateTitle] = useState("")
+  const [createUsername, setCreateUsername] = useState("")
   const [createDescription, setCreateDescription] = useState("")
   const [createAvatarFile, setCreateAvatarFile] = useState<File | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SearchChannel[]>([])
   const [messageText, setMessageText] = useState("")
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([])
   const [selectedContactIds, setSelectedContactIds] = useState<number[]>([])
   const [showMembers, setShowMembers] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState<ViewedContactProfile | null>(null)
@@ -214,7 +217,7 @@ export function ChannelsHome({
     setMessages(null)
     setSelectedContactIds([])
     setMessageText("")
-    setAttachmentFile(null)
+    setAttachmentFiles([])
     setShowMembers(false)
   }
 
@@ -257,6 +260,7 @@ export function ChannelsHome({
         "channel",
         JSON.stringify({
           title: createTitle,
+          username: createUsername,
           description: createDescription,
         })
       )
@@ -279,6 +283,7 @@ export function ChannelsHome({
       const channel = data.channel as ChannelItem
       setChannels((prev) => [channel, ...prev])
       setCreateTitle("")
+      setCreateUsername("")
       setCreateDescription("")
       setCreateAvatarFile(null)
       if (createAvatarInputRef.current) {
@@ -324,14 +329,16 @@ export function ChannelsHome({
     }
 
     startSending(async () => {
-      const response = attachmentFile
+      const response = attachmentFiles.length > 0
         ? await fetch(`/api/channels/${selectedChannelId}/messages`, {
             method: "POST",
             body: (() => {
               const formData = new FormData()
               formData.set("content", messageText)
-              formData.set("kind", "FILE")
-              formData.set("attachment", attachmentFile)
+              for (const file of attachmentFiles) {
+                formData.append("attachmentKinds", "FILE")
+                formData.append("attachments", file)
+              }
               return formData
             })(),
           })
@@ -355,7 +362,7 @@ export function ChannelsHome({
         )
       )
       setMessageText("")
-      setAttachmentFile(null)
+      setAttachmentFiles([])
       if (attachmentInputRef.current) {
         attachmentInputRef.current.value = ""
       }
@@ -738,13 +745,23 @@ export function ChannelsHome({
                       placeholder={tr("Название канала")}
                     />
                     <Input
+                      value={createUsername}
+                      onChange={(event) => setCreateUsername(event.target.value)}
+                      placeholder="@channel_username"
+                      autoComplete="off"
+                    />
+                    <Input
                       value={createDescription}
                       onChange={(event) => setCreateDescription(event.target.value)}
                       placeholder={tr("Описание канала")}
                     />
                     <Button
                       onClick={createChannel}
-                      disabled={isCreating || createTitle.trim().length < 2}
+                      disabled={
+                        isCreating ||
+                        createTitle.trim().length < 2 ||
+                        createUsername.trim().length < 4
+                      }
                       className="w-full"
                     >
                       {isCreating ? tr("Создаём...") : tr("Создать канал")}
@@ -1142,22 +1159,26 @@ export function ChannelsHome({
                 </div>
 
                 <div className="sticky bottom-0 shrink-0 border-t border-white/45 bg-background/82 p-2.5 backdrop-blur-2xl dark:border-white/8 sm:p-3">
-                  {attachmentFile && (
-                    <div className="mb-2 flex items-center justify-between gap-3 rounded-[1rem] border border-border/70 bg-card/80 px-3 py-2">
-                      <p className="truncate text-sm text-muted-foreground">{attachmentFile.name}</p>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setAttachmentFile(null)
-                          if (attachmentInputRef.current) {
-                            attachmentInputRef.current.value = ""
-                          }
-                        }}
-                      >
-                        <XIcon className="size-4" />
-                      </Button>
+                  {attachmentFiles.length > 0 && (
+                    <div className="mb-2 space-y-2 rounded-[1rem] border border-border/70 bg-card/80 px-3 py-2">
+                      {attachmentFiles.map((file, index) => (
+                        <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-3">
+                          <p className="truncate text-sm text-muted-foreground">{file.name}</p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setAttachmentFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                              if (attachmentInputRef.current && attachmentFiles.length === 1) {
+                                attachmentInputRef.current.value = ""
+                              }
+                            }}
+                          >
+                            <XIcon className="size-4" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   )}
                   <div className="flex items-center gap-2 rounded-[1.7rem] border border-white/50 bg-card/90 p-2 shadow-[0_20px_48px_-30px_rgba(15,23,42,0.58)] dark:border-white/10 sm:rounded-[1.95rem] sm:p-2.5">
@@ -1183,9 +1204,15 @@ export function ChannelsHome({
                     <input
                       ref={attachmentInputRef}
                       type="file"
+                      multiple
                       accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
                       className="hidden"
-                      onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)}
+                      onChange={(event) =>
+                        setAttachmentFiles((prev) => [
+                          ...prev,
+                          ...(event.target.files ? Array.from(event.target.files) : []),
+                        ])
+                      }
                     />
                     <Input
                       value={messageText}
@@ -1207,7 +1234,7 @@ export function ChannelsHome({
                     <Button
                       className="min-w-0 rounded-full px-4 sm:min-w-28"
                       onClick={sendMessage}
-                      disabled={!canWrite || isSending || (!messageText.trim() && !attachmentFile) || !selectedChannel}
+                      disabled={!canWrite || isSending || (!messageText.trim() && attachmentFiles.length === 0) || !selectedChannel}
                     >
                       {isSending ? tr("Отправляем...") : tr("Отправить")}
                     </Button>

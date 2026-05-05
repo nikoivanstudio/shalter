@@ -29,6 +29,7 @@ type RegisterForm = {
   confirmPassword: string
   firstName: string
   lastName: string
+  username: string
   phone: string
   turnstileToken: string
   referrerId?: number
@@ -83,6 +84,7 @@ export function AuthCard() {
     confirmPassword: "",
     firstName: "",
     lastName: "",
+    username: "",
     phone: "",
     turnstileToken: "",
   })
@@ -104,6 +106,7 @@ export function AuthCard() {
       !registerForm.password ||
       !registerForm.confirmPassword ||
       !registerForm.firstName ||
+      !registerForm.username ||
       !registerForm.phone ||
       !registerForm.turnstileToken,
     [isPending, registerForm]
@@ -371,6 +374,22 @@ export function AuthCard() {
                   />
                   {getFieldError(registerErrors, "email") && (
                     <p className="text-sm text-destructive">{getFieldError(registerErrors, "email")}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="register-username">Username</Label>
+                  <Input
+                    id="register-username"
+                    value={registerForm.username}
+                    onChange={(e) =>
+                      setRegisterForm((prev) => ({ ...prev, username: e.target.value }))
+                    }
+                    autoComplete="username"
+                    placeholder="my_username"
+                  />
+                  {getFieldError(registerErrors, "username") && (
+                    <p className="text-sm text-destructive">{getFieldError(registerErrors, "username")}</p>
                   )}
                 </div>
 

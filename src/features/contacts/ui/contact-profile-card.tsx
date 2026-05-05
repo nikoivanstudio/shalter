@@ -10,40 +10,11 @@ import {
 
 import { AccountStatusBadge } from "@/components/ui/account-status-badge"
 import { Button } from "@/components/ui/button"
+import type { ViewedContactProfile } from "@/features/contacts/lib/viewed-profile"
 import { giftCatalog } from "@/shared/lib/rewards/catalog"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { UserAvatar } from "@/shared/ui/user-avatar"
-
-type ProfileGift = {
-  id: number
-  giftKey: string
-  giftName: string
-  starsSpent: number
-  note: string | null
-  createdAt: string
-  sender: {
-    id: number
-    firstName: string
-    lastName: string | null
-  } | null
-}
-
-export type ViewedContactProfile = {
-  id: number
-  email: string | null
-  firstName: string
-  lastName: string | null
-  phone: string | null
-  role: string
-  avatarTone: string | null
-  avatarUrl: string | null
-  isBlocked: boolean
-  starsBalance: number
-  partnerStarsEarned: number
-  createdAt: string
-  giftsVisible: boolean
-  gifts: ProfileGift[]
-}
+export type { ViewedContactProfile } from "@/features/contacts/lib/viewed-profile"
 
 export function ContactProfileCard({
   profile,
@@ -118,6 +89,7 @@ export function ContactProfileCard({
                   <span className="text-sm text-muted-foreground">Телефон скрыт</span>
                 )}
               </div>
+              <p className="text-sm text-muted-foreground">@{profile.username}</p>
               <p className="break-all text-sm text-muted-foreground">
                 {profile.email ?? "Email скрыт"}
               </p>

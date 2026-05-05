@@ -29,18 +29,18 @@ export async function GET(
 ) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+    return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
   }
 
   const { channelId: rawChannelId } = await context.params
   const channelId = parseChannelId(rawChannelId)
   if (!channelId) {
-    return NextResponse.json({ message: "Неверный id канала" }, { status: 400 })
+    return NextResponse.json({ message: "РќРµРІРµСЂРЅС‹Р№ id РєР°РЅР°Р»Р°" }, { status: 400 })
   }
 
   const membership = await getMembership(channelId, userId)
   if (!membership) {
-    return NextResponse.json({ message: "Канал не найден" }, { status: 404 })
+    return NextResponse.json({ message: "РљР°РЅР°Р» РЅРµ РЅР°Р№РґРµРЅ" }, { status: 404 })
   }
 
   const messages = await getChannelMessages(channelId)
@@ -59,23 +59,23 @@ export async function POST(
 ) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+    return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
   }
 
   const { channelId: rawChannelId } = await context.params
   const channelId = parseChannelId(rawChannelId)
   if (!channelId) {
-    return NextResponse.json({ message: "Неверный id канала" }, { status: 400 })
+    return NextResponse.json({ message: "РќРµРІРµСЂРЅС‹Р№ id РєР°РЅР°Р»Р°" }, { status: 400 })
   }
 
   const membership = await getMembership(channelId, userId)
   if (!membership) {
-    return NextResponse.json({ message: "Канал не найден" }, { status: 404 })
+    return NextResponse.json({ message: "РљР°РЅР°Р» РЅРµ РЅР°Р№РґРµРЅ" }, { status: 404 })
   }
 
   if (membership.role === "MEMBER") {
     return NextResponse.json(
-      { message: "Писать в канал могут только владелец и админы" },
+      { message: "РџРёСЃР°С‚СЊ РІ РєР°РЅР°Р» РјРѕРіСѓС‚ С‚РѕР»СЊРєРѕ РІР»Р°РґРµР»РµС† Рё Р°РґРјРёРЅС‹" },
       { status: 403 }
     )
   }
@@ -84,20 +84,20 @@ export async function POST(
   if (!parsed.success) {
     return NextResponse.json(
       {
-        message: "Ошибка валидации",
+        message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
         fieldErrors: parsed.fieldErrors,
       },
       { status: 400 }
     )
   }
 
-  let attachment = null
-  if (parsed.data.attachment) {
-    const validationError = validateMessageFile(parsed.data.attachment.kind, parsed.data.attachment.file)
+  const attachments = []
+  for (const item of parsed.data.attachments) {
+    const validationError = validateMessageFile(item.kind, item.file)
     if (validationError) {
       return NextResponse.json(
         {
-          message: "Ошибка валидации",
+          message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
           fieldErrors: {
             attachment: [validationError],
           },
@@ -106,20 +106,17 @@ export async function POST(
       )
     }
 
-    attachment = await saveMessageFile(parsed.data.attachment.kind, parsed.data.attachment.file)
+    attachments.push({
+      kind: item.kind,
+      ...(await saveMessageFile(item.kind, item.file)),
+    })
   }
 
   const message = await createChannelMessage({
     channelId,
     authorId: userId,
     content: parsed.data.content,
-    attachment:
-      attachment && parsed.data.attachment
-        ? {
-            kind: parsed.data.attachment.kind,
-            ...attachment,
-          }
-        : null,
+    attachments,
   })
 
   return NextResponse.json(

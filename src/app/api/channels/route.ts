@@ -3,11 +3,13 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createChannelSchema } from "@/features/channels/model/schemas"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
 import {
   deleteUploadedFileByUrl,
   saveAvatarFile,
   validateAvatarFile,
 } from "@/shared/lib/media/uploads"
+import { normalizeUsername, reserveUsername } from "@/shared/lib/usernames"
 
 function isFileLike(value: FormDataEntryValue | null): value is File {
   return (
@@ -86,46 +88,53 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const channel = await prisma.channel.create({
-      data: {
-        title: parsed.data.title,
-        description: parsed.data.description?.trim() || null,
-        avatarUrl,
-        ownerId: userId,
-        participants: {
-          create: {
-            userId,
-            role: "OWNER",
-          },
-        },
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        avatarUrl: true,
-        ownerId: true,
-        participants: {
-          select: {
-            userId: true,
-            role: true,
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-                phone: true,
-                role: true,
-                avatarTone: true,
-                avatarUrl: true,
-                isBlocked: true,
-              },
+    const channel = await prisma.$transaction(async (tx) => {
+      const created = await tx.channel.create({
+        data: {
+          title: parsed.data.title,
+          username: normalizeUsername(parsed.data.username),
+          description: parsed.data.description?.trim() || null,
+          avatarUrl,
+          ownerId: userId,
+          participants: {
+            create: {
+              userId,
+              role: "OWNER",
             },
           },
-          orderBy: { id: "asc" },
         },
-      },
+        select: {
+          id: true,
+          title: true,
+          username: true,
+          description: true,
+          avatarUrl: true,
+          ownerId: true,
+          participants: {
+            select: {
+              userId: true,
+              role: true,
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                  phone: true,
+                  role: true,
+                  avatarTone: true,
+                  avatarUrl: true,
+                  isBlocked: true,
+                },
+              },
+            },
+            orderBy: { id: "asc" },
+          },
+        },
+      })
+
+      await reserveUsername(tx, parsed.data.username, "channel", created.id)
+      return created
     })
 
     return NextResponse.json(
@@ -133,6 +142,7 @@ export async function POST(request: NextRequest) {
         channel: {
           id: channel.id,
           title: channel.title,
+          username: channel.username,
           description: channel.description,
           avatarUrl: channel.avatarUrl,
           ownerId: channel.ownerId,
@@ -147,6 +157,22 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     await deleteUploadedFileByUrl(avatarUrl)
+
+    if (isPrismaKnownRequestError(error, "P2002")) {
+      const targets = Array.isArray(error.meta?.target) ? error.meta.target : []
+      if (targets.includes("username") || targets.includes("username_registry_username_key")) {
+        return NextResponse.json(
+          {
+            message: "Р­С‚РѕС‚ username РєР°РЅР°Р»Р° СѓР¶Рµ Р·Р°РЅСЏС‚",
+            fieldErrors: {
+              username: ["Р­С‚РѕС‚ username РєР°РЅР°Р»Р° СѓР¶Рµ Р·Р°РЅСЏС‚"],
+            },
+          },
+          { status: 409 }
+        )
+      }
+    }
+
     throw error
   }
 }

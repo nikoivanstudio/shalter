@@ -12,6 +12,7 @@ model NewsPost {
   updatedAt DateTime          @updatedAt @map("updated_at")
   likes     NewsPostLike[]
   comments  NewsPostComment[]
+  attachments NewsPostAttachment[]
 
   @@index([authorId])
   @@index([createdAt])
@@ -44,4 +45,20 @@ model NewsPostComment {
   @@index([postId, createdAt])
   @@index([authorId])
   @@map("news_post_comments")
+}
+
+model NewsPostAttachment {
+  id        Int      @id @default(autoincrement())
+  postId     Int      @map("post_id")
+  post       NewsPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  kind       String   @db.VarChar(20)
+  url        String   @db.VarChar(512)
+  name       String   @db.VarChar(255)
+  mime       String   @db.VarChar(100)
+  size       Int
+  position   Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([postId, position])
+  @@map("news_post_attachments")
 }

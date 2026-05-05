@@ -12,6 +12,7 @@ model ChannelMessage {
   mediaSize Int?     @map("media_size")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+  attachments ChannelMessageAttachment[]
 
   @@index([channelId, id])
   @@index([authorId])

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { releaseUsername } from "@/shared/lib/usernames"
 
 export async function DELETE(
   request: NextRequest,
@@ -31,8 +32,11 @@ export async function DELETE(
     return NextResponse.json({ message: "Можно удалять только свои публикации" }, { status: 403 })
   }
 
-  await prisma.botPublication.delete({
-    where: { id: publicationId },
+  await prisma.$transaction(async (tx) => {
+    await releaseUsername(tx, "bot", publicationId)
+    await tx.botPublication.delete({
+      where: { id: publicationId },
+    })
   })
 
   return NextResponse.json({ ok: true }, { status: 200 })

@@ -5,14 +5,14 @@ import { DEFAULT_MEDIA_LABELS, MEDIA_KIND_VALUES, type MediaKind } from "./const
 const contentSchema = z
   .string()
   .trim()
-  .max(1000, "Сообщение слишком длинное")
+  .max(1000, "РЎРѕРѕР±С‰РµРЅРёРµ СЃР»РёС€РєРѕРј РґР»РёРЅРЅРѕРµ")
 
 export type ParsedMessageInput = {
   content: string
-  attachment: {
+  attachments: Array<{
     kind: MediaKind
     file: File
-  } | null
+  }>
 }
 
 function isFileLike(value: FormDataEntryValue | null): value is File {
@@ -43,7 +43,7 @@ export async function parseMessageInput(
     const formData = await request.formData().catch(() => null)
 
     if (!formData) {
-      return { success: false, fieldErrors: { content: ["Некорректная форма"] } }
+      return { success: false, fieldErrors: { content: ["РќРµРєРѕСЂСЂРµРєС‚РЅР°СЏ С„РѕСЂРјР°"] } }
     }
 
     const rawContent = typeof formData.get("content") === "string" ? String(formData.get("content")) : ""
@@ -57,37 +57,48 @@ export async function parseMessageInput(
       }
     }
 
-    const kindValue = formData.get("kind")
-    const attachment = formData.get("attachment")
-    const hasFile = isFileLike(attachment) && attachment.size > 0
+    const files = formData
+      .getAll("attachments")
+      .filter((item): item is File => isFileLike(item) && item.size > 0)
+    const kindValues = formData.getAll("attachmentKinds")
 
-    if (!hasFile) {
+    if (files.length === 0) {
       if (!parsedContent.data) {
-        return { success: false, fieldErrors: { content: ["Введите сообщение"] } }
+        return { success: false, fieldErrors: { content: ["Р’РІРµРґРёС‚Рµ СЃРѕРѕР±С‰РµРЅРёРµ"] } }
       }
 
       return {
         success: true,
         data: {
           content: parsedContent.data,
-          attachment: null,
+          attachments: [],
         },
       }
     }
 
-    const parsedKind = z.enum(MEDIA_KIND_VALUES).safeParse(kindValue)
-    if (!parsedKind.success) {
-      return { success: false, fieldErrors: { attachment: ["Неизвестный тип вложения"] } }
+    if (files.length !== kindValues.length) {
+      return { success: false, fieldErrors: { attachment: ["РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ РЅР°Р±РѕСЂ РІР»РѕР¶РµРЅРёР№"] } }
+    }
+
+    const attachments: ParsedMessageInput["attachments"] = []
+
+    for (let index = 0; index < files.length; index += 1) {
+      const parsedKind = z.enum(MEDIA_KIND_VALUES).safeParse(kindValues[index])
+      if (!parsedKind.success) {
+        return { success: false, fieldErrors: { attachment: ["РќРµРёР·РІРµСЃС‚РЅС‹Р№ С‚РёРї РІР»РѕР¶РµРЅРёСЏ"] } }
+      }
+
+      attachments.push({
+        kind: parsedKind.data,
+        file: files[index],
+      })
     }
 
     return {
       success: true,
       data: {
-        content: parsedContent.data || DEFAULT_MEDIA_LABELS[parsedKind.data],
-        attachment: {
-          kind: parsedKind.data,
-          file: attachment,
-        },
+        content: parsedContent.data || DEFAULT_MEDIA_LABELS[attachments[0]?.kind ?? "FILE"],
+        attachments,
       },
     }
   }
@@ -95,7 +106,7 @@ export async function parseMessageInput(
   const json = await request.json().catch(() => null)
   const parsed = z
     .object({
-      content: contentSchema.min(1, "Введите сообщение"),
+      content: contentSchema.min(1, "Р’РІРµРґРёС‚Рµ СЃРѕРѕР±С‰РµРЅРёРµ"),
     })
     .safeParse(json)
 
@@ -110,7 +121,7 @@ export async function parseMessageInput(
     success: true,
     data: {
       content: parsed.data.content,
-      attachment: null,
+      attachments: [],
     },
   }
 }

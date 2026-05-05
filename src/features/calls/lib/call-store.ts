@@ -215,6 +215,24 @@ export function leaveCall(callId: string, userId: number) {
   return true
 }
 
+export function rejectCall(callId: string, userId: number) {
+  const call = getStore().calls.get(callId)
+  if (!call || !call.usersById.has(userId)) {
+    return false
+  }
+
+  call.usersById.delete(userId)
+  call.participantsById.delete(userId)
+
+  if (call.usersById.size === 0 || call.participantsById.size === 0) {
+    endCall(callId)
+    return true
+  }
+
+  emitToDialogUsers(call, { type: "call.updated", call: callToSnapshot(call) })
+  return true
+}
+
 export function endCall(callId: string) {
   const store = getStore()
   const call = store.calls.get(callId)

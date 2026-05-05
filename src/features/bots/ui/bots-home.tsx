@@ -27,6 +27,7 @@ type BotUser = {
 type PublishedBot = {
   id: number
   name: string
+  username?: string
   niche: string | null
   audience: "client" | "user"
   publishedAt: string
@@ -54,6 +55,7 @@ type BlockTemplate = {
 export type BotsHomeProps = {
   user: BotUser
   publishedBots?: PublishedBot[]
+  initialSelectedBotId?: number | null
 }
 
 const blockLibrary: BlockTemplate[] = [
@@ -229,13 +231,22 @@ function createBotMessage(content: string): BotChatMessage {
   }
 }
 
-export function BotsHome({ user, publishedBots = [] }: BotsHomeProps) {
+export function BotsHome({
+  user,
+  publishedBots = [],
+  initialSelectedBotId = null,
+}: BotsHomeProps) {
+  const [username, setUsername] = useState("")
   const [name, setName] = useState("Новый бот")
   const [niche, setNiche] = useState("")
   const [audience, setAudience] = useState<PublishedBot["audience"]>("client")
   const [items, setItems] = useState<PublishedBot[]>(publishedBots)
   const [blocks, setBlocks] = useState<FlowBlock[]>(defaultBlocks)
-  const [selectedBotId, setSelectedBotId] = useState<number | null>(publishedBots[0]?.id ?? null)
+  const [selectedBotId, setSelectedBotId] = useState<number | null>(
+    initialSelectedBotId && publishedBots.some((bot) => bot.id === initialSelectedBotId)
+      ? initialSelectedBotId
+      : publishedBots[0]?.id ?? null
+  )
   const [botDraft, setBotDraft] = useState("")
   const [botMessagesById, setBotMessagesById] = useState<Record<number, BotChatMessage[]>>({})
   const [isPublishing, startPublishing] = useTransition()
@@ -307,7 +318,10 @@ export function BotsHome({ user, publishedBots = [] }: BotsHomeProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           audience,
-          config: previewConfig,
+          config: {
+            ...previewConfig,
+            username: username.trim().toLowerCase(),
+          },
         }),
       })
 
@@ -406,6 +420,20 @@ export function BotsHome({ user, publishedBots = [] }: BotsHomeProps) {
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="bot-username">
+                  Username
+                </label>
+                <Input
+                  id="bot-username"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="my_bot"
+                  autoComplete="off"
+                />
+                <p className="text-xs text-muted-foreground">@username, 4-32 символа: a-z, 0-9 и _</p>
+              </div>
+
+              <div className="space-y-2">
                 <p className="text-sm font-medium">Аудитория публикации</p>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -496,6 +524,9 @@ export function BotsHome({ user, publishedBots = [] }: BotsHomeProps) {
                 <CardContent className="space-y-3 text-sm">
                   <div>
                     <p className="font-medium">{previewConfig.name}</p>
+                    {username.trim() ? (
+                      <p className="text-muted-foreground">@{username.trim().toLowerCase()}</p>
+                    ) : null}
                     <p className="text-muted-foreground">{previewConfig.niche || "Без указания ниши"}</p>
                   </div>
                   <div>
@@ -510,7 +541,11 @@ export function BotsHome({ user, publishedBots = [] }: BotsHomeProps) {
                     <Button type="button" variant="outline" onClick={copyConfig}>
                       Скопировать конфиг
                     </Button>
-                    <Button type="button" onClick={publishBot} disabled={isPublishing}>
+                    <Button
+                      type="button"
+                      onClick={publishBot}
+                      disabled={isPublishing || name.trim().length < 2 || username.trim().length < 4}
+                    >
                       {isPublishing ? "Публикуем..." : "Опубликовать"}
                     </Button>
                   </div>
@@ -538,6 +573,9 @@ export function BotsHome({ user, publishedBots = [] }: BotsHomeProps) {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 space-y-1">
                             <p className="truncate text-sm font-medium">{bot.name}</p>
+                            {bot.username ? (
+                              <p className="truncate text-xs text-muted-foreground">@{bot.username}</p>
+                            ) : null}
                             <p className="text-xs text-muted-foreground">
                               {audienceLabels[bot.audience]}
                               {bot.niche ? ` · ${bot.niche}` : ""}

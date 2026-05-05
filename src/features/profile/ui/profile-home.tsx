@@ -44,6 +44,7 @@ type EditableUser = {
   email: string
   firstName: string
   lastName: string | null
+  username: string
   phone: string
   role: string
   starsBalance?: number
@@ -98,6 +99,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName ?? "",
+    username: user.username,
     phone: user.phone ?? "",
     avatarTone: user.avatarTone ?? null,
     profileVisibility: user.profileVisibility,
@@ -221,6 +223,7 @@ export function ProfileHome({ user }: { user: EditableUser }) {
         email: data.user.email,
         firstName: data.user.firstName,
         lastName: data.user.lastName ?? "",
+        username: data.user.username,
         phone: data.user.phone ?? "",
         avatarTone: data.user.avatarTone ?? null,
         profileVisibility: data.user.profileVisibility,
@@ -549,6 +552,20 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                         value={form.email}
                         onChange={(event) => updateField("email", event.target.value)}
                         aria-invalid={Boolean(getFieldError(fieldErrors, "email"))}
+                      />
+                    </Field>
+
+                    <Field
+                      label="Username"
+                      htmlFor="profile-username"
+                      hint="@username"
+                      error={getFieldError(fieldErrors, "username")}
+                    >
+                      <Input
+                        id="profile-username"
+                        value={form.username}
+                        onChange={(event) => updateField("username", event.target.value)}
+                        aria-invalid={Boolean(getFieldError(fieldErrors, "username"))}
                       />
                     </Field>
 

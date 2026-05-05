@@ -73,6 +73,7 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   const payload = event.data ? event.data.json() : {};
   const title = payload.title || "Shalter";
+  const isIncomingCall = payload.type === "incoming-call";
   const options = {
     body: payload.body || "Новое сообщение",
     badge: "/icon-192x192.png",
@@ -82,10 +83,19 @@ self.addEventListener("push", (event) => {
     renotify: Boolean(payload.renotify),
     requireInteraction: Boolean(payload.requireInteraction),
     silent: Boolean(payload.silent),
-    vibrate: payload.type === "incoming-call" ? [300, 150, 300, 150, 500] : [200, 100, 200],
+    vibrate: isIncomingCall ? [300, 150, 300, 150, 500] : [200, 100, 200],
+    actions: isIncomingCall
+      ? [
+          { action: "answer-call", title: "Ответить" },
+          { action: "decline-call", title: "Отклонить" },
+        ]
+      : [],
     data: {
       url: payload.url || "/chats",
       type: payload.type || "message",
+      callId: payload.callId || null,
+      dialogId: payload.dialogId || null,
+      media: payload.media || null,
     },
   };
 
@@ -94,7 +104,23 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/chats";
+
+  const data = event.notification.data || {};
+  const action = event.action || "";
+  const url =
+    action === "answer-call" && data.dialogId && data.media
+      ? `/chats?dialogId=${data.dialogId}&startCall=${data.media}`
+      : data.url || "/chats";
+
+  if (action === "decline-call" && data.callId) {
+    event.waitUntil(
+      fetch(`/api/calls/${data.callId}/reject`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => null)
+    );
+    return;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {

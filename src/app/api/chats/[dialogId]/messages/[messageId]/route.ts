@@ -57,7 +57,7 @@ export async function PATCH(
   }
 
   const media = await getDialogMessageMedia(messageId, dialogId)
-  if (media?.media_kind) {
+  if (media?.media_kind || (media?.attachment_urls?.length ?? 0) > 0) {
     return NextResponse.json(
       { message: "Медиа-сообщения пока можно только удалить и отправить заново" },
       { status: 400 }
@@ -188,5 +188,8 @@ export async function DELETE(
   const media = await getDialogMessageMedia(messageId, dialogId)
   await prisma.message.delete({ where: { id: messageId } })
   await deleteUploadedFileByUrl(media?.media_url ?? null)
+  for (const url of media?.attachment_urls ?? []) {
+    await deleteUploadedFileByUrl(url)
+  }
   return NextResponse.json({ ok: true }, { status: 200 })
 }

@@ -13,6 +13,7 @@ model Message {
   dialog    Dialog    @relation(fields: [dialogId], references: [id])
   authorId  Int
   author    User      @relation(fields: [authorId], references: [id])
+  attachments MessageAttachment[]
 
   @@map("messages")
 }

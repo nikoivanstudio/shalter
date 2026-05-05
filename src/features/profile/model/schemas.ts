@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { EMBLEM_TONE_OPTIONS } from "@/features/profile/lib/emblem"
+import { usernameSchema } from "@/shared/lib/usernames"
 
 const avatarToneIds = EMBLEM_TONE_OPTIONS.map((tone) => tone.id) as [
   (typeof EMBLEM_TONE_OPTIONS)[number]["id"],
@@ -9,22 +10,10 @@ const avatarToneIds = EMBLEM_TONE_OPTIONS.map((tone) => tone.id) as [
 
 export const updateProfileSchema = z.object({
   email: z.email("Укажите корректный email"),
-  firstName: z
-    .string()
-    .trim()
-    .min(2, "Имя должно быть не короче 2 символов")
-    .max(40, "Имя слишком длинное"),
-  lastName: z
-    .string()
-    .trim()
-    .max(40, "Фамилия слишком длинная")
-    .optional()
-    .or(z.literal("")),
-  phone: z
-    .string()
-    .trim()
-    .min(8, "Телефон слишком короткий")
-    .max(20, "Телефон слишком длинный"),
+  firstName: z.string().trim().min(2, "Имя должно быть не короче 2 символов").max(40, "Имя слишком длинное"),
+  lastName: z.string().trim().max(40, "Фамилия слишком длинная").optional().or(z.literal("")),
+  username: usernameSchema,
+  phone: z.string().trim().min(8, "Телефон слишком короткий").max(20, "Телефон слишком длинный"),
   avatarTone: z
     .enum(avatarToneIds)
     .nullable()
@@ -38,14 +27,8 @@ export const updateProfileSchema = z.object({
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z
-      .string()
-      .min(8, "Текущий пароль должен быть не короче 8 символов")
-      .max(72, "Текущий пароль слишком длинный"),
-    newPassword: z
-      .string()
-      .min(8, "Новый пароль должен быть не короче 8 символов")
-      .max(72, "Новый пароль слишком длинный"),
+    currentPassword: z.string().min(8, "Текущий пароль должен быть не короче 8 символов").max(72, "Текущий пароль слишком длинный"),
+    newPassword: z.string().min(8, "Новый пароль должен быть не короче 8 символов").max(72, "Новый пароль слишком длинный"),
     confirmNewPassword: z.string().min(1, "Подтвердите новый пароль"),
   })
   .refine((data) => data.newPassword === data.confirmNewPassword, {

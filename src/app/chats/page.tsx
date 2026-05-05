@@ -211,6 +211,34 @@ export default async function ChatsPage({
     unreadGroups.map((item) => [item.dialogId, item._count._all] as const)
   )
 
+  const [channels, bots] = await Promise.all([
+    prisma.channel.findMany({
+      where: {
+        participants: {
+          some: { userId: user.id },
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        username: true,
+        description: true,
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+    }),
+    prisma.botPublication.findMany({
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        niche: true,
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 10,
+    }),
+  ])
+
   return (
     <Providers>
       <PwaRegisterClient />
@@ -228,6 +256,8 @@ export default async function ChatsPage({
         initialDialogId={initialDialogId}
         initialCallMode={requestedStartCall}
         contacts={contacts.map((item) => item.contactUser)}
+        channels={channels}
+        bots={bots}
         dialogs={dialogs.map((dialog) => ({
           id: dialog.id,
           ownerId: dialog.ownerId,

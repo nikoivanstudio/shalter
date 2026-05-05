@@ -25,15 +25,30 @@ const GB = 1024 * MB
 const DOCUMENT_MAX_BYTES = 25 * MB
 const PHOTO_MAX_BYTES = 1 * GB
 const VIDEO_MAX_BYTES = 2 * GB
+const VOICE_MAX_BYTES = 25 * MB
+const VIDEO_NOTE_MAX_BYTES = 100 * MB
 
 const MEDIA_RULES: Record<
   MediaKind,
-  { folder: string; maxBytes: number; mimePrefixes: string[] }
+  { folder: string; maxBytes: number; mimePrefixes: string[]; sizeMessage: string }
 > = {
   FILE: {
     folder: "messages/files",
     maxBytes: VIDEO_MAX_BYTES,
     mimePrefixes: [],
+    sizeMessage: "Файл слишком большой",
+  },
+  VOICE: {
+    folder: "messages/voice",
+    maxBytes: VOICE_MAX_BYTES,
+    mimePrefixes: ["audio/"],
+    sizeMessage: "Голосовое сообщение должно быть не больше 25 МБ",
+  },
+  VIDEO_NOTE: {
+    folder: "messages/video-notes",
+    maxBytes: VIDEO_NOTE_MAX_BYTES,
+    mimePrefixes: ["video/"],
+    sizeMessage: "Видеокружок должен быть не больше 100 МБ",
   },
 }
 
@@ -147,6 +162,13 @@ function getFileSizeLimitMessage(file: File) {
     }
   }
 
+  if (file.type.startsWith("audio/")) {
+    return {
+      maxBytes: DOCUMENT_MAX_BYTES,
+      message: "Аудио должно быть не больше 25 МБ",
+    }
+  }
+
   return {
     maxBytes: DOCUMENT_MAX_BYTES,
     message: "Документ должен быть не больше 25 МБ",
@@ -188,9 +210,10 @@ export function validateMessageFile(kind: MediaKind, file: File) {
   }
 
   const { maxBytes, message } = getFileSizeLimitMessage(file)
+  const limit = Math.min(rule.maxBytes, maxBytes)
 
-  if (file.size > Math.min(rule.maxBytes, maxBytes)) {
-    return message
+  if (file.size > limit) {
+    return limit === rule.maxBytes ? rule.sizeMessage : message
   }
 
   return null

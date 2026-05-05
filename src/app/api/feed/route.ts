@@ -4,7 +4,7 @@ import { createNewsPostSchema } from "@/features/feed/model/schemas"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 import type { MediaAttachment } from "@/shared/lib/media/constants"
-import { saveMessageFile, validateMessageFile } from "@/shared/lib/media/uploads"
+import { deleteUploadedFileByUrl, saveMessageFile, validateMessageFile } from "@/shared/lib/media/uploads"
 
 function isFileLike(value: FormDataEntryValue | null): value is File {
   return (
@@ -19,52 +19,45 @@ function isFileLike(value: FormDataEntryValue | null): value is File {
   )
 }
 
-function isSupportedFeedMedia(file: File) {
-  return file.type.startsWith("image/") || file.type.startsWith("video/")
-}
-
-function mapAttachmentFromPost(post: {
-  mediaKind: string | null
-  mediaUrl: string | null
-  mediaName: string | null
-  mediaMime: string | null
-  mediaSize: number | null
-}): MediaAttachment | null {
-  if (!post.mediaKind || !post.mediaUrl || !post.mediaName || !post.mediaMime || post.mediaSize === null) {
-    return null
-  }
-
+function mapAttachment(item: {
+  kind: string
+  url: string
+  name: string
+  mime: string
+  size: number
+}): MediaAttachment {
   return {
-    kind: post.mediaKind as MediaAttachment["kind"],
-    url: post.mediaUrl,
-    name: post.mediaName,
-    mime: post.mediaMime,
-    size: post.mediaSize,
+    kind: item.kind as MediaAttachment["kind"],
+    url: item.url,
+    name: item.name,
+    mime: item.mime,
+    size: item.size,
   }
 }
 
 export async function POST(request: NextRequest) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+    return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
   }
 
   const contentType = request.headers.get("content-type") ?? ""
   let parsedPayload: unknown = null
-  let attachmentFile: File | null = null
+  let attachmentFiles: File[] = []
 
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData().catch(() => null)
     if (!formData) {
-      return NextResponse.json({ message: "Некорректная форма" }, { status: 400 })
+      return NextResponse.json({ message: "РќРµРєРѕСЂСЂРµРєС‚РЅР°СЏ С„РѕСЂРјР°" }, { status: 400 })
     }
 
     parsedPayload = {
       content: typeof formData.get("content") === "string" ? String(formData.get("content")) : "",
     }
 
-    const attachmentValue = formData.get("attachment")
-    attachmentFile = isFileLike(attachmentValue) && attachmentValue.size > 0 ? attachmentValue : null
+    attachmentFiles = formData
+      .getAll("attachments")
+      .filter((item): item is File => isFileLike(item) && item.size > 0)
   } else {
     parsedPayload = await request.json().catch(() => null)
   }
@@ -73,93 +66,105 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json(
       {
-        message: "Ошибка валидации",
+        message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
         fieldErrors: parsed.error.flatten().fieldErrors,
       },
       { status: 400 }
     )
   }
 
-  if (!parsed.data.content && !attachmentFile) {
+  if (!parsed.data.content && attachmentFiles.length === 0) {
     return NextResponse.json(
       {
-        message: "Ошибка валидации",
+        message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
         fieldErrors: {
-          content: ["Добавьте текст или прикрепите файл"],
+          content: ["Р”РѕР±Р°РІСЊС‚Рµ С‚РµРєСЃС‚ РёР»Рё РїСЂРёРєСЂРµРїРёС‚Рµ С„Р°Р№Р»"],
         },
       },
       { status: 400 }
     )
   }
 
-  let attachment: Awaited<ReturnType<typeof saveMessageFile>> | null = null
-  if (attachmentFile) {
-    if (!isSupportedFeedMedia(attachmentFile)) {
-      return NextResponse.json(
-        {
-          message: "Ошибка валидации",
-          fieldErrors: {
-            attachment: ["Можно прикреплять только изображения и видео"],
+  const savedAttachments: Array<Awaited<ReturnType<typeof saveMessageFile>>> = []
+
+  try {
+    for (const file of attachmentFiles) {
+      const validationError = validateMessageFile("FILE", file)
+      if (validationError) {
+        return NextResponse.json(
+          {
+            message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
+            fieldErrors: {
+              attachment: [validationError],
+            },
           },
-        },
-        { status: 400 }
-      )
+          { status: 400 }
+        )
+      }
+
+      savedAttachments.push(await saveMessageFile("FILE", file))
     }
 
-    const validationError = validateMessageFile("FILE", attachmentFile)
-    if (validationError) {
-      return NextResponse.json(
-        {
-          message: "Ошибка валидации",
-          fieldErrors: {
-            attachment: [validationError],
+    const post = await prisma.newsPost.create({
+      data: {
+        authorId: userId,
+        content: parsed.data.content,
+        mediaKind: savedAttachments[0] ? "FILE" : null,
+        mediaUrl: savedAttachments[0]?.url ?? null,
+        mediaName: savedAttachments[0]?.name ?? null,
+        mediaMime: savedAttachments[0]?.mime ?? null,
+        mediaSize: savedAttachments[0]?.size ?? null,
+        attachments: savedAttachments.length
+          ? {
+              create: savedAttachments.map((attachment, index) => ({
+                kind: "FILE",
+                url: attachment.url,
+                name: attachment.name,
+                mime: attachment.mime,
+                size: attachment.size,
+                position: index,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            role: true,
+            avatarTone: true,
+            isBlocked: true,
           },
         },
-        { status: 400 }
-      )
+        attachments: {
+          orderBy: { position: "asc" },
+        },
+      },
+    })
+
+    return NextResponse.json(
+      {
+        post: {
+          id: post.id,
+          content: post.content,
+          createdAt: post.createdAt.toISOString(),
+          author: post.author,
+          attachment: post.attachments.map(mapAttachment),
+          likesCount: 0,
+          likedByMe: false,
+          comments: [],
+        },
+      },
+      { status: 201 }
+    )
+  } catch (error) {
+    for (const attachment of savedAttachments) {
+      await deleteUploadedFileByUrl(attachment.url)
     }
 
-    attachment = await saveMessageFile("FILE", attachmentFile)
+    throw error
   }
-
-  const post = await prisma.newsPost.create({
-    data: {
-      authorId: userId,
-      content: parsed.data.content,
-      mediaKind: attachment ? "FILE" : null,
-      mediaUrl: attachment?.url ?? null,
-      mediaName: attachment?.name ?? null,
-      mediaMime: attachment?.mime ?? null,
-      mediaSize: attachment?.size ?? null,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          role: true,
-          avatarTone: true,
-          isBlocked: true,
-        },
-      },
-    },
-  })
-
-  return NextResponse.json(
-    {
-      post: {
-        id: post.id,
-        content: post.content,
-        createdAt: post.createdAt.toISOString(),
-        author: post.author,
-        attachment: mapAttachmentFromPost(post),
-        likesCount: 0,
-        likedByMe: false,
-        comments: [],
-      },
-    },
-    { status: 201 }
-  )
 }

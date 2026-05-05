@@ -14,18 +14,35 @@ function mapAttachmentFromPost(post: {
   mediaName: string | null
   mediaMime: string | null
   mediaSize: number | null
-}): MediaAttachment | null {
-  if (!post.mediaKind || !post.mediaUrl || !post.mediaName || !post.mediaMime || post.mediaSize === null) {
-    return null
+  attachments: Array<{
+    kind: string
+    url: string
+    name: string
+    mime: string
+    size: number
+  }>
+}): MediaAttachment[] {
+  if (post.attachments.length > 0) {
+    return post.attachments.map((attachment) => ({
+      kind: attachment.kind as MediaAttachment["kind"],
+      url: attachment.url,
+      name: attachment.name,
+      mime: attachment.mime,
+      size: attachment.size,
+    }))
   }
 
-  return {
+  if (!post.mediaKind || !post.mediaUrl || !post.mediaName || !post.mediaMime || post.mediaSize === null) {
+    return []
+  }
+
+  return [{
     kind: post.mediaKind as MediaAttachment["kind"],
     url: post.mediaUrl,
     name: post.mediaName,
     mime: post.mediaMime,
     size: post.mediaSize,
-  }
+  }]
 }
 
 export default async function FeedPage() {
@@ -47,6 +64,9 @@ export default async function FeedPage() {
           avatarTone: true,
           isBlocked: true,
         },
+      },
+      attachments: {
+        orderBy: { position: "asc" },
       },
       likes: {
         where: { userId: user.id },

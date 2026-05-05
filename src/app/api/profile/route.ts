@@ -13,6 +13,7 @@ import { prisma } from "@/shared/lib/db/prisma"
 import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
 import { deleteUploadedFileByUrl, saveAvatarFile, validateAvatarFile } from "@/shared/lib/media/uploads"
 import { touchUserActivity } from "@/shared/lib/user-activity"
+import { normalizeUsername, releaseUsername, updateReservedUsername } from "@/shared/lib/usernames"
 
 function isFileLike(value: FormDataEntryValue | null): value is File {
   return (
@@ -47,12 +48,12 @@ export async function PATCH(request: NextRequest) {
     const sessionId = request.cookies.get(AUTH_SESSION_COOKIE)?.value
 
     if (!token || !sessionId) {
-      return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+      return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
     }
 
     const payload = await verifyAuthToken(token)
     if (!payload || payload.sid !== sessionId) {
-      return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+      return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
     }
 
     await touchUserActivity(payload.userId)
@@ -77,7 +78,7 @@ export async function PATCH(request: NextRequest) {
       const fieldErrors = parsed.error.flatten().fieldErrors
       return NextResponse.json(
         {
-          message: "Ошибка валидации",
+          message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
           fieldErrors,
         },
         { status: 400 }
@@ -90,7 +91,7 @@ export async function PATCH(request: NextRequest) {
       if (avatarError) {
         return NextResponse.json(
           {
-            message: "Ошибка валидации",
+            message: "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё",
             fieldErrors: {
               avatarFile: [avatarError],
             },
@@ -105,32 +106,40 @@ export async function PATCH(request: NextRequest) {
     const data = parsed.data
     const previousAvatarUrl =
       typeof savedAvatarUrl === "undefined" ? null : await getCurrentAvatarUrl(payload.userId)
-    const updated = await prisma.user.update({
-      where: { id: payload.userId },
-      data: {
-        email: data.email.toLowerCase(),
-        firstName: data.firstName,
-        lastName: data.lastName || null,
-        phone: data.phone,
-        avatarTone: data.avatarTone,
-        profileVisibility: data.profileVisibility,
-        showEmailInProfile: data.showEmailInProfile,
-        showPhoneInProfile: data.showPhoneInProfile,
-        showGiftsInProfile: data.showGiftsInProfile,
-        updatedAt: new Date(),
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        avatarTone: true,
-        profileVisibility: true,
-        showEmailInProfile: true,
-        showPhoneInProfile: true,
-        showGiftsInProfile: true,
-      },
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const nextUser = await tx.user.update({
+        where: { id: payload.userId },
+        data: {
+          email: data.email.toLowerCase(),
+          firstName: data.firstName,
+          lastName: data.lastName || null,
+          username: normalizeUsername(data.username),
+          phone: data.phone,
+          avatarTone: data.avatarTone,
+          profileVisibility: data.profileVisibility,
+          showEmailInProfile: data.showEmailInProfile,
+          showPhoneInProfile: data.showPhoneInProfile,
+          showGiftsInProfile: data.showGiftsInProfile,
+          updatedAt: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+          phone: true,
+          avatarTone: true,
+          profileVisibility: true,
+          showEmailInProfile: true,
+          showPhoneInProfile: true,
+          showGiftsInProfile: true,
+        },
+      })
+
+      await updateReservedUsername(tx, data.username, "user", payload.userId)
+      return nextUser
     })
 
     const avatarUrl = typeof savedAvatarUrl === "undefined" ? previousAvatarUrl : savedAvatarUrl
@@ -167,18 +176,28 @@ export async function PATCH(request: NextRequest) {
     return response
   } catch (error) {
     if (isPrismaKnownRequestError(error, "P2002")) {
+      const targets = Array.isArray(error.meta?.target) ? error.meta.target : []
+      const usernameConflict =
+        targets.includes("username") || targets.includes("username_registry_username_key")
+
       return NextResponse.json(
         {
-          message: "Пользователь с таким email уже существует",
-          fieldErrors: {
-            email: ["Пользователь с таким email уже существует"],
-          },
+          message: usernameConflict
+            ? "Р­С‚РѕС‚ username СѓР¶Рµ Р·Р°РЅСЏС‚"
+            : "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃ С‚Р°РєРёРј email СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚",
+          fieldErrors: usernameConflict
+            ? {
+                username: ["Р­С‚РѕС‚ username СѓР¶Рµ Р·Р°РЅСЏС‚"],
+              }
+            : {
+                email: ["РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃ С‚Р°РєРёРј email СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚"],
+              },
         },
         { status: 409 }
       )
     }
 
-    return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
+    return NextResponse.json({ message: "Р’РЅСѓС‚СЂРµРЅРЅСЏСЏ РѕС€РёР±РєР° СЃРµСЂРІРµСЂР°" }, { status: 500 })
   }
 }
 
@@ -188,12 +207,12 @@ export async function DELETE(request: NextRequest) {
     const sessionId = request.cookies.get(AUTH_SESSION_COOKIE)?.value
 
     if (!token || !sessionId) {
-      return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+      return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
     }
 
     const payload = await verifyAuthToken(token)
     if (!payload || payload.sid !== sessionId) {
-      return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+      return NextResponse.json({ message: "РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ" }, { status: 401 })
     }
 
     await touchUserActivity(payload.userId)
@@ -256,6 +275,8 @@ export async function DELETE(request: NextRequest) {
         where: { authorId: user.id },
       })
 
+      await releaseUsername(tx, "user", user.id)
+
       await tx.user.delete({
         where: { id: user.id },
       })
@@ -265,6 +286,6 @@ export async function DELETE(request: NextRequest) {
     clearAuthCookies(response)
     return response
   } catch {
-    return NextResponse.json({ message: "Внутренняя ошибка сервера" }, { status: 500 })
+    return NextResponse.json({ message: "Р’РЅСѓС‚СЂРµРЅРЅСЏСЏ РѕС€РёР±РєР° СЃРµСЂРІРµСЂР°" }, { status: 500 })
   }
 }

@@ -154,6 +154,7 @@ export async function POST(
     await tx.dialog.update({
       where: { id: dialogId },
       data: {
+        title: isGroupDialog(dialog) ? dialog.title : dialog.title ?? "Групповой чат",
         users: {
           connect: participantIds.map((id) => ({ id })),
         },

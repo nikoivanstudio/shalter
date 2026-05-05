@@ -7,12 +7,21 @@ import { BotsHome } from "@/features/bots/ui/bots-home"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
 
-export default async function BotsPage() {
+export default async function BotsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ botId?: string }>
+}) {
   const user = await getCurrentUser()
 
   if (!user) {
     redirect("/auth")
   }
+
+  const params = await searchParams
+  const parsedBotId = Number(params.botId)
+  const initialSelectedBotId =
+    Number.isInteger(parsedBotId) && parsedBotId > 0 ? parsedBotId : null
 
   const publications = await prisma.botPublication.findMany({
     orderBy: { publishedAt: "desc" },
@@ -39,9 +48,11 @@ export default async function BotsPage() {
           role: user.role,
           avatarTone: user.avatarTone,
         }}
+        initialSelectedBotId={initialSelectedBotId}
         publishedBots={publications.map((bot) => ({
           id: bot.id,
           name: bot.name,
+          username: bot.username,
           niche: bot.niche,
           audience: bot.audience as "client" | "user",
           publishedAt: bot.publishedAt.toISOString(),

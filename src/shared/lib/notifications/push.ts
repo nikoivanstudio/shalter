@@ -213,6 +213,7 @@ export async function sendPushToDialogRecipients(params: {
 }
 
 export async function sendPushToCallRecipients(params: {
+  callId: string
   dialogId: number
   callerId: number
   callerName: string
@@ -251,7 +252,9 @@ export async function sendPushToCallRecipients(params: {
         ? "Входящий видеозвонок"
         : "Входящий аудиозвонок",
     url: `/chats?dialogId=${params.dialogId}`,
+    callId: params.callId,
     dialogId: params.dialogId,
+    media: params.media,
     type: "incoming-call",
     tag: `call-${params.dialogId}`,
     requireInteraction: true,

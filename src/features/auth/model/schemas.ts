@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { usernameSchema } from "@/shared/lib/usernames"
+
 export const loginSchema = z.object({
   email: z.email("Укажите корректный email"),
   password: z
@@ -20,10 +22,7 @@ export const recoveryPhoneSchema = z.object({
 
 export const recoveryCodeSchema = z.object({
   phone: phoneSchema,
-  code: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, "Введите код из 6 цифр"),
+  code: z.string().trim().regex(/^\d{6}$/, "Введите код из 6 цифр"),
 })
 
 export const registerSchema = z
@@ -39,21 +38,10 @@ export const registerSchema = z
       .trim()
       .min(2, "Имя должно быть не короче 2 символов")
       .max(40, "Имя слишком длинное"),
-    lastName: z
-      .string()
-      .trim()
-      .max(40, "Фамилия слишком длинная")
-      .optional()
-      .or(z.literal("")),
-    phone: z
-      .string()
-      .trim()
-      .min(8, "Телефон слишком короткий")
-      .max(20, "Телефон слишком длинный"),
-    turnstileToken: z
-      .string()
-      .trim()
-      .min(1, "Подтвердите, что вы не бот"),
+    lastName: z.string().trim().max(40, "Фамилия слишком длинная").optional().or(z.literal("")),
+    username: usernameSchema,
+    phone: phoneSchema,
+    turnstileToken: z.string().trim().min(1, "Подтвердите, что вы не бот"),
     referrerId: z.coerce.number().int().positive().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {

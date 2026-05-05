@@ -53,6 +53,7 @@ export default async function ChannelsPage({
     select: {
       id: true,
       title: true,
+      username: true,
       description: true,
       avatarUrl: true,
       ownerId: true,
@@ -118,6 +119,7 @@ export default async function ChannelsPage({
         channels={channels.map((channel) => ({
           id: channel.id,
           title: channel.title,
+          username: channel.username,
           description: channel.description,
           avatarUrl: channel.avatarUrl,
           ownerId: channel.ownerId,

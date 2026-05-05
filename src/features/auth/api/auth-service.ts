@@ -6,6 +6,7 @@ import { sendRecoveryCodeEmail } from "@/shared/lib/mail"
 import { ADMIN_ROLE, USER_ROLE } from "@/shared/lib/auth/roles"
 import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
 import { PARTNER_REWARD_STARS } from "@/shared/lib/rewards/catalog"
+import { normalizeUsername, reserveUsername } from "@/shared/lib/usernames"
 
 async function resolveInitialRole(email: string) {
   const elevatedUsersCount = await prisma.user.count({
@@ -125,6 +126,7 @@ export async function registerUser(input: {
   password: string
   firstName: string
   lastName?: string
+  username: string
   phone: string
   referrerId?: number
 }): Promise<AuthResult> {
@@ -183,21 +185,27 @@ export async function registerUser(input: {
   const role = await resolveInitialRole(email)
 
   try {
-    const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        firstName: input.firstName,
-        lastName: input.lastName || null,
-        phone: input.phone,
-        role,
-        referredById: input.referrerId ?? null,
-        updatedAt: new Date(),
-      },
-      select: {
-        id: true,
-        email: true,
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          firstName: input.firstName,
+          lastName: input.lastName || null,
+          username: normalizeUsername(input.username),
+          phone: input.phone,
+          role,
+          referredById: input.referrerId ?? null,
+          updatedAt: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+        },
+      })
+
+      await reserveUsername(tx, input.username, "user", created.id)
+      return created
     })
 
     if (input.referrerId) {
@@ -237,6 +245,10 @@ export async function registerUser(input: {
 
       if (targets.includes("phone")) {
         fieldErrors.phone = ["Пользователь с таким телефоном уже существует"]
+      }
+
+      if (targets.includes("username") || targets.includes("username_registry_username_key")) {
+        fieldErrors.username = ["Р­С‚РѕС‚ username СѓР¶Рµ Р·Р°РЅСЏС‚"]
       }
 
       return {

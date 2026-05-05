@@ -15,6 +15,7 @@ export type CurrentUser = {
   email: string
   firstName: string
   lastName: string | null
+  username: string
   phone: string
   role: string
   starsBalance: number
@@ -49,6 +50,7 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
       email: string
       first_name: string
       last_name: string | null
+      username: string
       phone: string
       role: string
       stars_balance: number
@@ -70,6 +72,7 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
         email,
         first_name,
         last_name,
+        username,
         phone,
         role,
         stars_balance,
@@ -108,6 +111,7 @@ export async function getCurrentUser(options?: { touchActivity?: boolean }) {
     email: user.email,
     firstName: user.first_name,
     lastName: user.last_name,
+    username: user.username,
     phone: user.phone,
     role: user.role,
     starsBalance: user.stars_balance,

@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
   })
 
   void sendPushToCallRecipients({
+    callId: call.id,
     dialogId,
     callerId: auth.userId,
     callerName: `${auth.user.firstName} ${auth.user.lastName ?? ""}`.trim() || auth.user.email,

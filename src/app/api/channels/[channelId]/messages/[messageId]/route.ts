@@ -38,6 +38,9 @@ async function getMessage(channelId: number, messageId: number) {
           avatarUrl: true,
         },
       },
+      attachments: {
+        orderBy: { position: "asc" },
+      },
     },
   })
 }
@@ -82,7 +85,7 @@ export async function PATCH(
     )
   }
 
-  if (existing.mediaKind) {
+  if (existing.mediaKind || existing.attachments.length > 0) {
     return NextResponse.json(
       { message: "Медиа-сообщения пока можно только удалить и отправить заново" },
       { status: 400 }
@@ -117,6 +120,9 @@ export async function PATCH(
           avatarUrl: true,
         },
       },
+      attachments: {
+        orderBy: { position: "asc" },
+      },
     },
   })
 
@@ -129,19 +135,27 @@ export async function PATCH(
         channelId: updated.channelId,
         author: updated.author,
         attachment:
-          updated.mediaKind &&
-          updated.mediaUrl &&
-          updated.mediaName &&
-          updated.mediaMime &&
-          updated.mediaSize !== null
-            ? {
-                kind: updated.mediaKind,
-                url: updated.mediaUrl,
-                name: updated.mediaName,
-                mime: updated.mediaMime,
-                size: updated.mediaSize,
-              }
-            : null,
+          updated.attachments.length > 0
+            ? updated.attachments.map((attachment) => ({
+                kind: attachment.kind as "FILE" | "VOICE" | "VIDEO_NOTE",
+                url: attachment.url,
+                name: attachment.name,
+                mime: attachment.mime,
+                size: attachment.size,
+              }))
+            : updated.mediaKind &&
+                updated.mediaUrl &&
+                updated.mediaName &&
+                updated.mediaMime &&
+                updated.mediaSize !== null
+              ? {
+                  kind: updated.mediaKind,
+                  url: updated.mediaUrl,
+                  name: updated.mediaName,
+                  mime: updated.mediaMime,
+                  size: updated.mediaSize,
+                }
+              : null,
       },
     },
     { status: 200 }
@@ -192,6 +206,9 @@ export async function DELETE(
     where: { id: messageId },
   })
   await deleteUploadedFileByUrl(existing.mediaUrl)
+  for (const attachment of existing.attachments) {
+    await deleteUploadedFileByUrl(attachment.url)
+  }
 
   return NextResponse.json({ ok: true }, { status: 200 })
 }

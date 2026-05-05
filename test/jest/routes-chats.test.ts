@@ -385,8 +385,8 @@ describe("chat routes", () => {
 
     const formData = new FormData()
     formData.set("content", "")
-    formData.set("kind", "FILE")
-    formData.set("attachment", new File(["test"], "test.txt", { type: "text/plain" }))
+    formData.append("attachmentKinds", "FILE")
+    formData.append("attachments", new File(["test"], "test.txt", { type: "text/plain" }))
 
     let response: Response = await messagesRoute.POST(
       new NextRequest("http://localhost/api/chats/1/messages", {
@@ -401,10 +401,23 @@ describe("chat routes", () => {
     expect(response.status).toBe(201)
     expect(await readJson(response)).toEqual({ message: uploadedMessage })
 
+    createDialogMessage.mockResolvedValueOnce({
+      ...uploadedMessage,
+      id: 8,
+      content: "Голосовое сообщение",
+      attachment: {
+        kind: "VOICE",
+        url: "/uploads/messages/voice/voice.ogg",
+        name: "voice.ogg",
+        mime: "audio/ogg",
+        size: 5,
+      },
+    })
+
     const voiceFormData = new FormData()
     voiceFormData.set("content", "")
-    voiceFormData.set("kind", "VOICE")
-    voiceFormData.set("attachment", new File(["audio"], "voice.ogg", { type: "audio/ogg" }))
+    voiceFormData.append("attachmentKinds", "VOICE")
+    voiceFormData.append("attachments", new File(["audio"], "voice.ogg", { type: "audio/ogg" }))
 
     response = await messagesRoute.POST(
       new NextRequest("http://localhost/api/chats/1/messages", {
@@ -416,7 +429,7 @@ describe("chat routes", () => {
       }
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(201)
   })
 
   test("participants and unread routes handle group management and snapshots", async () => {
@@ -437,6 +450,7 @@ describe("chat routes", () => {
       params: Promise.resolve({ dialogId: "1" }),
     })
     expect(response.status).toBe(403)
+    prisma.contact.findMany.mockResolvedValueOnce([])
     response = await participantsRoute.POST(nextRequest("http://localhost", "POST", { participantIds: [3] }), {
       params: Promise.resolve({ dialogId: "1" }),
     })
