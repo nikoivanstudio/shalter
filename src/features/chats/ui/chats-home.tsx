@@ -111,6 +111,7 @@ export type ChatsHomeProps = {
   }>
   initialDialogId: number | null
   initialCallMode?: "audio" | "video" | null
+  initialAnswerIncoming?: boolean
 }
 
 type ComposerAttachment = {
@@ -304,6 +305,7 @@ export function ChatsHome({
   bots = [],
   initialDialogId,
   initialCallMode = null,
+  initialAnswerIncoming = false,
 }: ChatsHomeProps) {
   const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
@@ -2198,6 +2200,7 @@ export function ChatsHome({
         }}
         selectedDialogId={activeDialogId}
         initialAutoStartCall={initialCallMode}
+        autoAnswerIncoming={initialAnswerIncoming}
         startRequest={callStartRequest}
         dialogs={dialogs.map((dialog) => ({
           id: dialog.id,

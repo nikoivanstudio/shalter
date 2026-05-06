@@ -180,6 +180,7 @@ export function ChatCallOverlay({
   dialogs,
   selectedDialogId,
   initialAutoStartCall = null,
+  autoAnswerIncoming = false,
   startRequest = null,
 }: {
   currentUser: CallUser
@@ -190,6 +191,7 @@ export function ChatCallOverlay({
   }>
   selectedDialogId: number | null
   initialAutoStartCall?: CallMediaMode | null
+  autoAnswerIncoming?: boolean
   startRequest?: { media: CallMediaMode; nonce: number } | null
 }) {
   const [activeCall, setActiveCall] = useState<CallSnapshot | null>(null)
@@ -210,9 +212,13 @@ export function ChatCallOverlay({
   const activeCallRef = useRef<CallSnapshot | null>(null)
   const incomingCallRef = useRef<CallSnapshot | null>(null)
   const autoStartDoneRef = useRef(false)
+  const autoAnswerHandledRef = useRef(false)
   const lastHandledStartRequestNonceRef = useRef<number | null>(null)
   const startCallEffect = useEffectEvent((media: CallMediaMode) => {
     void startCall(media)
+  })
+  const autoAnswerEffect = useEffectEvent((call: CallSnapshot) => {
+    void joinCall(call)
   })
 
   const activeDialog = useMemo(
@@ -301,6 +307,10 @@ export function ChatCallOverlay({
   }, [initialAutoStartCall, selectedDialogId])
 
   useEffect(() => {
+    autoAnswerHandledRef.current = false
+  }, [autoAnswerIncoming, selectedDialogId])
+
+  useEffect(() => {
     if (
       autoStartDoneRef.current ||
       !initialAutoStartCall ||
@@ -331,6 +341,21 @@ export function ChatCallOverlay({
     lastHandledStartRequestNonceRef.current = startRequest.nonce
     startCallEffect(startRequest.media)
   }, [activeCall, incomingCall, isConnecting, selectedDialogId, startRequest])
+
+  useEffect(() => {
+    if (
+      !autoAnswerIncoming ||
+      autoAnswerHandledRef.current ||
+      !incomingCall ||
+      activeCall ||
+      isConnecting
+    ) {
+      return
+    }
+
+    autoAnswerHandledRef.current = true
+    autoAnswerEffect(incomingCall)
+  }, [activeCall, autoAnswerIncoming, incomingCall, isConnecting])
 
   const getRemoteUser = useCallback(
     (call: CallSnapshot, userId: number) => {

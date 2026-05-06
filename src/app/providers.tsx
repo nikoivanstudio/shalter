@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 
+import { GlobalIncomingCallWindow } from "@/features/calls/ui/global-incoming-call-window"
 import { I18nProvider } from "@/features/i18n/model/i18n-provider"
 import { ThemeProvider } from "@/features/theme/model/theme-provider"
 
@@ -15,6 +16,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <I18nProvider>
       <ThemeProvider>
         {children}
+        <GlobalIncomingCallWindow />
         <Toaster richColors position="top-right" />
       </ThemeProvider>
     </I18nProvider>
