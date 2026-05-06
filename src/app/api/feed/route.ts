@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
             email: true,
             role: true,
             avatarTone: true,
+            avatarUrl: true,
             isBlocked: true,
           },
         },

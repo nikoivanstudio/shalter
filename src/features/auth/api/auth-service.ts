@@ -2,7 +2,6 @@ import bcrypt from "bcryptjs"
 
 import { prisma } from "@/shared/lib/db/prisma"
 import { env } from "@/shared/config/env"
-import { sendRecoveryCodeEmail } from "@/shared/lib/mail"
 import { ADMIN_ROLE, USER_ROLE } from "@/shared/lib/auth/roles"
 import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
 import { PARTNER_REWARD_STARS } from "@/shared/lib/rewards/catalog"
@@ -331,11 +330,6 @@ export async function requestRecoveryCode(input: { phone: string }) {
         expiredAt: expirationTime,
       },
     })
-  })
-
-  await sendRecoveryCodeEmail({
-    to: user.email,
-    code,
   })
 
   return { ok: true as const }

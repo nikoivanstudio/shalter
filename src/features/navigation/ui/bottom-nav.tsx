@@ -2,7 +2,6 @@
 
 import {
   BotIcon,
-  HashIcon,
   MessageCircleIcon,
   NewspaperIcon,
   SettingsIcon,
@@ -99,16 +98,6 @@ export function BottomNav({
           <NewspaperIcon className="size-3.5 sm:size-4" />
           <span className="truncate text-[9px] sm:text-xs">
             {tr("\u041b\u0435\u043d\u0442\u0430")}
-          </span>
-        </Button>
-        <Button
-          variant={active === "channels" ? "default" : "ghost"}
-          className="h-auto min-w-0 flex-1 flex-col gap-0.5 rounded-[1.1rem] px-0.5 py-1.5 text-[10px] leading-tight sm:min-w-14 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
-          onClick={() => router.push("/channels")}
-        >
-          <HashIcon className="size-3.5 sm:size-4" />
-          <span className="truncate text-[9px] sm:text-xs">
-            {tr("\u041a\u0430\u043d\u0430\u043b\u044b")}
           </span>
         </Button>
         <Button

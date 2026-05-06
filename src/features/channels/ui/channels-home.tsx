@@ -5,6 +5,8 @@ import {
   ArrowLeftIcon,
   EllipsisVerticalIcon,
   HashIcon,
+  FileImageIcon,
+  MusicIcon,
   PaperclipIcon,
   SearchIcon,
   ShieldIcon,
@@ -26,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
+import { ChannelBroadcastOverlay } from "@/features/channels/ui/channel-broadcast-overlay"
 import {
   ContactProfileCard,
   type ViewedContactProfile,
@@ -35,7 +38,7 @@ import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
-import type { MediaAttachment } from "@/shared/lib/media/constants"
+import type { MediaAttachment, MediaKind } from "@/shared/lib/media/constants"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 import { UserAvatar } from "@/shared/ui/user-avatar"
@@ -107,6 +110,16 @@ type SearchChannel = {
   myRole: "OWNER" | "ADMIN" | "MEMBER" | null
 }
 
+type ComposerAttachment = {
+  kind: MediaKind
+  file: File
+}
+
+const GALLERY_ACCEPT = "image/*,video/*"
+const AUDIO_ACCEPT = "audio/*"
+const FILES_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.7z,.csv,.json,.rtf,application/*,text/*"
+
 export function ChannelsHome({
   user,
   channels: initialChannels,
@@ -121,6 +134,8 @@ export function ChannelsHome({
   const router = useRouter()
   const { tr } = useI18n()
   const createAvatarInputRef = useRef<HTMLInputElement | null>(null)
+  const galleryInputRef = useRef<HTMLInputElement | null>(null)
+  const audioInputRef = useRef<HTMLInputElement | null>(null)
   const attachmentInputRef = useRef<HTMLInputElement | null>(null)
   const [channels, setChannels] = useState(initialChannels)
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(initialChannelId)
@@ -132,7 +147,7 @@ export function ChannelsHome({
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SearchChannel[]>([])
   const [messageText, setMessageText] = useState("")
-  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([])
+  const [composerAttachments, setComposerAttachments] = useState<ComposerAttachment[]>([])
   const [selectedContactIds, setSelectedContactIds] = useState<number[]>([])
   const [showMembers, setShowMembers] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState<ViewedContactProfile | null>(null)
@@ -155,7 +170,9 @@ export function ChannelsHome({
   )
   const myRole = selectedChannel?.myRole ?? null
   const canManage = myRole === "OWNER"
+  const canManageParticipants = myRole === "OWNER" || myRole === "ADMIN"
   const canWrite = myRole === "OWNER" || myRole === "ADMIN"
+  const canBroadcast = myRole === "OWNER" || myRole === "ADMIN"
   const canModerateChannels = hasAdministrativeAccess(user.role)
   const canDeleteSelectedChannel = canManage || canModerateChannels
   const availableContacts = useMemo(() => {
@@ -217,8 +234,37 @@ export function ChannelsHome({
     setMessages(null)
     setSelectedContactIds([])
     setMessageText("")
-    setAttachmentFiles([])
+    setComposerAttachments([])
+    resetAttachmentInputs()
     setShowMembers(false)
+  }
+
+  function addAttachmentFiles(kind: MediaKind, files: FileList | File[] | null | undefined) {
+    if (!files) {
+      return
+    }
+
+    const nextFiles = Array.from(files).filter((file) => file.size > 0)
+    if (nextFiles.length === 0) {
+      return
+    }
+
+    setComposerAttachments((prev) => [
+      ...prev,
+      ...nextFiles.map((file) => ({ kind, file })),
+    ])
+  }
+
+  function resetAttachmentInputs() {
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = ""
+    }
+    if (audioInputRef.current) {
+      audioInputRef.current.value = ""
+    }
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = ""
+    }
   }
 
   function openProfile(contactUserId: number) {
@@ -329,15 +375,15 @@ export function ChannelsHome({
     }
 
     startSending(async () => {
-      const response = attachmentFiles.length > 0
+      const response = composerAttachments.length > 0
         ? await fetch(`/api/channels/${selectedChannelId}/messages`, {
             method: "POST",
             body: (() => {
               const formData = new FormData()
               formData.set("content", messageText)
-              for (const file of attachmentFiles) {
-                formData.append("attachmentKinds", "FILE")
-                formData.append("attachments", file)
+              for (const attachment of composerAttachments) {
+                formData.append("attachmentKinds", attachment.kind)
+                formData.append("attachments", attachment.file)
               }
               return formData
             })(),
@@ -362,10 +408,8 @@ export function ChannelsHome({
         )
       )
       setMessageText("")
-      setAttachmentFiles([])
-      if (attachmentInputRef.current) {
-        attachmentInputRef.current.value = ""
-      }
+      setComposerAttachments([])
+      resetAttachmentInputs()
     })
   }
 
@@ -903,7 +947,23 @@ export function ChannelsHome({
                   </div>
                   {selectedChannel && (
                     <div className="flex flex-wrap items-center gap-2">
-                      {canManage ? <Button size="sm" variant="outline" onClick={() => setShowMembers((prev) => !prev)}>
+                      <ChannelBroadcastOverlay
+                        currentUser={{
+                          userId: user.id,
+                          firstName: user.firstName,
+                          lastName: user.lastName,
+                          email: user.email,
+                          avatarTone: user.avatarTone,
+                          avatarUrl: user.avatarUrl,
+                        }}
+                        channels={channels.map((channel) => ({
+                          id: channel.id,
+                          title: channel.title,
+                        }))}
+                        selectedChannelId={selectedChannelId}
+                        canBroadcast={canBroadcast}
+                      />
+                      {canManageParticipants ? <Button size="sm" variant="outline" onClick={() => setShowMembers((prev) => !prev)}>
                         <UsersIcon className="size-4" />
                         {showMembers ? tr("Скрыть участников") : tr("Участники")}
                       </Button> : null}
@@ -919,7 +979,7 @@ export function ChannelsHome({
                   )}
                 </div>
 
-                {selectedChannel && canManage && showMembers && (
+                {selectedChannel && canManageParticipants && showMembers && (
                   <div className="max-h-[40dvh] overflow-y-auto border-b border-border/60 bg-muted/28 px-4 py-3">
                     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
                       <div className="space-y-2">
@@ -1159,19 +1219,19 @@ export function ChannelsHome({
                 </div>
 
                 <div className="sticky bottom-0 shrink-0 border-t border-white/45 bg-background/82 p-2.5 backdrop-blur-2xl dark:border-white/8 sm:p-3">
-                  {attachmentFiles.length > 0 && (
+                  {composerAttachments.length > 0 && (
                     <div className="mb-2 space-y-2 rounded-[1rem] border border-border/70 bg-card/80 px-3 py-2">
-                      {attachmentFiles.map((file, index) => (
-                        <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-3">
-                          <p className="truncate text-sm text-muted-foreground">{file.name}</p>
+                      {composerAttachments.map((attachment, index) => (
+                        <div key={`${attachment.file.name}-${index}`} className="flex items-center justify-between gap-3">
+                          <p className="truncate text-sm text-muted-foreground">{attachment.file.name}</p>
                           <Button
                             type="button"
                             size="sm"
                             variant="ghost"
                             onClick={() => {
-                              setAttachmentFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
-                              if (attachmentInputRef.current && attachmentFiles.length === 1) {
-                                attachmentInputRef.current.value = ""
+                              setComposerAttachments((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                              if (composerAttachments.length === 1) {
+                                resetAttachmentInputs()
                               }
                             }}
                           >
@@ -1181,15 +1241,59 @@ export function ChannelsHome({
                       ))}
                     </div>
                   )}
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    multiple
+                    accept={GALLERY_ACCEPT}
+                    className="hidden"
+                    onChange={(event) => addAttachmentFiles("FILE", event.target.files)}
+                  />
+                  <input
+                    ref={audioInputRef}
+                    type="file"
+                    multiple
+                    accept={AUDIO_ACCEPT}
+                    className="hidden"
+                    onChange={(event) => addAttachmentFiles("FILE", event.target.files)}
+                  />
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    multiple
+                    accept={FILES_ACCEPT}
+                    className="hidden"
+                    onChange={(event) => addAttachmentFiles("FILE", event.target.files)}
+                  />
                   <div className="flex items-center gap-2 rounded-[1.7rem] border border-white/50 bg-card/90 p-2 shadow-[0_20px_48px_-30px_rgba(15,23,42,0.58)] dark:border-white/10 sm:rounded-[1.95rem] sm:p-2.5">
                     <Button
                       size="sm"
                       variant="outline"
                       className="shrink-0 lg:hidden"
                       onClick={() => setShowMembers((prev) => !prev)}
-                      disabled={!selectedChannel || !canManage}
+                      disabled={!selectedChannel || !canManageParticipants}
                     >
                       <ArrowLeftIcon className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="shrink-0 rounded-full"
+                      onClick={() => galleryInputRef.current?.click()}
+                      disabled={!canWrite || isSending || !selectedChannel}
+                    >
+                      <FileImageIcon className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="shrink-0 rounded-full"
+                      onClick={() => audioInputRef.current?.click()}
+                      disabled={!canWrite || isSending || !selectedChannel}
+                    >
+                      <MusicIcon className="size-4" />
                     </Button>
                     <Button
                       type="button"
@@ -1201,19 +1305,6 @@ export function ChannelsHome({
                     >
                       <PaperclipIcon className="size-4" />
                     </Button>
-                    <input
-                      ref={attachmentInputRef}
-                      type="file"
-                      multiple
-                      accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
-                      className="hidden"
-                      onChange={(event) =>
-                        setAttachmentFiles((prev) => [
-                          ...prev,
-                          ...(event.target.files ? Array.from(event.target.files) : []),
-                        ])
-                      }
-                    />
                     <Input
                       value={messageText}
                       onChange={(event) => setMessageText(event.target.value)}
@@ -1234,7 +1325,7 @@ export function ChannelsHome({
                     <Button
                       className="min-w-0 rounded-full px-4 sm:min-w-28"
                       onClick={sendMessage}
-                      disabled={!canWrite || isSending || (!messageText.trim() && attachmentFiles.length === 0) || !selectedChannel}
+                      disabled={!canWrite || isSending || (!messageText.trim() && composerAttachments.length === 0) || !selectedChannel}
                     >
                       {isSending ? tr("Отправляем...") : tr("Отправить")}
                     </Button>

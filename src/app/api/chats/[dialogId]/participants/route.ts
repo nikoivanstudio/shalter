@@ -69,14 +69,6 @@ export async function POST(
   if (!dialog) {
     return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
   }
-
-  if (dialog.ownerId !== userId) {
-    return NextResponse.json(
-      { message: "Управлять участниками может только админ чата" },
-      { status: 403 }
-    )
-  }
-
   const json = await request.json().catch(() => null)
   const parsed = updateDialogParticipantsSchema.safeParse(json)
   if (!parsed.success) {

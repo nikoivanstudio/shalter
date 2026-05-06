@@ -74,10 +74,11 @@ export async function POST(
   if (!channel) {
     return NextResponse.json({ message: "Канал не найден" }, { status: 404 })
   }
+  const membership = channel.participants.find((item) => item.userId === userId) ?? null
 
-  if (channel.ownerId !== userId) {
+  if (!membership || (membership.role !== "OWNER" && membership.role !== "ADMIN")) {
     return NextResponse.json(
-      { message: "Добавлять участников может только владелец канала" },
+      { message: "\u0414\u043e\u0431\u0430\u0432\u043b\u044f\u0442\u044c \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u043e\u0432 \u043c\u043e\u0433\u0443\u0442 \u0442\u043e\u043b\u044c\u043a\u043e \u0432\u043b\u0430\u0434\u0435\u043b\u0435\u0446 \u0438 \u0430\u0434\u043c\u0438\u043d\u044b \u043a\u0430\u043d\u0430\u043b\u0430" },
       { status: 403 }
     )
   }

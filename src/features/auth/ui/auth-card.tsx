@@ -147,11 +147,11 @@ export function AuthCard() {
       const { response, data } = await sendAuthRequest("/api/auth/login", parsed.data)
       if (!response.ok) {
         setLoginErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setServerMessage(tr(data?.message ?? "Ошибка входа"))
+        setServerMessage(tr(data?.message ?? "РћС€РёР±РєР° РІС…РѕРґР°"))
         return
       }
 
-      toast.success(tr("Вход выполнен"))
+      toast.success(tr("Р’С…РѕРґ РІС‹РїРѕР»РЅРµРЅ"))
       router.replace("/")
       router.refresh()
     })
@@ -174,13 +174,14 @@ export function AuthCard() {
       )
       if (!response.ok) {
         setRecoveryErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setRecoveryMessage(tr(data?.message ?? "Не удалось отправить код"))
+        setRecoveryMessage(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РєРѕРґ"))
         return
       }
 
       setIsRecoveryCodeSent(true)
-      setRecoveryMessage("Код отправлен на привязанный email аккаунта")
-      toast.success(tr("Код отправлен"))
+      setRecoveryMessage("РљРѕРґ СЃРѕР·РґР°РЅ. Р’РІРµРґРёС‚Рµ РµРіРѕ, С‡С‚РѕР±С‹ РІРѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ Р°РєРєР°СѓРЅС‚.")
+      toast.success("РљРѕРґ СЃРѕР·РґР°РЅ")
+      return
     })
   }
 
@@ -198,14 +199,14 @@ export function AuthCard() {
       const { response, data } = await sendAuthRequest("/api/auth/recover", parsed.data)
       if (!response.ok) {
         setRecoveryErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setRecoveryMessage(tr(data?.message ?? "Ошибка восстановления аккаунта"))
+        setRecoveryMessage(tr(data?.message ?? "РћС€РёР±РєР° РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ Р°РєРєР°СѓРЅС‚Р°"))
         return
       }
 
       setIsRecoveryConfirmOpen(false)
       setIsRecoveryCodeSent(false)
       setRecoveryForm({ phone: "", code: "" })
-      toast.success(tr("Аккаунт восстановлен"))
+      toast.success(tr("РђРєРєР°СѓРЅС‚ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅ"))
       router.replace("/")
       router.refresh()
     })
@@ -229,12 +230,12 @@ export function AuthCard() {
       const { response, data } = await sendAuthRequest("/api/auth/register", parsed.data)
       if (!response.ok) {
         setRegisterErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setServerMessage(tr(data?.message ?? "Ошибка регистрации"))
+        setServerMessage(tr(data?.message ?? "РћС€РёР±РєР° СЂРµРіРёСЃС‚СЂР°С†РёРё"))
         setTurnstileResetKey((prev) => prev + 1)
         return
       }
 
-      toast.success(tr("Регистрация завершена"))
+      toast.success(tr("Р РµРіРёСЃС‚СЂР°С†РёСЏ Р·Р°РІРµСЂС€РµРЅР°"))
       router.replace("/")
       router.refresh()
     })
@@ -244,16 +245,16 @@ export function AuthCard() {
     <>
       <Card className="w-full max-w-xl border-border/80 shadow-xl shadow-black/5">
         <CardHeader>
-          <CardTitle className="text-2xl">{tr("Авторизация")}</CardTitle>
+          <CardTitle className="text-2xl">{tr("РђРІС‚РѕСЂРёР·Р°С†РёСЏ")}</CardTitle>
           <CardDescription>
-            {tr("Войдите в существующий аккаунт или создайте новый после проверки Turnstile.")}
+            {tr("Р’РѕР№РґРёС‚Рµ РІ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№ Р°РєРєР°СѓРЅС‚ РёР»Рё СЃРѕР·РґР°Р№С‚Рµ РЅРѕРІС‹Р№ РїРѕСЃР»Рµ РїСЂРѕРІРµСЂРєРё Turnstile.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="space-y-4">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">{tr("Вход")}</TabsTrigger>
-              <TabsTrigger value="register">{tr("Регистрация")}</TabsTrigger>
+              <TabsTrigger value="login">{tr("Р’С…РѕРґ")}</TabsTrigger>
+              <TabsTrigger value="register">{tr("Р РµРіРёСЃС‚СЂР°С†РёСЏ")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login" className="space-y-4">
@@ -275,7 +276,7 @@ export function AuthCard() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">{tr("Пароль")}</Label>
+                  <Label htmlFor="login-password">{tr("РџР°СЂРѕР»СЊ")}</Label>
                   <Input
                     id="login-password"
                     type="password"
@@ -308,11 +309,11 @@ export function AuthCard() {
                     }}
                     disabled={isPending}
                   >
-                    {tr("Забыли пароль?")}
+                    {tr("Р—Р°Р±С‹Р»Рё РїР°СЂРѕР»СЊ?")}
                   </Button>
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoginDisabled}>
-                  {isPending ? tr("Входим...") : tr("Войти")}
+                  {isPending ? tr("Р’С…РѕРґРёРј...") : tr("Р’РѕР№С‚Рё")}
                 </Button>
               </form>
             </TabsContent>
@@ -321,13 +322,13 @@ export function AuthCard() {
               <form className="space-y-4" onSubmit={submitRegister}>
                 {referrerId ? (
                   <div className="rounded-2xl border border-primary/20 bg-primary/8 px-4 py-3 text-sm text-foreground">
-                    Регистрация по партнёрской ссылке. При успешной активации пригласивший пользователь
-                    получит звёзды.
+                    Р РµРіРёСЃС‚СЂР°С†РёСЏ РїРѕ РїР°СЂС‚РЅС‘СЂСЃРєРѕР№ СЃСЃС‹Р»РєРµ. РџСЂРё СѓСЃРїРµС€РЅРѕР№ Р°РєС‚РёРІР°С†РёРё РїСЂРёРіР»Р°СЃРёРІС€РёР№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ
+                    РїРѕР»СѓС‡РёС‚ Р·РІС‘Р·РґС‹.
                   </div>
                 ) : null}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="register-first-name">{tr("Имя")}</Label>
+                    <Label htmlFor="register-first-name">{tr("РРјСЏ")}</Label>
                     <Input
                       id="register-first-name"
                       value={registerForm.firstName}
@@ -343,7 +344,7 @@ export function AuthCard() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-last-name">{tr("Фамилия (необязательно)")}</Label>
+                    <Label htmlFor="register-last-name">{tr("Р¤Р°РјРёР»РёСЏ (РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ)")}</Label>
                     <Input
                       id="register-last-name"
                       value={registerForm.lastName}
@@ -351,7 +352,7 @@ export function AuthCard() {
                         setRegisterForm((prev) => ({ ...prev, lastName: e.target.value }))
                       }
                       autoComplete="family-name"
-                      placeholder={tr("Можно оставить пустым")}
+                      placeholder={tr("РњРѕР¶РЅРѕ РѕСЃС‚Р°РІРёС‚СЊ РїСѓСЃС‚С‹Рј")}
                     />
                     {getFieldError(registerErrors, "lastName") && (
                       <p className="text-sm text-destructive">
@@ -394,7 +395,7 @@ export function AuthCard() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="register-phone">{tr("Телефон")}</Label>
+                  <Label htmlFor="register-phone">{tr("РўРµР»РµС„РѕРЅ")}</Label>
                   <Input
                     id="register-phone"
                     value={registerForm.phone}
@@ -410,7 +411,7 @@ export function AuthCard() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">{tr("Подтверждение")}</p>
+                  <p className="text-sm font-medium">{tr("РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ")}</p>
                   <div id="register-turnstile" className="space-y-2">
                     <TurnstileWidget
                       resetKey={turnstileResetKey}
@@ -426,7 +427,7 @@ export function AuthCard() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="register-password">{tr("Пароль")}</Label>
+                    <Label htmlFor="register-password">{tr("РџР°СЂРѕР»СЊ")}</Label>
                     <Input
                       id="register-password"
                       type="password"
@@ -443,7 +444,7 @@ export function AuthCard() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-confirm-password">{tr("Подтверждение пароля")}</Label>
+                    <Label htmlFor="register-confirm-password">{tr("РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РїР°СЂРѕР»СЏ")}</Label>
                     <Input
                       id="register-confirm-password"
                       type="password"
@@ -465,7 +466,7 @@ export function AuthCard() {
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isRegisterDisabled}>
-                  {isPending ? tr("Регистрируем...") : tr("Зарегистрироваться")}
+                  {isPending ? tr("Р РµРіРёСЃС‚СЂРёСЂСѓРµРј...") : tr("Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ")}
                 </Button>
               </form>
             </TabsContent>
@@ -478,14 +479,14 @@ export function AuthCard() {
       {isRecoveryConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
-            <h3 className="text-xl font-semibold">Восстановить доступ?</h3>
+            <h3 className="text-xl font-semibold">Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РґРѕСЃС‚СѓРї?</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Укажите номер телефона, который привязан к аккаунту. Код подтверждения придёт на
-              привязанный email.
+              Укажите номер телефона, который привязан к аккаунту. Затем создайте код и
+              введите его ниже для восстановления доступа.
             </p>
             <div className="mt-4 space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="recovery-phone">Указанный номер телефона</Label>
+                <Label htmlFor="recovery-phone">РЈРєР°Р·Р°РЅРЅС‹Р№ РЅРѕРјРµСЂ С‚РµР»РµС„РѕРЅР°</Label>
                 <Input
                   id="recovery-phone"
                   type="tel"
@@ -509,12 +510,12 @@ export function AuthCard() {
                 onClick={requestRecoveryCode}
                 disabled={isPending}
               >
-                {isPending ? tr("Отправляем...") : "Продолжить"}
+                {isPending ? tr("РћС‚РїСЂР°РІР»СЏРµРј...") : "РџСЂРѕРґРѕР»Р¶РёС‚СЊ"}
               </Button>
 
               {isRecoveryCodeSent && (
                 <div className="space-y-2">
-                  <Label htmlFor="recovery-code">Код подтверждения</Label>
+                  <Label htmlFor="recovery-code">РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ</Label>
                   <Input
                     id="recovery-code"
                     inputMode="numeric"
@@ -537,7 +538,7 @@ export function AuthCard() {
               )}
 
               <p className="text-sm text-muted-foreground">
-                {tr("После подтверждения контакты, чёрный список и все чаты будут очищены.")}
+                {tr("РџРѕСЃР»Рµ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ РєРѕРЅС‚Р°РєС‚С‹, С‡С‘СЂРЅС‹Р№ СЃРїРёСЃРѕРє Рё РІСЃРµ С‡Р°С‚С‹ Р±СѓРґСѓС‚ РѕС‡РёС‰РµРЅС‹.")}
               </p>
 
               {recoveryMessage && (
@@ -556,7 +557,7 @@ export function AuthCard() {
                 }}
                 disabled={isPending}
               >
-                {tr("Нет")}
+                {tr("РќРµС‚")}
               </Button>
               <Button
                 type="button"
@@ -564,7 +565,7 @@ export function AuthCard() {
                 onClick={recoverAccount}
                 disabled={isPending || !isRecoveryCodeSent}
               >
-                {isPending ? tr("Сбрасываем...") : "Восстановить"}
+                {isPending ? tr("РЎР±СЂР°СЃС‹РІР°РµРј...") : "Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ"}
               </Button>
             </div>
           </div>

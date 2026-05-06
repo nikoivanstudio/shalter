@@ -62,6 +62,7 @@ export default async function FeedPage() {
           email: true,
           role: true,
           avatarTone: true,
+          avatarUrl: true,
           isBlocked: true,
         },
       },
@@ -83,6 +84,7 @@ export default async function FeedPage() {
               email: true,
               role: true,
               avatarTone: true,
+              avatarUrl: true,
               isBlocked: true,
             },
           },
@@ -113,6 +115,7 @@ export default async function FeedPage() {
           email: user.email,
           role: user.role,
           avatarTone: user.avatarTone,
+          avatarUrl: user.avatarUrl,
         }}
         posts={posts.map((post) => ({
           id: post.id,

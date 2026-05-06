@@ -2,17 +2,9 @@ import { NextResponse } from "next/server"
 
 import { requestRecoveryCode } from "@/features/auth/api/auth-service"
 import { recoveryPhoneSchema } from "@/features/auth/model/schemas"
-import { getMailConfigurationError, isMailConfigured } from "@/shared/lib/mail"
 
 export async function POST(request: Request) {
   try {
-    if (!isMailConfigured()) {
-      return NextResponse.json(
-        { message: getMailConfigurationError() ?? "Отправка email не настроена" },
-        { status: 503 }
-      )
-    }
-
     const json = await request.json()
     const parsed = recoveryPhoneSchema.safeParse(json)
 

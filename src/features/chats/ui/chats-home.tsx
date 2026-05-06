@@ -7,7 +7,10 @@ import {
   EllipsisVerticalIcon,
   FileImageIcon,
   MicIcon,
+  MusicIcon,
+  PaperclipIcon,
   PhoneCallIcon,
+  RefreshCcwIcon,
   StopCircleIcon,
   VideoIcon,
   XIcon,
@@ -115,6 +118,11 @@ type ComposerAttachment = {
   file: File
 }
 
+const GALLERY_ACCEPT = "image/*,video/*"
+const AUDIO_ACCEPT = "audio/*"
+const FILES_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.7z,.csv,.json,.rtf,application/*,text/*"
+
 function formatTime(value: string) {
   return new Date(value).toLocaleTimeString("ru-RU", {
     hour: "2-digit",
@@ -139,6 +147,23 @@ function getDialogMembersSubtitle(dialog: ChatDialog, currentUserId: number) {
   }
 
   return names.join(", ")
+}
+
+function getTypingLabel(dialog: ChatDialog, currentUserId: number, typingUserIds: number[]) {
+  const typingUsers = dialog.users.filter(
+    (dialogUser) => dialogUser.id !== currentUserId && typingUserIds.includes(dialogUser.id)
+  )
+
+  if (typingUsers.length === 0) {
+    return null
+  }
+
+  if (typingUsers.length === 1 && dialog.users.length === 2) {
+    return "Печатает..."
+  }
+
+  const names = typingUsers.map((dialogUser) => getDialogUserName(dialogUser))
+  return `${names.join(", ")} печатает...`
 }
 
 function formatLastSeen(value: string) {
@@ -282,12 +307,19 @@ export function ChatsHome({
 }: ChatsHomeProps) {
   const { tr } = useI18n()
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const galleryInputRef = useRef<HTMLInputElement | null>(null)
+  const audioInputRef = useRef<HTMLInputElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recordingStreamRef = useRef<MediaStream | null>(null)
+  const recordingPreviewRef = useRef<HTMLVideoElement | null>(null)
   const pendingRecordingKindRef = useRef<"VOICE" | "VIDEO_NOTE" | null>(null)
+  const discardPendingRecordingRef = useRef(false)
+  const typingResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isTypingSentRef = useRef(false)
   const lastDialogResyncAtRef = useRef(0)
   const callRequestNonceRef = useRef(1)
+  const [recordingCameraFacing, setRecordingCameraFacing] = useState<"user" | "environment">("user")
   const [dialogs, setDialogs] = useState(initialDialogs)
   const [selectedDialogId, setSelectedDialogId] = useState<number | null>(
     initialDialogId ?? null
@@ -297,6 +329,7 @@ export function ChatsHome({
   const [messagesReloadKey, setMessagesReloadKey] = useState(0)
   const [sseSince, setSseSince] = useState(0)
   const [messageText, setMessageText] = useState("")
+  const [typingUserIds, setTypingUserIds] = useState<number[]>([])
   const [composerAttachments, setComposerAttachments] = useState<ComposerAttachment[]>([])
   const [isRecordingVoice, setIsRecordingVoice] = useState(false)
   const [isRecordingVideoNote, setIsRecordingVideoNote] = useState(false)
@@ -385,10 +418,67 @@ export function ChatsHome({
   function resetComposer() {
     setMessageText("")
     setComposerAttachments([])
+    resetComposerInputs()
+    stopTyping()
+  }
+
+  function resetComposerInputs() {
+    if (galleryInputRef.current) {
+      galleryInputRef.current.value = ""
+    }
+    if (audioInputRef.current) {
+      audioInputRef.current.value = ""
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
   }
+
+  const sendTypingState = useCallback((isTyping: boolean, dialogId: number | null) => {
+    if (!dialogId) {
+      return
+    }
+
+    void fetch(`/api/chats/${dialogId}/typing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isTyping }),
+    }).catch(() => null)
+  }, [])
+
+  const stopTyping = useCallback(() => {
+    if (typingResetTimerRef.current) {
+      clearTimeout(typingResetTimerRef.current)
+      typingResetTimerRef.current = null
+    }
+
+    if (!isTypingSentRef.current) {
+      return
+    }
+
+    isTypingSentRef.current = false
+    sendTypingState(false, activeDialogIdRef.current)
+  }, [sendTypingState])
+
+  const pingTyping = useCallback(() => {
+    if (!activeDialogId || !messageText.trim()) {
+      stopTyping()
+      return
+    }
+
+    if (!isTypingSentRef.current) {
+      isTypingSentRef.current = true
+      sendTypingState(true, activeDialogId)
+    }
+
+    if (typingResetTimerRef.current) {
+      clearTimeout(typingResetTimerRef.current)
+    }
+
+    typingResetTimerRef.current = setTimeout(() => {
+      stopTyping()
+    }, 2500)
+  }, [activeDialogId, messageText, sendTypingState, stopTyping])
 
   function addAttachment(kind: MediaKind, file: File | null) {
     if (!file) {
@@ -396,6 +486,22 @@ export function ChatsHome({
     }
 
     setComposerAttachments((prev) => [...prev, { kind, file }])
+  }
+
+  function addAttachments(kind: MediaKind, files: FileList | File[] | null | undefined) {
+    if (!files) {
+      return
+    }
+
+    const nextFiles = Array.from(files).filter((file) => file.size > 0)
+    if (nextFiles.length === 0) {
+      return
+    }
+
+    setComposerAttachments((prev) => [
+      ...prev,
+      ...nextFiles.map((file) => ({ kind, file })),
+    ])
   }
 
   function stopActiveRecorderTracks() {
@@ -408,6 +514,8 @@ export function ChatsHome({
   function resetRecordingState() {
     mediaRecorderRef.current = null
     pendingRecordingKindRef.current = null
+    discardPendingRecordingRef.current = false
+    setRecordingCameraFacing("user")
     setIsRecordingVoice(false)
     setIsRecordingVideoNote(false)
     stopActiveRecorderTracks()
@@ -439,7 +547,7 @@ export function ChatsHome({
           : {
               audio: true,
               video: {
-                facingMode: "user",
+                facingMode: recordingCameraFacing,
                 width: { ideal: 480 },
                 height: { ideal: 480 },
               },
@@ -452,6 +560,7 @@ export function ChatsHome({
       mediaRecorderRef.current = recorder
       recordingStreamRef.current = stream
       pendingRecordingKindRef.current = kind
+      discardPendingRecordingRef.current = false
       setIsRecordingVoice(kind === "VOICE")
       setIsRecordingVideoNote(kind === "VIDEO_NOTE")
 
@@ -468,10 +577,11 @@ export function ChatsHome({
 
       recorder.onstop = () => {
         const nextKind = pendingRecordingKindRef.current
+        const shouldDiscard = discardPendingRecordingRef.current
         const finalMimeType = recorder.mimeType || mimeType
         resetRecordingState()
 
-        if (!nextKind || chunks.length === 0) {
+        if (shouldDiscard || !nextKind || chunks.length === 0) {
           return
         }
 
@@ -503,6 +613,62 @@ export function ChatsHome({
     }
   }
 
+  function cancelMediaRecording() {
+    const recorder = mediaRecorderRef.current
+    if (!recorder) {
+      return
+    }
+
+    discardPendingRecordingRef.current = true
+
+    if (recorder.state !== "inactive") {
+      recorder.stop()
+      return
+    }
+
+    resetRecordingState()
+  }
+
+  async function switchRecordingCamera() {
+    if (!isRecordingVideoNote || !recordingStreamRef.current) {
+      return
+    }
+
+    const nextFacing = recordingCameraFacing === "user" ? "environment" : "user"
+
+    try {
+      const nextStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: nextFacing,
+          width: { ideal: 480 },
+          height: { ideal: 480 },
+        },
+      })
+
+      const nextTrack = nextStream.getVideoTracks()[0] ?? null
+      if (!nextTrack) {
+        throw new Error("camera")
+      }
+
+      const currentStream = recordingStreamRef.current
+      const previousTrack = currentStream.getVideoTracks()[0] ?? null
+      if (previousTrack) {
+        currentStream.removeTrack(previousTrack)
+        previousTrack.stop()
+      }
+
+      currentStream.addTrack(nextTrack)
+      setRecordingCameraFacing(nextFacing)
+
+      if (recordingPreviewRef.current) {
+        recordingPreviewRef.current.srcObject = currentStream
+        void recordingPreviewRef.current.play().catch(() => null)
+      }
+    } catch {
+      toast.error("Не удалось переключить камеру")
+    }
+  }
+
   useEffect(() => {
     dialogsRef.current = dialogs
   }, [dialogs])
@@ -513,12 +679,33 @@ export function ChatsHome({
 
   useEffect(() => {
     return () => {
+      stopTyping()
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop()
       }
       stopActiveRecorderTracks()
     }
-  }, [])
+  }, [stopTyping])
+
+  useEffect(() => {
+    pingTyping()
+  }, [pingTyping])
+
+  useEffect(() => {
+    const preview = recordingPreviewRef.current
+    if (!preview) {
+      return
+    }
+
+    preview.srcObject = isRecordingVideoNote ? recordingStreamRef.current : null
+    if (isRecordingVideoNote) {
+      void preview.play().catch(() => null)
+    }
+
+    return () => {
+      preview.srcObject = null
+    }
+  }, [isRecordingVideoNote])
 
   const handleDialogAccessLost = useCallback(
     (dialogId: number, reason: "deleted" | "removed") => {
@@ -533,6 +720,7 @@ export function ChatsHome({
         setIsDialogView(false)
         setSelectedDialogId(null)
         setMessages([])
+        setTypingUserIds([])
         setSseSince(0)
         setShowParticipants(false)
         setShowAddParticipants(false)
@@ -656,6 +844,11 @@ export function ChatsHome({
             : dialog
         )
       )
+    })
+
+    eventSource.addEventListener("typing", (event) => {
+      const payload = parseEventPayload<{ userIds?: number[] }>(event)
+      setTypingUserIds(Array.isArray(payload?.userIds) ? payload.userIds : [])
     })
 
     eventSource.addEventListener("chat-deleted", () => {
@@ -817,10 +1010,12 @@ export function ChatsHome({
   }, [activeDialogId, isDialogView, isMessageListReady, messages])
 
   function openDialog(dialogId: number) {
+    stopTyping()
     setOpenDialogMenuId(null)
     setShowParticipants(false)
     setShowAddParticipants(false)
     setSelectedParticipantIdsToAdd([])
+    setTypingUserIds([])
     setDialogs((prev) =>
       prev.map((dialog) =>
         dialog.id === dialogId ? { ...dialog, unreadCount: 0 } : dialog
@@ -1407,6 +1602,19 @@ export function ChatsHome({
                     {selectedDialog &&
                       (() => {
                         const otherUser = getDirectDialogOtherUser(selectedDialog, user.id)
+                        const typingLabel = getTypingLabel(
+                          selectedDialog,
+                          user.id,
+                          typingUserIds
+                        )
+
+                        if (typingLabel) {
+                          return (
+                            <p className="truncate text-xs text-primary">
+                              {typingLabel}
+                            </p>
+                          )
+                        }
 
                         if (otherUser) {
                           return (
@@ -1424,7 +1632,7 @@ export function ChatsHome({
                       })()}
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    {selectedDialog && getDirectDialogOtherUser(selectedDialog, user.id) ? (
+                    {selectedDialog ? (
                       <>
                         <Button
                           size="sm"
@@ -1471,7 +1679,7 @@ export function ChatsHome({
                           </button>
                           {openDialogMenuId === selectedDialog.id && (
                             <div className="absolute right-0 top-11 z-20 min-w-52 rounded-2xl border border-border bg-popover/96 p-1.5 shadow-xl backdrop-blur-xl">
-                              {canManageDialogParticipants(selectedDialog, user.id) && (
+                              {selectedDialog && (
                                 <button
                                   type="button"
                                   className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
@@ -1792,14 +2000,54 @@ export function ChatsHome({
                 <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background/88 p-3 backdrop-blur-xl">
                   <div className="space-y-2 rounded-[1.85rem] border border-white/45 bg-card/92 p-2.5 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.65)] dark:border-white/8">
                     {isRecordingVoice || isRecordingVideoNote ? (
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-500/30 bg-red-500/8 px-3 py-2 text-sm">
-                        <span>
-                          {isRecordingVoice ? "Идёт запись голосового..." : "Идёт запись видеокружка..."}
-                        </span>
-                        <Button type="button" size="sm" variant="destructive" onClick={stopMediaRecording}>
-                          <StopCircleIcon className="size-4" />
-                          Стоп
-                        </Button>
+                      <div className="space-y-3 rounded-2xl border border-red-500/30 bg-red-500/8 px-3 py-3 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span>
+                            {isRecordingVoice
+                              ? "Идёт запись голосового..."
+                              : "Идёт запись видеокружка..."}
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={cancelMediaRecording}
+                            >
+                              <XIcon className="size-4" />
+                              Отмена
+                            </Button>
+                            {isRecordingVideoNote ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => void switchRecordingCamera()}
+                              >
+                                <RefreshCcwIcon className="size-4" />
+                                Камера
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="destructive"
+                              onClick={stopMediaRecording}
+                            >
+                              <StopCircleIcon className="size-4" />
+                              Стоп
+                            </Button>
+                          </div>
+                        </div>
+                        {isRecordingVideoNote ? (
+                          <video
+                            ref={recordingPreviewRef}
+                            autoPlay
+                            muted
+                            playsInline
+                            className="mx-auto size-40 rounded-full bg-black object-cover"
+                          />
+                        ) : null}
                       </div>
                     ) : null}
                     {composerAttachments.length > 0 ? (
@@ -1812,9 +2060,15 @@ export function ChatsHome({
                               size="icon"
                               variant="outline"
                               onClick={() =>
-                                setComposerAttachments((prev) =>
-                                  prev.filter((_, itemIndex) => itemIndex !== index)
-                                )
+                                setComposerAttachments((prev) => {
+                                  const nextAttachments = prev.filter(
+                                    (_, itemIndex) => itemIndex !== index
+                                  )
+                                  if (nextAttachments.length === 0) {
+                                    resetComposerInputs()
+                                  }
+                                  return nextAttachments
+                                })
                               }
                             >
                               <XIcon className="size-4" />
@@ -1824,29 +2078,59 @@ export function ChatsHome({
                       </div>
                     ) : null}
                     <input
+                      ref={galleryInputRef}
+                      type="file"
+                      multiple
+                      accept={GALLERY_ACCEPT}
+                      className="hidden"
+                      onChange={(event) => addAttachments("FILE", event.target.files)}
+                    />
+                    <input
+                      ref={audioInputRef}
+                      type="file"
+                      multiple
+                      accept={AUDIO_ACCEPT}
+                      className="hidden"
+                      onChange={(event) => addAttachments("FILE", event.target.files)}
+                    />
+                    <input
                       ref={fileInputRef}
                       type="file"
                       multiple
-                      accept="image/*,*/*"
+                      accept={FILES_ACCEPT}
                       className="hidden"
-                      onChange={(event) => {
-                        const nextFiles = event.target.files ? Array.from(event.target.files) : []
-                        setComposerAttachments((prev) => [
-                          ...prev,
-                          ...nextFiles.map((file) => ({ kind: "FILE" as const, file })),
-                        ])
-                      }}
+                      onChange={(event) => addAttachments("FILE", event.target.files)}
                     />
                     <div className="flex items-end gap-2">
                       <Button
                         type="button"
                         size="icon"
                         variant="outline"
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => galleryInputRef.current?.click()}
                         disabled={!activeDialogId || isSending}
-                        aria-label="Отправить файл или картинку"
+                        aria-label="Открыть галерею"
                       >
                         <FileImageIcon className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => audioInputRef.current?.click()}
+                        disabled={!activeDialogId || isSending}
+                        aria-label="Выбрать аудио"
+                      >
+                        <MusicIcon className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={!activeDialogId || isSending}
+                        aria-label="Выбрать файл"
+                      >
+                        <PaperclipIcon className="size-4" />
                       </Button>
                       <Button
                         type="button"

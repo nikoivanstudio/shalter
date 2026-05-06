@@ -7,6 +7,7 @@ import {
   PhoneCallIcon,
   PhoneIcon,
   PhoneOffIcon,
+  RefreshCcwIcon,
   VideoIcon,
   VideoOffIcon,
   Volume1Icon,
@@ -196,6 +197,7 @@ export function ChatCallOverlay({
   const [isConnecting, setIsConnecting] = useState(false)
   const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false)
   const [isCameraDisabled, setIsCameraDisabled] = useState(false)
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user")
   const [remoteStreams, setRemoteStreams] = useState<Record<number, RemoteStreamEntry>>({})
   const [volumePreset, setVolumePreset] = useState<VolumePreset>("normal")
   const [, forceLocalStreamRender] = useState(0)
@@ -559,7 +561,12 @@ export function ChatCallOverlay({
 
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video: media === "video",
+      video:
+        media === "video"
+          ? {
+              facingMode: cameraFacing,
+            }
+          : false,
     })
 
     if (existingStream) {
@@ -601,6 +608,7 @@ export function ChatCallOverlay({
     activeCallRef.current = null
     incomingCallRef.current = null
     setIsConnecting(false)
+    setCameraFacing("user")
     setIsMicrophoneMuted(false)
     setIsCameraDisabled(false)
     setVolumePreset("normal")
@@ -703,6 +711,47 @@ export function ChatCallOverlay({
       track.enabled = !nextDisabled
     }
     syncLocalStreamToPeers(localStreamRef.current)
+  }
+
+  async function switchCamera() {
+    const currentStream = localStreamRef.current
+    if (!currentStream || !(activeCallRef.current?.media === "video")) {
+      return
+    }
+
+    const nextFacing = cameraFacing === "user" ? "environment" : "user"
+
+    try {
+      const replacementStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: nextFacing },
+      })
+
+      const replacementTrack = replacementStream.getVideoTracks()[0] ?? null
+      if (!replacementTrack) {
+        throw new Error("camera")
+      }
+
+      const previousTrack = currentStream.getVideoTracks()[0] ?? null
+      const audioTracks = currentStream.getAudioTracks()
+
+      if (previousTrack) {
+        currentStream.removeTrack(previousTrack)
+        previousTrack.stop()
+      }
+
+      currentStream.addTrack(replacementTrack)
+
+      if (isCameraDisabled) {
+        replacementTrack.enabled = false
+      }
+
+      localStreamRef.current = new MediaStream([...audioTracks, replacementTrack])
+      syncLocalStreamToPeers(localStreamRef.current)
+      setCameraFacing(nextFacing)
+      forceLocalStreamRender((value) => value + 1)
+    } catch {
+      toast.error("Не удалось переключить камеру")
+    }
   }
 
   useEffect(() => {
@@ -922,6 +971,12 @@ export function ChatCallOverlay({
                         <MonitorUpIcon className="size-4" />
                       )}
                       {isCameraDisabled ? "Камера выкл." : "Камера"}
+                    </Button>
+                  ) : null}
+                  {canToggleCamera ? (
+                    <Button type="button" variant="outline" onClick={() => void switchCamera()}>
+                      <RefreshCcwIcon className="size-4" />
+                      Сменить камеру
                     </Button>
                   ) : null}
                   <Button type="button" variant="destructive" onClick={endCurrentCall}>

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
+import { clearUserTyping, getTypingUserIds } from "@/shared/lib/chat-typing"
 import { prisma } from "@/shared/lib/db/prisma"
 import { getDialogMessages } from "@/shared/lib/media/message-store"
 import { touchUserActivity } from "@/shared/lib/user-activity"
@@ -65,6 +66,7 @@ export async function GET(
   let lastSeenId = Number.isInteger(since) && since > 0 ? since : 0
   let polling = false
   let statusCursor = new Date()
+  let previousTypingSerialized = ""
 
   const encoder = new TextEncoder()
   let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -95,6 +97,7 @@ export async function GET(
           clearInterval(activityTimer)
           activityTimer = null
         }
+        clearUserTyping(dialogId, userId)
         try {
           controller.close()
         } catch {
@@ -163,6 +166,13 @@ export async function GET(
                 updatedAt: update.updatedAt,
               })
             )
+          }
+
+          const typingUserIds = getTypingUserIds(dialogId, userId)
+          const serializedTyping = JSON.stringify(typingUserIds)
+          if (serializedTyping !== previousTypingSerialized) {
+            previousTypingSerialized = serializedTyping
+            send(createSseEvent("typing", { userIds: typingUserIds }))
           }
         } catch {
           send(createSseEvent("chat-error", { message: "Ошибка обновления чата" }))

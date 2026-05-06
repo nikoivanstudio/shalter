@@ -7,6 +7,8 @@ import {
   LayoutPanelTopIcon,
   MessageSquareIcon,
   MegaphoneIcon,
+  MusicIcon,
+  PaperclipIcon,
   PauseCircleIcon,
   PlayCircleIcon,
   SendIcon,
@@ -31,11 +33,11 @@ import { useI18n } from "@/features/i18n/model/i18n-provider"
 import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { PushToggle } from "@/features/notifications/ui/push-toggle"
-import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import type { MediaAttachment } from "@/shared/lib/media/constants"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
+import { UserAvatar } from "@/shared/ui/user-avatar"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
 
 type FeedUser = {
@@ -45,6 +47,7 @@ type FeedUser = {
   email: string
   role: string
   avatarTone: string | null
+  avatarUrl?: string | null
   isBlocked?: boolean
 }
 
@@ -67,6 +70,11 @@ type FeedPost = {
 }
 
 type FeedTab = "news" | "ads" | "cabinet"
+
+const GALLERY_ACCEPT = "image/*,video/*"
+const AUDIO_ACCEPT = "audio/*"
+const FILES_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.7z,.csv,.json,.rtf,application/*,text/*"
 
 export function FeedHome({
   user,
@@ -102,10 +110,35 @@ export function FeedHome({
   const [isDeletingPost, startDeletingPost] = useTransition()
   const [isSubmittingAd, startSubmittingAd] = useTransition()
   const [isUpdatingAd, startUpdatingAd] = useTransition()
+  const postGalleryInputRef = useRef<HTMLInputElement | null>(null)
+  const postAudioInputRef = useRef<HTMLInputElement | null>(null)
   const postAttachmentInputRef = useRef<HTMLInputElement | null>(null)
-  const emblem = buildEmblem(user.firstName, user.lastName)
-  const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
   const canModeratePosts = hasAdministrativeAccess(user.role)
+
+  function addPostAttachments(files: FileList | File[] | null | undefined) {
+    if (!files) {
+      return
+    }
+
+    const nextFiles = Array.from(files).filter((file) => file.size > 0)
+    if (nextFiles.length === 0) {
+      return
+    }
+
+    setPostAttachments((prev) => [...prev, ...nextFiles])
+  }
+
+  function resetPostAttachmentInputs() {
+    if (postGalleryInputRef.current) {
+      postGalleryInputRef.current.value = ""
+    }
+    if (postAudioInputRef.current) {
+      postAudioInputRef.current.value = ""
+    }
+    if (postAttachmentInputRef.current) {
+      postAttachmentInputRef.current.value = ""
+    }
+  }
 
   function createPost() {
     startPosting(async () => {
@@ -144,9 +177,7 @@ export function FeedHome({
       setPosts((prev) => [data.post as FeedPost, ...prev])
       setPostText("")
       setPostAttachments([])
-      if (postAttachmentInputRef.current) {
-        postAttachmentInputRef.current.value = ""
-      }
+      resetPostAttachmentInputs()
       toast.success("Публикация создана")
     })
   }
@@ -380,11 +411,13 @@ export function FeedHome({
         <header className="rounded-[2rem] border border-white/55 bg-card/82 px-5 py-4 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.5)] backdrop-blur-2xl dark:border-white/10">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div
-                className={`flex size-14 items-center justify-center rounded-full border border-white/55 text-sm font-semibold shadow-lg shadow-sky-500/10 ${emblemTone}`}
-              >
-                {emblem}
-              </div>
+              <UserAvatar
+                firstName={user.firstName}
+                lastName={user.lastName}
+                avatarTone={user.avatarTone}
+                avatarUrl={user.avatarUrl}
+                className="size-14"
+              />
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate text-lg font-semibold">
@@ -460,17 +493,28 @@ export function FeedHome({
                     placeholder="Что нового?"
                   />
                   <input
+                    ref={postGalleryInputRef}
+                    type="file"
+                    multiple
+                    accept={GALLERY_ACCEPT}
+                    className="hidden"
+                    onChange={(event) => addPostAttachments(event.target.files)}
+                  />
+                  <input
+                    ref={postAudioInputRef}
+                    type="file"
+                    multiple
+                    accept={AUDIO_ACCEPT}
+                    className="hidden"
+                    onChange={(event) => addPostAttachments(event.target.files)}
+                  />
+                  <input
                     ref={postAttachmentInputRef}
                     type="file"
                     multiple
-                    accept="*/*"
+                    accept={FILES_ACCEPT}
                     className="hidden"
-                    onChange={(event) =>
-                      setPostAttachments((prev) => [
-                        ...prev,
-                        ...(event.target.files ? Array.from(event.target.files) : []),
-                      ])
-                    }
+                    onChange={(event) => addPostAttachments(event.target.files)}
                   />
                   {postAttachments.length > 0 ? (
                     <div className="space-y-2 rounded-2xl border border-border/70 bg-background/78 px-3 py-2 text-sm">
@@ -483,8 +527,8 @@ export function FeedHome({
                             variant="outline"
                             onClick={() => {
                               setPostAttachments((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
-                              if (postAttachmentInputRef.current && postAttachments.length === 1) {
-                                postAttachmentInputRef.current.value = ""
+                              if (postAttachments.length === 1) {
+                                resetPostAttachmentInputs()
                               }
                             }}
                           >
@@ -498,10 +542,26 @@ export function FeedHome({
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => postAttachmentInputRef.current?.click()}
+                      onClick={() => postGalleryInputRef.current?.click()}
                     >
                       <FileImageIcon className="size-4" />
-                      Добавить файлы
+                      Галерея
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => postAudioInputRef.current?.click()}
+                    >
+                      <MusicIcon className="size-4" />
+                      Аудио
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => postAttachmentInputRef.current?.click()}
+                    >
+                      <PaperclipIcon className="size-4" />
+                      Файлы
                     </Button>
                     <Button
                       onClick={createPost}
@@ -525,22 +585,31 @@ export function FeedHome({
                         className="rounded-[1.7rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.8))] p-4 shadow-[0_22px_55px_-38px_rgba(15,23,42,0.42)] transition-transform duration-200 hover:-translate-y-0.5 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))]"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-medium">
-                                {post.author.firstName} {post.author.lastName ?? ""}
+                          <div className="flex min-w-0 items-start gap-3">
+                            <UserAvatar
+                              firstName={post.author.firstName}
+                              lastName={post.author.lastName}
+                              avatarTone={post.author.avatarTone}
+                              avatarUrl={post.author.avatarUrl}
+                              className="size-11 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium">
+                                  {post.author.firstName} {post.author.lastName ?? ""}
+                                </p>
+                                <AccountStatusBadge
+                                  role={post.author.role}
+                                  email={post.author.email}
+                                  firstName={post.author.firstName}
+                                  lastName={post.author.lastName}
+                                  isBlocked={post.author.isBlocked}
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(post.createdAt).toLocaleString("ru-RU")}
                               </p>
-                              <AccountStatusBadge
-                                role={post.author.role}
-                                email={post.author.email}
-                                firstName={post.author.firstName}
-                                lastName={post.author.lastName}
-                                isBlocked={post.author.isBlocked}
-                              />
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(post.createdAt).toLocaleString("ru-RU")}
-                            </p>
                           </div>
                           {(post.author.id === user.id || canModeratePosts) && (
                             <DropdownMenu>
@@ -597,17 +666,27 @@ export function FeedHome({
                               {post.comments.map((comment) => (
                                 <div key={comment.id} className="rounded-[1.2rem] border border-white/45 bg-white/55 p-3 dark:border-white/8 dark:bg-white/5">
                                   <div className="flex items-start justify-between gap-3">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <p className="text-sm font-medium">
-                                        {comment.author.firstName} {comment.author.lastName ?? ""}
-                                      </p>
-                                      <AccountStatusBadge
-                                        role={comment.author.role}
-                                        email={comment.author.email}
+                                    <div className="flex min-w-0 items-start gap-3">
+                                      <UserAvatar
                                         firstName={comment.author.firstName}
                                         lastName={comment.author.lastName}
-                                        isBlocked={comment.author.isBlocked}
+                                        avatarTone={comment.author.avatarTone}
+                                        avatarUrl={comment.author.avatarUrl}
+                                        className="size-9 shrink-0"
+                                        textClassName="text-xs font-semibold"
                                       />
+                                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                        <p className="text-sm font-medium">
+                                          {comment.author.firstName} {comment.author.lastName ?? ""}
+                                        </p>
+                                        <AccountStatusBadge
+                                          role={comment.author.role}
+                                          email={comment.author.email}
+                                          firstName={comment.author.firstName}
+                                          lastName={comment.author.lastName}
+                                          isBlocked={comment.author.isBlocked}
+                                        />
+                                      </div>
                                     </div>
                                     {comment.author.id === user.id ? (
                                       <DropdownMenu>
