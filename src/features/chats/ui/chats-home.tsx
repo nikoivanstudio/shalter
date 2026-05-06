@@ -301,8 +301,8 @@ export function ChatsHome({
   user,
   dialogs: initialDialogs,
   contacts,
-  channels = [],
-  bots = [],
+  channels: initialChannels = [],
+  bots: initialBots = [],
   initialDialogId,
   initialCallMode = null,
   initialAnswerIncoming = false,
@@ -323,6 +323,8 @@ export function ChatsHome({
   const callRequestNonceRef = useRef(1)
   const [recordingCameraFacing, setRecordingCameraFacing] = useState<"user" | "environment">("user")
   const [dialogs, setDialogs] = useState(initialDialogs)
+  const [channels, setChannels] = useState(initialChannels)
+  const [bots] = useState(initialBots)
   const [selectedDialogId, setSelectedDialogId] = useState<number | null>(
     initialDialogId ?? null
   )
@@ -344,6 +346,9 @@ export function ChatsHome({
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [selectedContactIds, setSelectedContactIds] = useState<number[]>([])
   const [newChatTitle, setNewChatTitle] = useState("")
+  const [newChannelTitle, setNewChannelTitle] = useState("")
+  const [newChannelUsername, setNewChannelUsername] = useState("")
+  const [newChannelDescription, setNewChannelDescription] = useState("")
   const [openDialogMenuId, setOpenDialogMenuId] = useState<number | null>(null)
   const [showParticipants, setShowParticipants] = useState(false)
   const [showAddParticipants, setShowAddParticipants] = useState(false)
@@ -356,6 +361,7 @@ export function ChatsHome({
   const [isLeavingDialog, startLeavingDialog] = useTransition()
   const [isAddingParticipants, startAddingParticipants] = useTransition()
   const [isRemovingParticipant, startRemovingParticipant] = useTransition()
+  const [isCreatingChannel, startCreatingChannel] = useTransition()
   const dialogsRef = useRef(initialDialogs)
   const activeDialogIdRef = useRef<number | null>(initialDialogId ?? null)
   const emblem = buildEmblem(user.firstName, user.lastName)
