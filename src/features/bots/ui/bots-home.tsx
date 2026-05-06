@@ -1,7 +1,7 @@
 "use client"
 
-import { BotIcon, MessageCircleIcon, PlusIcon, SendIcon, Trash2Icon } from "lucide-react"
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { BotIcon, CopyIcon, MessageCircleIcon, SendIcon } from "lucide-react"
+import { useMemo, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,8 @@ import {
   type BotChatMessage,
   type BotConfig,
   buildBotReply,
+  compileBotScript,
+  createBotConfigFromScript,
   createInitialBotMessages,
 } from "@/features/bots/lib/runtime"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
@@ -37,183 +39,54 @@ type PublishedBot = {
   isMine?: boolean
 }
 
-type FlowBlock = {
-  id: string
-  type: string
-  title: string
-  value: string
-}
-
-type BlockTemplate = {
-  type: string
-  title: string
-  badge: string
-  description: string
-  defaultValue: string
-}
-
 export type BotsHomeProps = {
   user: BotUser
   publishedBots?: PublishedBot[]
   initialSelectedBotId?: number | null
 }
 
-const blockLibrary: BlockTemplate[] = [
-  {
-    type: "greeting",
-    title: "Первый ответ",
-    badge: "Навык",
-    description: "Как бот встречает пользователя и задаёт первый вектор диалога.",
-    defaultValue: "Поздороваться, быстро понять запрос и предложить следующий шаг.",
-  },
-  {
-    type: "qualification",
-    title: "Квалификация",
-    badge: "Продажи",
-    description: "Какие данные бот уточняет перед предложением решения.",
-    defaultValue: "Уточнить нишу, бюджет, сроки, команду и текущую задачу клиента.",
-  },
-  {
-    type: "faq",
-    title: "Частые вопросы",
-    badge: "Поддержка",
-    description: "Отдельный блок для шаблонных ответов и FAQ-сценариев.",
-    defaultValue: "Отвечать по тарифам, срокам запуска, интеграциям и ограничениям продукта.",
-  },
-  {
-    type: "objections",
-    title: "Возражения",
-    badge: "Продажи",
-    description: "Как бот снимает сомнения и возвращает пользователя к целевому действию.",
-    defaultValue: "Если дорого или непонятно, объяснить выгоду, кейсы и предложить демо.",
-  },
-  {
-    type: "lead_capture",
-    title: "Сбор лида",
-    badge: "CRM",
-    description: "Что бот должен собрать перед передачей менеджеру.",
-    defaultValue: "Собрать имя, телефон, Telegram, компанию и краткое описание задачи.",
-  },
-  {
-    type: "follow_up",
-    title: "Дожим",
-    badge: "Retention",
-    description: "Повторный контакт, если пользователь не завершил сценарий.",
-    defaultValue: "Если пользователь ушёл без заявки, предложить вернуться и оставить контакт.",
-  },
-  {
-    type: "integration",
-    title: "Интеграции",
-    badge: "Ops",
-    description: "Что бот отправляет во внешние системы и когда.",
-    defaultValue: "Передавать лиды в CRM, а важные диалоги отправлять в Telegram команде.",
-  },
-  {
-    type: "analytics",
-    title: "Аналитика",
-    badge: "Data",
-    description: "Какие события бот должен считать и помечать.",
-    defaultValue: "Отмечать лиды, фолбэки, брошенные диалоги и успешные конверсии.",
-  },
-  {
-    type: "guardrail",
-    title: "Ограничения",
-    badge: "Безопасность",
-    description: "Что бот не должен обещать, придумывать или делать.",
-    defaultValue: "Не придумывать цены, сроки и юридические обещания без подтверждения.",
-  },
-  {
-    type: "handoff",
-    title: "Передача человеку",
-    badge: "Support",
-    description: "Когда бот должен сразу отдать диалог менеджеру или оператору.",
-    defaultValue: "Передавать менеджеру при нестандартных условиях, оплате и конфликтных вопросах.",
-  },
-]
-
 const audienceLabels: Record<PublishedBot["audience"], string> = {
   client: "Клиенты",
   user: "Пользователи",
 }
 
-const defaultBlocks: FlowBlock[] = [
-  {
-    id: "greeting-1",
-    type: "greeting",
-    title: "Первый ответ",
-    value: "Поздороваться, быстро понять запрос и предложить следующий шаг.",
-  },
-  {
-    id: "qualification-1",
-    type: "qualification",
-    title: "Квалификация",
-    value: "Уточнить контекст, бюджет, сроки и приоритеты клиента.",
-  },
-  {
-    id: "lead-capture-1",
-    type: "lead_capture",
-    title: "Сбор лида",
-    value: "Собрать контакт и кратко описать задачу перед передачей менеджеру.",
-  },
-]
+const starterScript = `# Shalter Bot Script
+name "Новый бот"
+niche "Поддержка и продажи"
+goal "Быстро понимать запрос и вести пользователя к следующему шагу."
+tone "Спокойный, точный, дружелюбный."
 
-function toList(value: string) {
-  return value
-    .split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
+greeting """
+Привет! Я бот внутри Shalter. Напиши, что тебе нужно, и я помогу.
+"""
 
-function buildConfig(name: string, niche: string, blocks: FlowBlock[]): BotConfig {
-  return {
-    name,
-    niche,
-    goal:
-      blocks.find((block) => block.type === "qualification")?.value ||
-      "Помогать пользователям и доводить их до результата.",
-    tone: "Спокойный, уверенный, дружелюбный.",
-    greeting:
-      blocks.find((block) => block.type === "greeting")?.value ||
-      "Здравствуйте! Чем могу помочь?",
-    knowledge: toList(
-      blocks
-        .filter((block) => block.type === "faq" || block.type === "integration")
-        .map((block) => block.value)
-        .join("\n")
-    ),
-    channels: ["Web chat", "Telegram", "CRM"],
-    skills: blocks.map((block) => block.title),
-    guardrails: toList(
-      blocks
-        .filter((block) => block.type === "guardrail")
-        .map((block) => block.value)
-        .join("\n")
-    ),
-    escalation:
-      blocks.find((block) => block.type === "handoff")?.value ||
-      "Передавать диалог человеку при сложных кейсах.",
-    flow: blocks.map((block) => ({
-      type: block.type,
-      title: block.title,
-      value: block.value,
-    })),
-    handoffEnabled: blocks.some((block) => block.type === "handoff"),
-    analytics: {
-      trackLeads: blocks.some((block) => block.type === "lead_capture"),
-      trackFallbacks: true,
-      summaryWindow: "7d",
-    },
-  }
-}
+guard """
+Не придумывай цены, сроки и юридические обещания без подтверждения.
+"""
 
-function createBlock(template: BlockTemplate) {
-  return {
-    id: `${template.type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    type: template.type,
-    title: template.title,
-    value: template.defaultValue,
-  } satisfies FlowBlock
-}
+rule includes "привет" | "здравствуйте" | "hello" """
+Привет! Я на связи. Могу подсказать по продукту, заявке или следующему действию.
+"""
+
+rule includes "цена" | "стоимость" | "тариф" """
+Стоимость зависит от задачи. Напиши, что именно нужно, и я сориентирую по формату.
+"""
+
+rule includes "заявка" | "менеджер" | "контакт" """
+Оставь контакт и коротко опиши задачу. Если нужно, я передам диалог человеку.
+"""
+
+rule regex "/(ошибка|не работает|bug)/i" """
+Похоже на проблему или баг. Опиши, что именно сломалось, и добавь шаги воспроизведения.
+"""
+
+handoff """
+Если вопрос нестандартный, связан с оплатой или конфликтной ситуацией, передай диалог человеку.
+"""
+
+default """
+Опиши задачу чуть подробнее, и я подберу для тебя следующий шаг.
+"""`
 
 function createUserMessage(content: string): BotChatMessage {
   return {
@@ -231,17 +104,23 @@ function createBotMessage(content: string): BotChatMessage {
   }
 }
 
+function getRuleCount(config: BotConfig) {
+  if (config.script) {
+    return compileBotScript(config.script).rules.length
+  }
+
+  return config.flow.length
+}
+
 export function BotsHome({
   user,
   publishedBots = [],
   initialSelectedBotId = null,
 }: BotsHomeProps) {
   const [username, setUsername] = useState("")
-  const [name, setName] = useState("Новый бот")
-  const [niche, setNiche] = useState("")
   const [audience, setAudience] = useState<PublishedBot["audience"]>("client")
+  const [script, setScript] = useState(starterScript)
   const [items, setItems] = useState<PublishedBot[]>(publishedBots)
-  const [blocks, setBlocks] = useState<FlowBlock[]>(defaultBlocks)
   const [selectedBotId, setSelectedBotId] = useState<number | null>(
     initialSelectedBotId && publishedBots.some((bot) => bot.id === initialSelectedBotId)
       ? initialSelectedBotId
@@ -252,63 +131,31 @@ export function BotsHome({
   const [isPublishing, startPublishing] = useTransition()
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null)
 
+  const normalizedUsername = username.trim().toLowerCase()
+  const scriptProgram = useMemo(() => compileBotScript(script), [script])
   const previewConfig = useMemo(
-    () => buildConfig(name.trim() || "Новый бот", niche.trim(), blocks),
-    [blocks, name, niche]
+    () => createBotConfigFromScript(script, normalizedUsername),
+    [normalizedUsername, script]
   )
 
-  const selectedBot =
-    items.find((item) => item.id === selectedBotId) ?? items[0] ?? null
-
-  useEffect(() => {
-    if (items.length === 0) {
-      setSelectedBotId(null)
-      return
-    }
-
-    setSelectedBotId((prev) => (prev && items.some((item) => item.id === prev) ? prev : items[0].id))
-  }, [items])
-
-  useEffect(() => {
-    setBotMessagesById((prev) => {
-      const next = { ...prev }
-
-      for (const bot of items) {
-        if (!next[bot.id]) {
-          next[bot.id] = createInitialBotMessages(bot.config)
-        }
-      }
-
-      for (const key of Object.keys(next)) {
-        const botId = Number(key)
-        if (!items.some((item) => item.id === botId)) {
-          delete next[botId]
-        }
-      }
-
-      return next
-    })
-  }, [items])
+  const selectedBot = items.find((item) => item.id === selectedBotId) ?? items[0] ?? null
 
   async function copyConfig() {
     try {
       await navigator.clipboard.writeText(JSON.stringify(previewConfig, null, 2))
-      toast.success("Конфиг скопирован")
+      toast.success("Конфиг бота скопирован")
     } catch {
       toast.error("Не удалось скопировать конфиг")
     }
   }
 
-  function addBlock(template: BlockTemplate) {
-    setBlocks((prev) => [...prev, createBlock(template)])
-  }
-
-  function updateBlock(blockId: string, value: string) {
-    setBlocks((prev) => prev.map((block) => (block.id === blockId ? { ...block, value } : block)))
-  }
-
-  function removeBlock(blockId: string) {
-    setBlocks((prev) => prev.filter((block) => block.id !== blockId))
+  async function copyScript() {
+    try {
+      await navigator.clipboard.writeText(script)
+      toast.success("Код бота скопирован")
+    } catch {
+      toast.error("Не удалось скопировать код")
+    }
   }
 
   function publishBot() {
@@ -318,10 +165,7 @@ export function BotsHome({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           audience,
-          config: {
-            ...previewConfig,
-            username: username.trim().toLowerCase(),
-          },
+          config: previewConfig,
         }),
       })
 
@@ -348,7 +192,7 @@ export function BotsHome({
       .then(async (response) => {
         const data = await response.json().catch(() => null)
         if (!response.ok) {
-          toast.error(data?.message ?? "Не удалось снять публикацию")
+          toast.error(data?.message ?? "Не удалось удалить бота")
           return
         }
 
@@ -358,10 +202,10 @@ export function BotsHome({
           delete next[botId]
           return next
         })
-        toast.success("Публикация удалена")
+        toast.success("Бот удалён")
       })
       .catch(() => {
-        toast.error("Не удалось снять публикацию")
+        toast.error("Не удалось удалить бота")
       })
       .finally(() => {
         setIsDeletingId(null)
@@ -388,7 +232,11 @@ export function BotsHome({
 
     setBotMessagesById((prev) => ({
       ...prev,
-      [selectedBot.id]: [...(prev[selectedBot.id] ?? createInitialBotMessages(selectedBot.config)), userMessage, botReply],
+      [selectedBot.id]: [
+        ...(prev[selectedBot.id] ?? createInitialBotMessages(selectedBot.config)),
+        userMessage,
+        botReply,
+      ],
     }))
     setBotDraft("")
   }
@@ -398,153 +246,106 @@ export function BotsHome({
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4">
         <Card className="border-border/70">
           <CardHeader>
-            <CardTitle>Конструктор ботов</CardTitle>
+            <CardTitle>Язык ботов</CardTitle>
             <CardDescription>
-              {user.firstName}, здесь можно собрать сценарий, опубликовать бота и сразу протестировать его как отдельный диалог.
+              {user.firstName}, теперь бот создаётся кодом во встроенном редакторе. Пишете сценарий на
+              встроенном DSL, публикуете и сразу тестируете его как диалог.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 xl:grid-cols-[1.05fr_1fr_0.95fr]">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="bot-name">
-                  Имя бота
-                </label>
-                <Input id="bot-name" value={name} onChange={(event) => setName(event.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="bot-niche">
-                  Ниша
-                </label>
-                <Input id="bot-niche" value={niche} onChange={(event) => setNiche(event.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="bot-username">
-                  Username
-                </label>
-                <Input
-                  id="bot-username"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  placeholder="my_bot"
-                  autoComplete="off"
-                />
-                <p className="text-xs text-muted-foreground">@username, 4-32 символа: a-z, 0-9 и _</p>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Аудитория публикации</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant={audience === "client" ? "default" : "outline"}
-                    onClick={() => setAudience("client")}
-                  >
-                    Клиенты
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={audience === "user" ? "default" : "outline"}
-                    onClick={() => setAudience("user")}
-                  >
-                    Пользователи
-                  </Button>
-                </div>
-              </div>
-
-              <Card className="border-border/70">
-                <CardHeader>
-                  <CardTitle className="text-base">Библиотека блоков</CardTitle>
-                  <CardDescription>
-                    Добавляйте блоки для продаж, поддержки, аналитики и передачи человеку.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-2">
-                  {blockLibrary.map((block) => (
-                    <div key={block.type} className="rounded-2xl border border-border/70 bg-background/80 p-3">
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium">{block.title}</p>
-                          <p className="text-xs text-muted-foreground">{block.badge}</p>
-                        </div>
-                        <Button type="button" size="sm" variant="outline" onClick={() => addBlock(block)}>
-                          <PlusIcon className="size-4" />
-                          Добавить
-                        </Button>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{block.description}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-
+          <CardContent className="grid gap-4 xl:grid-cols-[0.92fr_1.18fr_0.9fr]">
             <div className="space-y-4">
               <Card className="border-border/70">
                 <CardHeader>
-                  <CardTitle className="text-base">Сценарий бота</CardTitle>
+                  <CardTitle className="text-base">Публикация</CardTitle>
                   <CardDescription>
-                    Этот сценарий будет определять ответы опубликованного бота в диалоге.
+                    Username и аудитория задаются отдельно, остальное бот берёт из кода.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  {blocks.map((block) => (
-                    <div key={block.id} className="rounded-2xl border border-border/70 p-3">
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium">{block.title}</p>
-                          <p className="text-xs text-muted-foreground">{block.type}</p>
-                        </div>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() => removeBlock(block.id)}
-                          disabled={blocks.length <= 1}
-                          aria-label={`Удалить блок ${block.title}`}
-                        >
-                          <Trash2Icon className="size-4" />
-                        </Button>
-                      </div>
-                      <textarea
-                        value={block.value}
-                        onChange={(event) => updateBlock(block.id, event.target.value)}
-                        className="min-h-28 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      />
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="bot-username">
+                      Username
+                    </label>
+                    <Input
+                      id="bot-username"
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      placeholder="my_bot"
+                      autoComplete="off"
+                    />
+                    <p className="text-xs text-muted-foreground">@username, 4-32 символа: a-z, 0-9 и _</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Аудитория публикации</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant={audience === "client" ? "default" : "outline"}
+                        onClick={() => setAudience("client")}
+                      >
+                        Клиенты
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={audience === "user" ? "default" : "outline"}
+                        onClick={() => setAudience("user")}
+                      >
+                        Пользователи
+                      </Button>
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="space-y-2 rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
+                    <p className="font-medium">Что умеет язык</p>
+                    <p className="text-muted-foreground">
+                      <code>name</code>, <code>niche</code>, <code>goal</code>, <code>tone</code>, блоки{" "}
+                      <code>greeting/default/guard/handoff</code>, правила <code>rule includes</code> и{" "}
+                      <code>rule regex</code>.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" onClick={copyScript}>
+                      <CopyIcon className="size-4" />
+                      Скопировать код
+                    </Button>
+                    <Button type="button" variant="outline" onClick={copyConfig}>
+                      <CopyIcon className="size-4" />
+                      Скопировать конфиг
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 
               <Card className="border-border/70">
                 <CardHeader>
-                  <CardTitle className="text-base">Превью конфигурации</CardTitle>
+                  <CardTitle className="text-base">Превью программы</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div>
                     <p className="font-medium">{previewConfig.name}</p>
-                    {username.trim() ? (
-                      <p className="text-muted-foreground">@{username.trim().toLowerCase()}</p>
-                    ) : null}
-                    <p className="text-muted-foreground">{previewConfig.niche || "Без указания ниши"}</p>
+                    {normalizedUsername ? <p className="text-muted-foreground">@{normalizedUsername}</p> : null}
+                    <p className="text-muted-foreground">{previewConfig.niche || "Без указанной ниши"}</p>
                   </div>
                   <div>
-                    <p className="font-medium">Блоков в сценарии</p>
-                    <p className="text-muted-foreground">{previewConfig.flow.length}</p>
+                    <p className="font-medium">Правил</p>
+                    <p className="text-muted-foreground">{scriptProgram.rules.length}</p>
                   </div>
                   <div>
-                    <p className="font-medium">Ключевые блоки</p>
-                    <p className="text-muted-foreground">{previewConfig.skills.join(", ")}</p>
+                    <p className="font-medium">Цель</p>
+                    <p className="text-muted-foreground">{previewConfig.goal}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" onClick={copyConfig}>
-                      Скопировать конфиг
-                    </Button>
                     <Button
                       type="button"
                       onClick={publishBot}
-                      disabled={isPublishing || name.trim().length < 2 || username.trim().length < 4}
+                      disabled={
+                        isPublishing ||
+                        normalizedUsername.length < 4 ||
+                        scriptProgram.errors.length > 0 ||
+                        previewConfig.name.trim().length < 2
+                      }
                     >
                       {isPublishing ? "Публикуем..." : "Опубликовать"}
                     </Button>
@@ -556,8 +357,58 @@ export function BotsHome({
             <div className="space-y-4">
               <Card className="border-border/70">
                 <CardHeader>
+                  <CardTitle className="text-base">Встроенный редактор</CardTitle>
+                  <CardDescription>
+                    Пишите код сценария прямо здесь. Каждое правило содержит условие и многострочный ответ.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <textarea
+                    value={script}
+                    onChange={(event) => setScript(event.target.value)}
+                    spellCheck={false}
+                    className="min-h-[38rem] w-full rounded-2xl border border-border/70 bg-[#0b1220] px-4 py-3 font-mono text-sm leading-6 text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
+                    <p className="font-medium">Шпаргалка</p>
+                    <div className="mt-2 space-y-1 text-muted-foreground">
+                      <p>
+                        <code>name &quot;Имя бота&quot;</code>
+                      </p>
+                      <p>
+                        <code>greeting &quot;&quot;&quot; ... &quot;&quot;&quot;</code>
+                      </p>
+                      <p>
+                        <code>rule includes &quot;цена&quot; | &quot;тариф&quot; &quot;&quot;&quot; ... &quot;&quot;&quot;</code>
+                      </p>
+                      <p>
+                        <code>rule regex &quot;/(bug|ошибка)/i&quot; &quot;&quot;&quot; ... &quot;&quot;&quot;</code>
+                      </p>
+                      <p>
+                        <code>default &quot;&quot;&quot; ... &quot;&quot;&quot;</code>
+                      </p>
+                    </div>
+                  </div>
+                  {scriptProgram.errors.length > 0 ? (
+                    <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                      {scriptProgram.errors.map((error, index) => (
+                        <p key={`${error}-${index}`}>{error}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+                      Код разобран успешно. Бот готов к публикации.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-4">
+              <Card className="border-border/70">
+                <CardHeader>
                   <CardTitle className="text-base">Опубликованные боты</CardTitle>
-                  <CardDescription>Каждого бота можно открыть как отдельный диалог.</CardDescription>
+                  <CardDescription>Каждый бот открывается как отдельный диалог и использует свой код.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {items.length === 0 ? (
@@ -573,9 +424,7 @@ export function BotsHome({
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 space-y-1">
                             <p className="truncate text-sm font-medium">{bot.name}</p>
-                            {bot.username ? (
-                              <p className="truncate text-xs text-muted-foreground">@{bot.username}</p>
-                            ) : null}
+                            {bot.username ? <p className="truncate text-xs text-muted-foreground">@{bot.username}</p> : null}
                             <p className="text-xs text-muted-foreground">
                               {audienceLabels[bot.audience]}
                               {bot.niche ? ` · ${bot.niche}` : ""}
@@ -598,7 +447,7 @@ export function BotsHome({
                           </Button>
                           <Button type="button" size="sm" variant="secondary">
                             <BotIcon className="size-4" />
-                            {bot.config.flow.length} блоков
+                            {getRuleCount(bot.config)} правил
                           </Button>
                         </div>
                       </div>
@@ -643,7 +492,7 @@ export function BotsHome({
                       <div className="rounded-2xl border border-border/70 p-3">
                         <div className="mb-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                           <span>Роль: {audienceLabels[selectedBot.audience]}</span>
-                          <span>Каналы: {selectedBot.config.channels.join(", ")}</span>
+                          <span>Правил: {getRuleCount(selectedBot.config)}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Input
@@ -666,7 +515,7 @@ export function BotsHome({
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      После публикации бот появится здесь и его можно будет тестировать как чат.
+                      После публикации бот появится здесь, и его можно будет тестировать как обычный чат.
                     </p>
                   )}
                 </CardContent>

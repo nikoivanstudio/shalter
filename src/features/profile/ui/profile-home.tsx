@@ -29,7 +29,8 @@ import {
   updateProfileSchema,
 } from "@/features/profile/model/schemas"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
-import { normalizeRole, PREMIUM_ROLE } from "@/shared/lib/auth/roles"
+import { canAssignManagedRole, normalizeRole, PREMIUM_ROLE } from "@/shared/lib/auth/roles"
+import { billingProducts, getBillingProduct, type BillingProductKey } from "@/shared/lib/billing/catalog"
 import {
   giftCatalog,
   hasInfiniteStars,
@@ -47,6 +48,7 @@ type EditableUser = {
   username: string
   phone: string
   role: string
+  premiumUntil?: string | null
   starsBalance?: number
   partnerStarsEarned?: number
   avatarTone?: UpdateProfileInput["avatarTone"]
@@ -55,6 +57,28 @@ type EditableUser = {
   showEmailInProfile: boolean
   showPhoneInProfile: boolean
   showGiftsInProfile: boolean
+}
+
+type PurchaseRequestItem = {
+  id: number
+  productKey: string
+  amountRub: number
+  premiumMonths: number
+  starsAmount: number
+  status: string
+  checkoutUrl: string | null
+  createdAt: string
+  reviewedAt?: string | null
+}
+
+type PendingPurchaseRequestItem = PurchaseRequestItem & {
+  note?: string | null
+  user: {
+    id: number
+    email: string
+    firstName: string
+    lastName: string | null
+  }
 }
 
 type FieldErrors = Record<string, string[] | undefined>
@@ -80,13 +104,22 @@ function withAvatarCacheBuster(url: string | null | undefined) {
 
 const FIRST_NAME_MIN_MESSAGE = "Имя должно быть не короче 2 символов"
 
-export function ProfileHome({ user }: { user: EditableUser }) {
+export function ProfileHome({
+  user,
+  purchaseRequests,
+  pendingPurchaseRequests,
+}: {
+  user: EditableUser
+  purchaseRequests: PurchaseRequestItem[]
+  pendingPurchaseRequests: PendingPurchaseRequestItem[]
+}) {
   const router = useRouter()
   const { tr } = useI18n()
   const [isSavingProfile, startSavingProfile] = useTransition()
   const [isChangingPassword, startChangingPassword] = useTransition()
   const [isDeletingAccount, startDeletingAccount] = useTransition()
   const [isRewardPending, startRewardTransition] = useTransition()
+  const [isBillingPending, startBillingTransition] = useTransition()
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [passwordErrors, setPasswordErrors] = useState<FieldErrors>({})
   const [serverMessage, setServerMessage] = useState("")
@@ -120,11 +153,14 @@ export function ProfileHome({ user }: { user: EditableUser }) {
   const [giftKey, setGiftKey] = useState<GiftKey>(giftCatalog[0]?.key ?? "coffee")
   const [starRecipientEmail, setStarRecipientEmail] = useState("")
   const [starAmount, setStarAmount] = useState("25")
+  const [requests, setRequests] = useState(purchaseRequests)
+  const [adminQueue, setAdminQueue] = useState(pendingPurchaseRequests)
 
   const lastName = form.lastName ?? null
   const displayName = `${form.firstName} ${lastName ?? ""}`.trim()
   const isPremium = normalizeRole(user.role) === PREMIUM_ROLE
   const isAdminWithInfiniteStars = hasInfiniteStars(user.role)
+  const canReviewPayments = canAssignManagedRole(user.role)
   const partnerLink = `https://shalter.ru/auth?ref=${user.id}`
   const selectedGift = giftCatalog.find((gift) => gift.key === giftKey) ?? giftCatalog[0]
 
@@ -413,6 +449,77 @@ export function ProfileHome({ user }: { user: EditableUser }) {
 
       setStarRecipientEmail("")
       toast.success("Звёзды отправлены")
+    })
+  }
+
+  function createPurchaseRequest(productKey: BillingProductKey) {
+    const product = getBillingProduct(productKey)
+    if (!product) {
+      toast.error("Не удалось определить продукт оплаты")
+      return
+    }
+
+    startBillingTransition(async () => {
+      const response = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ productKey }),
+      })
+
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось создать заявку на оплату")
+        return
+      }
+
+      if (data?.request) {
+        setRequests((prev) => [data.request as PurchaseRequestItem, ...prev])
+      }
+
+      if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+        window.open(data.checkoutUrl, "_blank", "noopener,noreferrer")
+        toast.success(`Открыта безопасная оплата: ${product.title}`)
+        return
+      }
+
+      toast.success(`Заявка на ${product.title} создана и ждёт подтверждения`)
+    })
+  }
+
+  function reviewPurchaseRequest(requestId: number, action: "approve" | "reject") {
+    startBillingTransition(async () => {
+      const response = await fetch(`/api/billing/requests/${requestId}/${action}`, {
+        method: "POST",
+      })
+
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        toast.error(
+          data?.message ??
+            (action === "approve" ? "Не удалось подтвердить заявку" : "Не удалось отклонить заявку")
+        )
+        return
+      }
+
+      const nextStatus = action === "approve" ? "APPROVED" : "REJECTED"
+      setAdminQueue((prev) => prev.filter((item) => item.id !== requestId))
+      setRequests((prev) =>
+        prev.map((item) =>
+          item.id === requestId
+            ? {
+                ...item,
+                status: nextStatus,
+                reviewedAt: data?.request?.reviewedAt ?? new Date().toISOString(),
+              }
+            : item
+        )
+      )
+
+      toast.success(action === "approve" ? "Заявка подтверждена" : "Заявка отклонена")
     })
   }
 
@@ -906,6 +1013,137 @@ export function ProfileHome({ user }: { user: EditableUser }) {
                 </div>
               }
             />
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Покупка premium и звёзд</CardTitle>
+                <CardDescription>
+                  Покупки оформляются безопасно: карта и секретные реквизиты не хранятся в приложении.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {user.premiumUntil ? (
+                  <div className="rounded-2xl border border-border/70 bg-muted/25 p-4 text-sm">
+                    <p className="font-medium">Текущий premium</p>
+                    <p className="text-muted-foreground">
+                      Активен до {new Date(user.premiumUntil).toLocaleString("ru-RU")}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3">
+                  {billingProducts.map((product) => (
+                    <div
+                      key={product.key}
+                      className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/70 p-4"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <p className="font-medium">{product.title}</p>
+                        <p className="text-sm text-muted-foreground">{product.description}</p>
+                        <p className="text-sm text-muted-foreground">{product.amountRub} ₽</p>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isBillingPending}
+                        onClick={() => createPurchaseRequest(product.key)}
+                      >
+                        {isBillingPending ? "Создаём заявку..." : `Купить за ${product.amountRub} ₽`}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>История покупок</CardTitle>
+                <CardDescription>Ваши последние заявки на premium и пакеты звёзд.</CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                {requests.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Заявок на покупку пока нет.</p>
+                ) : (
+                  requests.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="font-medium">
+                            {getBillingProduct(item.productKey)?.title ?? item.productKey}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{item.amountRub} ₽</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(item.createdAt).toLocaleString("ru-RU")}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-border/70 px-3 py-1 text-xs font-medium">
+                          {item.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            {canReviewPayments ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Очередь подтверждения</CardTitle>
+                  <CardDescription>
+                    Заявки пользователей на premium и пакеты звёзд, ожидающие проверки.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-3">
+                  {adminQueue.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Сейчас нет заявок, ожидающих проверки.</p>
+                  ) : (
+                    adminQueue.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                        <div className="space-y-1">
+                          <p className="font-medium">
+                            {item.user.firstName} {item.user.lastName ?? ""}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{item.user.email}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {getBillingProduct(item.productKey)?.title ?? item.productKey} · {item.amountRub} ₽
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(item.createdAt).toLocaleString("ru-RU")}
+                          </p>
+                          {item.note ? <p className="text-xs text-muted-foreground">{item.note}</p> : null}
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={isBillingPending}
+                            onClick={() => reviewPurchaseRequest(item.id, "approve")}
+                          >
+                            Подтвердить
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={isBillingPending}
+                            onClick={() => reviewPurchaseRequest(item.id, "reject")}
+                          >
+                            Отклонить
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
 
             <Card className="border-destructive/20">
               <CardHeader>

@@ -4,6 +4,34 @@ export type BotFlowItem = {
   value: string
 }
 
+export type BotScriptRule =
+  | {
+      id: string
+      kind: "includes"
+      patterns: string[]
+      reply: string
+    }
+  | {
+      id: string
+      kind: "regex"
+      pattern: string
+      flags: string
+      reply: string
+    }
+
+export type BotScriptProgram = {
+  name: string
+  niche: string
+  goal: string
+  tone: string
+  greeting: string
+  fallback: string
+  guard: string
+  handoff: string
+  rules: BotScriptRule[]
+  errors: string[]
+}
+
 export type BotConfig = {
   name: string
   username?: string
@@ -23,6 +51,7 @@ export type BotConfig = {
     trackFallbacks: boolean
     summaryWindow: string
   }
+  script?: string
 }
 
 export type BotChatMessage = {
@@ -31,6 +60,9 @@ export type BotChatMessage = {
   content: string
 }
 
+const DEFAULT_GREETING = "Здравствуйте! Я бот. Чем могу помочь?"
+const DEFAULT_FALLBACK = "Опишите задачу чуть подробнее, и я подберу следующий шаг."
+
 function normalizeText(value: string) {
   return value.toLowerCase()
 }
@@ -38,9 +70,7 @@ function normalizeText(value: string) {
 function findFlowValue(config: BotConfig, types: string[]) {
   return (
     config.flow.find((item) => types.includes(item.type))?.value ||
-    config.flow.find((item) =>
-      types.some((type) => normalizeText(item.title).includes(type))
-    )?.value ||
+    config.flow.find((item) => types.some((type) => normalizeText(item.title).includes(type)))?.value ||
     ""
   )
 }
@@ -49,17 +79,262 @@ function formatList(values: string[]) {
   return values.filter(Boolean).slice(0, 3).join(", ")
 }
 
+function parseQuotedValues(source: string) {
+  const values = Array.from(source.matchAll(/"([^"]+)"/g), (match) => match[1]?.trim() ?? "")
+  return values.filter(Boolean)
+}
+
+function parseRegexLiteral(source: string) {
+  const match = source.trim().match(/^\/(.+)\/([a-z]*)$/i)
+  if (!match) {
+    return null
+  }
+
+  return {
+    pattern: match[1] ?? "",
+    flags: match[2] ?? "",
+  }
+}
+
+export function compileBotScript(script: string): BotScriptProgram {
+  const lines = script.replace(/\r\n/g, "\n").split("\n")
+  const errors: string[] = []
+  const program: BotScriptProgram = {
+    name: "",
+    niche: "",
+    goal: "",
+    tone: "",
+    greeting: "",
+    fallback: "",
+    guard: "",
+    handoff: "",
+    rules: [],
+    errors,
+  }
+
+  function readBlock(startIndex: number) {
+    const content: string[] = []
+
+    for (let index = startIndex; index < lines.length; index += 1) {
+      if (lines[index].trim() === '"""') {
+        return {
+          value: content.join("\n").trim(),
+          nextIndex: index + 1,
+        }
+      }
+
+      content.push(lines[index])
+    }
+
+    errors.push(`Не закрыт блок """ возле строки ${startIndex}.`)
+    return {
+      value: content.join("\n").trim(),
+      nextIndex: lines.length,
+    }
+  }
+
+  let index = 0
+  while (index < lines.length) {
+    const rawLine = lines[index] ?? ""
+    const line = rawLine.trim()
+
+    if (!line || line.startsWith("#")) {
+      index += 1
+      continue
+    }
+
+    const metaMatch = line.match(/^(name|niche|goal|tone)\s+"([^"]+)"$/)
+    if (metaMatch) {
+      const [, key, value] = metaMatch
+      if (key === "name") program.name = value.trim()
+      if (key === "niche") program.niche = value.trim()
+      if (key === "goal") program.goal = value.trim()
+      if (key === "tone") program.tone = value.trim()
+      index += 1
+      continue
+    }
+
+    const blockStartMatch = line.match(/^(greeting|default|guard|handoff)\s+"""$/)
+    if (blockStartMatch) {
+      const block = readBlock(index + 1)
+      const type = blockStartMatch[1]
+      if (type === "greeting") program.greeting = block.value
+      if (type === "default") program.fallback = block.value
+      if (type === "guard") program.guard = block.value
+      if (type === "handoff") program.handoff = block.value
+      index = block.nextIndex
+      continue
+    }
+
+    const includesStartMatch = rawLine.match(/^\s*rule\s+includes\s+(.+)\s+"""$/)
+    if (includesStartMatch) {
+      const patterns = parseQuotedValues(includesStartMatch[1] ?? "")
+      if (patterns.length === 0) {
+        errors.push(`У правила includes возле строки ${index + 1} нет ни одного шаблона.`)
+      }
+
+      const block = readBlock(index + 1)
+      program.rules.push({
+        id: `rule-${program.rules.length + 1}`,
+        kind: "includes",
+        patterns,
+        reply: block.value,
+      })
+      index = block.nextIndex
+      continue
+    }
+
+    const regexStartMatch = rawLine.match(/^\s*rule\s+regex\s+"([^"]+)"\s+"""$/)
+    if (regexStartMatch) {
+      const parsedRegex = parseRegexLiteral(regexStartMatch[1] ?? "")
+      if (!parsedRegex) {
+        errors.push(`У правила regex возле строки ${index + 1} неверный формат. Используйте "/шаблон/i".`)
+      }
+
+      const block = readBlock(index + 1)
+      program.rules.push({
+        id: `rule-${program.rules.length + 1}`,
+        kind: "regex",
+        pattern: parsedRegex?.pattern ?? "",
+        flags: parsedRegex?.flags ?? "",
+        reply: block.value,
+      })
+      index = block.nextIndex
+      continue
+    }
+
+    errors.push(`Не удалось разобрать строку ${index + 1}: ${line}`)
+    index += 1
+  }
+
+  if (!program.greeting) {
+    errors.push('Добавьте блок greeting """ ... """')
+  }
+
+  if (!program.fallback) {
+    errors.push('Добавьте блок default """ ... """')
+  }
+
+  if (program.rules.length === 0) {
+    errors.push('Добавьте хотя бы одно правило rule includes ... """ или rule regex ... """')
+  }
+
+  for (const rule of program.rules) {
+    if (!rule.reply.trim()) {
+      errors.push(`Пустой ответ у правила ${rule.id}.`)
+    }
+
+    if (rule.kind === "regex" && rule.pattern) {
+      try {
+        // Validate syntax once during compilation.
+        new RegExp(rule.pattern, rule.flags)
+      } catch {
+        errors.push(`Некорректное регулярное выражение в ${rule.id}.`)
+      }
+    }
+  }
+
+  return program
+}
+
+function buildReplyFromScript(config: BotConfig, userMessage: string) {
+  const program = compileBotScript(config.script ?? "")
+  if (program.errors.length > 0) {
+    return null
+  }
+
+  const message = normalizeText(userMessage)
+
+  for (const rule of program.rules) {
+    if (rule.kind === "includes") {
+      if (rule.patterns.some((pattern) => message.includes(normalizeText(pattern)))) {
+        return [rule.reply, program.guard ? `Важно: ${program.guard}` : ""].filter(Boolean).join("\n\n")
+      }
+      continue
+    }
+
+    try {
+      const expression = new RegExp(rule.pattern, rule.flags)
+      if (expression.test(userMessage)) {
+        return [rule.reply, program.guard ? `Важно: ${program.guard}` : ""].filter(Boolean).join("\n\n")
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return [program.fallback || DEFAULT_FALLBACK, program.guard ? `Важно: ${program.guard}` : ""]
+    .filter(Boolean)
+    .join("\n\n")
+}
+
+export function createBotConfigFromScript(script: string, username = ""): BotConfig {
+  const program = compileBotScript(script)
+  const flow =
+    program.rules.length > 0
+      ? program.rules.map((rule, index) => ({
+          type: rule.kind === "regex" ? "regex" : "includes",
+          title:
+            rule.kind === "regex"
+              ? `Regex rule ${index + 1}`
+              : `Includes: ${rule.patterns.slice(0, 2).join(", ") || `rule ${index + 1}`}`,
+          value: rule.reply,
+        }))
+      : [
+          {
+            type: "default",
+            title: "Default",
+            value: program.fallback || DEFAULT_FALLBACK,
+          },
+        ]
+
+  return {
+    name: program.name || "Новый бот",
+    username,
+    niche: program.niche,
+    goal: program.goal || "Отвечать на сообщения по правилам сценария.",
+    tone: program.tone || "Спокойный, точный, дружелюбный.",
+    greeting: program.greeting || DEFAULT_GREETING,
+    knowledge: [],
+    channels: ["Built-in chat"],
+    skills: program.rules.map((rule, index) =>
+      rule.kind === "regex" ? `Regex rule ${index + 1}` : rule.patterns.join(", ")
+    ),
+    guardrails: program.guard ? [program.guard] : [],
+    escalation: program.handoff,
+    flow,
+    handoffEnabled: Boolean(program.handoff),
+    analytics: {
+      trackLeads: true,
+      trackFallbacks: true,
+      summaryWindow: "7d",
+    },
+    script,
+  }
+}
+
 export function createInitialBotMessages(config: BotConfig): BotChatMessage[] {
+  const scriptProgram = config.script ? compileBotScript(config.script) : null
+  const greeting =
+    scriptProgram && scriptProgram.errors.length === 0
+      ? scriptProgram.greeting || config.greeting.trim()
+      : config.greeting.trim()
+
   return [
     {
       id: "bot-greeting",
       role: "bot",
-      content: config.greeting.trim() || `Здравствуйте! Я бот ${config.name}. Чем могу помочь?`,
+      content: greeting || `Здравствуйте! Я бот ${config.name}. Чем могу помочь?`,
     },
   ]
 }
 
 export function buildBotReply(config: BotConfig, userMessage: string): string {
+  const scriptedReply = config.script ? buildReplyFromScript(config, userMessage) : null
+  if (scriptedReply) {
+    return scriptedReply
+  }
+
   const message = normalizeText(userMessage)
 
   const guardrail = config.guardrails[0]?.trim()
@@ -117,10 +392,7 @@ export function buildBotReply(config: BotConfig, userMessage: string): string {
       .join("\n\n")
   }
 
-  return [
-    qualification || config.goal || `Помогаю по сценарию ${config.name}.`,
-    followUp || "Опишите задачу чуть подробнее, и я подберу следующий шаг.",
-  ]
+  return [qualification || config.goal || `Помогаю по сценарию ${config.name}.`, followUp || DEFAULT_FALLBACK]
     .filter(Boolean)
     .join("\n\n")
 }

@@ -25,6 +25,7 @@ export const publishBotSchema = z.object({
     guardrails: z.array(z.string().trim().min(1).max(200)).max(50),
     escalation: z.string().trim().max(2000, "Правило передачи слишком длинное"),
     flow: z.array(botFlowItemSchema).min(1, "Сценарий пуст").max(100),
+    script: z.string().trim().min(1, "Добавьте код бота").max(20000, "Код бота слишком длинный").optional(),
     handoffEnabled: z.boolean(),
     analytics: z.object({
       trackLeads: z.boolean(),

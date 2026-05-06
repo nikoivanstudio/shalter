@@ -1095,6 +1095,43 @@ export function ChatsHome({
     })
   }
 
+  function createChannelFromChats() {
+    if (newChannelTitle.trim().length < 2) {
+      toast.error("Укажите название канала")
+      return
+    }
+
+    if (newChannelUsername.trim().length < 4) {
+      toast.error("Укажите username канала")
+      return
+    }
+
+    startCreatingChannel(async () => {
+      const response = await fetch("/api/channels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newChannelTitle.trim(),
+          username: newChannelUsername.trim(),
+          description: newChannelDescription.trim(),
+        }),
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        toast.error(data?.message ?? "Не удалось создать канал")
+        return
+      }
+
+      setChannels((prev) => [data.channel, ...prev])
+      setNewChannelTitle("")
+      setNewChannelUsername("")
+      setNewChannelDescription("")
+      toast.success("Канал создан")
+      location.assign(`/channels?channelId=${data.channel.id}`)
+    })
+  }
+
   function sendMessage() {
     if (!activeDialogId) {
       return
@@ -1543,11 +1580,46 @@ export function ChatsHome({
                     )}
                   </div>
                 ))}
+                <div className="space-y-3 rounded-[1.2rem] border border-border/60 bg-background/80 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Создать канал</p>
+                      <p className="text-xs text-muted-foreground">
+                        Новый канал можно создать прямо из вкладки чатов.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Input
+                      value={newChannelTitle}
+                      onChange={(event) => setNewChannelTitle(event.target.value)}
+                      placeholder="Название канала"
+                    />
+                    <Input
+                      value={newChannelUsername}
+                      onChange={(event) => setNewChannelUsername(event.target.value)}
+                      placeholder="@channel_username"
+                      autoComplete="off"
+                    />
+                    <Input
+                      value={newChannelDescription}
+                      onChange={(event) => setNewChannelDescription(event.target.value)}
+                      placeholder="Описание канала"
+                    />
+                    <Button
+                      onClick={createChannelFromChats}
+                      disabled={isCreatingChannel}
+                      className="w-full"
+                    >
+                      {isCreatingChannel ? "Создаём канал..." : "Создать канал"}
+                    </Button>
+                  </div>
+                </div>
                 {(channels.length > 0 || bots.length > 0) && (
                   <div className="space-y-3 rounded-[1.2rem] border border-border/60 bg-background/80 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <p className="text-sm font-medium">Каналы и боты</p>
+                        <p className="text-sm font-medium">Каналы и чаты с ботами</p>
                         <p className="text-xs text-muted-foreground">
                           Всё собрано в одной вкладке рядом с диалогами.
                         </p>
@@ -1578,7 +1650,7 @@ export function ChatsHome({
                       >
                         <p className="truncate text-sm font-medium">{bot.name}</p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {bot.username ? `@${bot.username}` : bot.niche || "Открыть бота"}
+                          {bot.username ? `@${bot.username}` : bot.niche || "Открыть чат с ботом"}
                         </p>
                       </button>
                     ))}

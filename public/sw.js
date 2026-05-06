@@ -108,8 +108,8 @@ self.addEventListener("notificationclick", (event) => {
   const data = event.notification.data || {};
   const action = event.action || "";
   const url =
-    action === "answer-call" && data.dialogId && data.media
-      ? `/chats?dialogId=${data.dialogId}&startCall=${data.media}`
+    action === "answer-call" && data.dialogId
+      ? `/chats?dialogId=${data.dialogId}&answerCall=1`
       : data.url || "/chats";
 
   if (action === "decline-call" && data.callId) {

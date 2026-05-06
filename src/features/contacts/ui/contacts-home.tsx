@@ -17,7 +17,6 @@ import {
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
-import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 import {
   canAssignManagedRole,
@@ -27,6 +26,7 @@ import {
   type ManagedUserRole,
 } from "@/shared/lib/auth/roles"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
+import { UserAvatar } from "@/shared/ui/user-avatar"
 
 type ProfileUser = {
   id: number
@@ -89,8 +89,6 @@ export function ContactsHome({
   const [roleUpdateUserId, setRoleUpdateUserId] = useState<number | null>(null)
   const [selectedProfile, setSelectedProfile] = useState<ViewedContactProfile | null>(null)
   const [isProfileLoading, setIsProfileLoading] = useState(false)
-  const emblem = buildEmblem(user.firstName, user.lastName)
-  const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
   const canManageRoles = canAssignManagedRole(user.role)
 
   useEffect(() => {
@@ -357,11 +355,13 @@ export function ContactsHome({
         <header className="rounded-[2rem] border border-white/55 bg-card/82 px-5 py-4 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.5)] backdrop-blur-2xl dark:border-white/10">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div
-                className={`flex size-14 items-center justify-center rounded-full border border-white/55 text-sm font-semibold shadow-lg shadow-sky-500/10 ${emblemTone}`}
-              >
-                {emblem}
-              </div>
+              <UserAvatar
+                firstName={user.firstName}
+                lastName={user.lastName}
+                avatarTone={user.avatarTone}
+                avatarUrl={user.avatarUrl}
+                className="size-14"
+              />
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate text-lg font-semibold">
@@ -461,8 +461,16 @@ export function ContactsHome({
                         key={item.id}
                         className="flex flex-col gap-3 rounded-[1.45rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3.5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.35)] transition-transform duration-200 hover:-translate-y-0.5 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))] sm:flex-row sm:items-center sm:justify-between"
                       >
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <UserAvatar
+                            firstName={item.firstName}
+                            lastName={item.lastName}
+                            avatarTone={item.avatarTone}
+                            avatarUrl={item.avatarUrl}
+                            className="size-11 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
                             <p className="truncate font-medium">
                               {item.firstName} {item.lastName}
                             </p>
@@ -478,6 +486,7 @@ export function ContactsHome({
                           <p className="truncate text-sm text-muted-foreground">
                             {item.phone} · {item.email}
                           </p>
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button
@@ -577,10 +586,18 @@ export function ContactsHome({
                     className="flex items-center justify-between gap-3 rounded-[1.45rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3.5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/20 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))]"
                   >
                     <button
-                      className="min-w-0 flex-1 text-left"
+                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
                       onClick={() => router.push(`/chats?contactId=${contact.id}`)}
                     >
-                      <div className="flex flex-wrap items-center gap-2">
+                      <UserAvatar
+                        firstName={contact.firstName}
+                        lastName={contact.lastName}
+                        avatarTone={contact.avatarTone}
+                        avatarUrl={contact.avatarUrl}
+                        className="size-11 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium">
                           {contact.firstName} {contact.lastName}
                         </p>
@@ -596,6 +613,7 @@ export function ContactsHome({
                       <p className="text-sm text-muted-foreground">
                         {contact.phone} · {contact.email}
                       </p>
+                      </div>
                     </button>
                     <Button
                       type="button"
