@@ -199,6 +199,31 @@ export function joinCall(callId: string, user: CallUser) {
   return snapshot
 }
 
+export function inviteUsersToCall(callId: string, users: CallUser[]) {
+  const call = getStore().calls.get(callId)
+  if (!call) {
+    return null
+  }
+
+  let changed = false
+  for (const user of users) {
+    if (call.usersById.has(user.userId)) {
+      continue
+    }
+
+    call.usersById.set(user.userId, user)
+    changed = true
+  }
+
+  if (!changed) {
+    return callToSnapshot(call)
+  }
+
+  const snapshot = callToSnapshot(call)
+  emitToDialogUsers(call, { type: "call.updated", call: snapshot })
+  return snapshot
+}
+
 export function leaveCall(callId: string, userId: number) {
   const call = getStore().calls.get(callId)
   if (!call) {

@@ -12,6 +12,7 @@ export type BillingProduct = {
   amountRub: number
   premiumMonths: number
   starsAmount: number
+  requiresCheckout: boolean
 }
 
 export const billingProducts: BillingProduct[] = [
@@ -22,6 +23,7 @@ export const billingProducts: BillingProduct[] = [
     amountRub: 5,
     premiumMonths: 1,
     starsAmount: 0,
+    requiresCheckout: true,
   },
   {
     key: "premium-year",
@@ -30,6 +32,7 @@ export const billingProducts: BillingProduct[] = [
     amountRub: 20,
     premiumMonths: 12,
     starsAmount: 0,
+    requiresCheckout: true,
   },
   {
     key: "stars-100",
@@ -38,6 +41,7 @@ export const billingProducts: BillingProduct[] = [
     amountRub: 1,
     premiumMonths: 0,
     starsAmount: 100,
+    requiresCheckout: true,
   },
   {
     key: "stars-1000",
@@ -46,6 +50,7 @@ export const billingProducts: BillingProduct[] = [
     amountRub: 10,
     premiumMonths: 0,
     starsAmount: 1000,
+    requiresCheckout: true,
   },
   {
     key: "stars-10000",
@@ -54,6 +59,7 @@ export const billingProducts: BillingProduct[] = [
     amountRub: 100,
     premiumMonths: 0,
     starsAmount: 10000,
+    requiresCheckout: true,
   },
 ] as const
 

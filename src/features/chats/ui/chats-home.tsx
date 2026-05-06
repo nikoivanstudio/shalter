@@ -38,12 +38,12 @@ import {
   getDialogDisplayTitle,
   getDialogUserName,
 } from "@/features/chats/lib/dialog-title"
-import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import type { MediaAttachment, MediaKind } from "@/shared/lib/media/constants"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
+import { UserAvatar } from "@/shared/ui/user-avatar"
 
 type UserShort = {
   id: number
@@ -211,6 +211,15 @@ function getDirectDialogOtherUser(dialog: ChatDialog, currentUserId: number) {
   return dialog.users.find((item) => item.id !== currentUserId) ?? null
 }
 
+function getDialogAvatarUser(dialog: ChatDialog, currentUserId: number) {
+  return (
+    getDirectDialogOtherUser(dialog, currentUserId) ??
+    dialog.users.find((item) => item.id !== currentUserId) ??
+    dialog.users[0] ??
+    null
+  )
+}
+
 function canLeaveDialog(dialog: ChatDialog, currentUserId: number) {
   return dialog.users.length > 2 && dialog.users.some((item) => item.id === currentUserId)
 }
@@ -365,8 +374,6 @@ export function ChatsHome({
   const [isCreatingChannel, startCreatingChannel] = useTransition()
   const dialogsRef = useRef(initialDialogs)
   const activeDialogIdRef = useRef<number | null>(initialDialogId ?? null)
-  const emblem = buildEmblem(user.firstName, user.lastName)
-  const emblemTone = getEmblemTone(user.firstName, user.lastName, user.avatarTone)
   const unreadDialogsCount = useMemo(
     () => dialogs.filter((dialog) => dialog.unreadCount > 0).length,
     [dialogs]
@@ -1427,11 +1434,13 @@ export function ChatsHome({
       <header className="sticky top-0 z-20 shrink-0 rounded-[1.7rem] border border-white/50 bg-card/88 px-4 py-3 shadow-[0_20px_55px_-32px_rgba(15,23,42,0.48)] backdrop-blur-xl dark:border-white/8 sm:rounded-[2rem] sm:px-5 sm:py-4">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className={`flex size-14 items-center justify-center rounded-full border border-white/55 text-sm font-semibold shadow-lg shadow-sky-500/10 ${emblemTone}`}
-            >
-              {emblem}
-            </div>
+            <UserAvatar
+              firstName={user.firstName}
+              lastName={user.lastName}
+              avatarTone={user.avatarTone}
+              avatarUrl={user.avatarUrl}
+              className="size-14"
+            />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="truncate text-lg font-semibold">{getDialogUserName(user)}</p>
@@ -1527,9 +1536,23 @@ export function ChatsHome({
                 {orderedDialogs.map((dialog) => (
                   <div key={dialog.id} className="flex items-start gap-2 rounded-[1.2rem] border border-transparent p-1">
                     <button
-                      className="relative w-full rounded-[1.3rem] border border-border/60 bg-background/88 p-3.5 text-left transition-colors hover:bg-accent/45"
+                      className="relative flex w-full items-start gap-3 rounded-[1.3rem] border border-border/60 bg-background/88 p-3.5 text-left transition-colors hover:bg-accent/45"
                       onClick={() => openDialog(dialog.id)}
                     >
+                      {(() => {
+                        const avatarUser = getDialogAvatarUser(dialog, user.id)
+                        return avatarUser ? (
+                          <UserAvatar
+                            firstName={avatarUser.firstName}
+                            lastName={avatarUser.lastName}
+                            avatarTone={avatarUser.avatarTone}
+                            avatarUrl={avatarUser.avatarUrl}
+                            className="size-11 shrink-0"
+                            textClassName="text-xs font-semibold"
+                          />
+                        ) : null
+                      })()}
+                      <div className="min-w-0 flex-1">
                       {dialog.unreadCount > 0 && (
                         <span className="absolute right-3 top-3 inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
                           {dialog.unreadCount > 99 ? "99+" : dialog.unreadCount}
@@ -1541,6 +1564,7 @@ export function ChatsHome({
                       <p className="truncate text-xs text-muted-foreground">
                         {dialog.lastMessage?.content ?? "Сообщений пока нет"}
                       </p>
+                      </div>
                     </button>
 
                     {(canDeleteDialog(dialog, user.id) || canLeaveDialog(dialog, user.id)) && (
@@ -1663,6 +1687,22 @@ export function ChatsHome({
             {showDialogPanel && (
               <div className="flex min-h-0 flex-1 flex-col rounded-[1.75rem] border border-border/70 bg-background/68">
                 <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-background/72 px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    {selectedDialog ? (
+                      (() => {
+                        const avatarUser = getDialogAvatarUser(selectedDialog, user.id)
+                        return avatarUser ? (
+                          <UserAvatar
+                            firstName={avatarUser.firstName}
+                            lastName={avatarUser.lastName}
+                            avatarTone={avatarUser.avatarTone}
+                            avatarUrl={avatarUser.avatarUrl}
+                            className="size-11 shrink-0"
+                            textClassName="text-xs font-semibold"
+                          />
+                        ) : null
+                      })()
+                    ) : null}
                   <div className="min-w-0">
                     {selectedDialog ? (
                       <button
@@ -1711,6 +1751,7 @@ export function ChatsHome({
                           </p>
                         )
                       })()}
+                  </div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     {selectedDialog ? (

@@ -471,7 +471,7 @@ export function ProfileHome({
       const data = await response.json().catch(() => null)
 
       if (!response.ok) {
-        toast.error(data?.message ?? "Не удалось создать заявку на оплату")
+        toast.error(data?.message ?? "Не удалось открыть безопасную оплату картой")
         return
       }
 
@@ -481,11 +481,11 @@ export function ProfileHome({
 
       if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
         window.open(data.checkoutUrl, "_blank", "noopener,noreferrer")
-        toast.success(`Открыта безопасная оплата: ${product.title}`)
+        toast.success(`Открыта безопасная оплата картой: ${product.title}`)
         return
       }
 
-      toast.success(`Заявка на ${product.title} создана и ждёт подтверждения`)
+      toast.error("Платёжная страница не была получена от провайдера.")
     })
   }
 
@@ -1018,7 +1018,7 @@ export function ProfileHome({
               <CardHeader>
                 <CardTitle>Покупка premium и звёзд</CardTitle>
                 <CardDescription>
-                  Покупки оформляются безопасно: карта и секретные реквизиты не хранятся в приложении.
+                  Оплата картой открывается только на защищённой странице платёжного провайдера. Номер карты, CVC и срок действия не сохраняются в приложении.
                 </CardDescription>
               </CardHeader>
 
@@ -1042,6 +1042,9 @@ export function ProfileHome({
                         <p className="font-medium">{product.title}</p>
                         <p className="text-sm text-muted-foreground">{product.description}</p>
                         <p className="text-sm text-muted-foreground">{product.amountRub} ₽</p>
+                        <p className="text-xs text-muted-foreground">
+                          Данные карты вводятся только на внешней безопасной странице оплаты.
+                        </p>
                       </div>
 
                       <Button
@@ -1050,7 +1053,7 @@ export function ProfileHome({
                         disabled={isBillingPending}
                         onClick={() => createPurchaseRequest(product.key)}
                       >
-                        {isBillingPending ? "Создаём заявку..." : `Купить за ${product.amountRub} ₽`}
+                        {isBillingPending ? "Открываем оплату..." : `Оплатить картой ${product.amountRub} ₽`}
                       </Button>
                     </div>
                   ))}

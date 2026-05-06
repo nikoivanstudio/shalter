@@ -21,6 +21,15 @@ export async function POST(request: NextRequest) {
 
   const checkoutUrl = getBillingCheckoutUrl(product.key)
 
+  if (product.requiresCheckout && !checkoutUrl) {
+    return NextResponse.json(
+      {
+        message: "Для этого товара ещё не настроена безопасная оплата картой через платёжного провайдера.",
+      },
+      { status: 503 }
+    )
+  }
+
   const purchaseRequest = await prisma.purchaseRequest.create({
     data: {
       userId,
@@ -52,7 +61,7 @@ export async function POST(request: NextRequest) {
         createdAt: purchaseRequest.createdAt.toISOString(),
       },
       checkoutUrl,
-      mode: checkoutUrl ? "checkout" : "manual-review",
+      mode: "checkout",
     },
     { status: 201 }
   )

@@ -15,6 +15,7 @@ import {
   createBotConfigFromScript,
   createInitialBotMessages,
 } from "@/features/bots/lib/runtime"
+import { BotCodeEditor } from "@/features/bots/ui/bot-code-editor"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 
@@ -51,43 +52,46 @@ const audienceLabels: Record<PublishedBot["audience"], string> = {
   user: "Пользователи",
 }
 
-const starterScript = `# Shalter Bot Script
-name "Новый бот"
-niche "Поддержка и продажи"
-goal "Быстро понимать запрос и вести пользователя к следующему шагу."
-tone "Спокойный, точный, дружелюбный."
+const starterScript = `from shalter import ShalterBot
 
-greeting """
+bot = ShalterBot(
+    name="Новый бот",
+    niche="Поддержка и продажи",
+    goal="Быстро понимать запрос и вести пользователя к следующему шагу.",
+    tone="Спокойный, точный, дружелюбный.",
+)
+
+bot.greeting("""
 Привет! Я бот внутри Shalter. Напиши, что тебе нужно, и я помогу.
-"""
+""")
 
-guard """
+bot.guard("""
 Не придумывай цены, сроки и юридические обещания без подтверждения.
-"""
+""")
 
-rule includes "привет" | "здравствуйте" | "hello" """
+bot.rule_contains(["привет", "здравствуйте", "hello"], """
 Привет! Я на связи. Могу подсказать по продукту, заявке или следующему действию.
-"""
+""")
 
-rule includes "цена" | "стоимость" | "тариф" """
+bot.rule_contains(["цена", "стоимость", "тариф"], """
 Стоимость зависит от задачи. Напиши, что именно нужно, и я сориентирую по формату.
-"""
+""")
 
-rule includes "заявка" | "менеджер" | "контакт" """
+bot.rule_contains(["заявка", "менеджер", "контакт"], """
 Оставь контакт и коротко опиши задачу. Если нужно, я передам диалог человеку.
-"""
+""")
 
-rule regex "/(ошибка|не работает|bug)/i" """
+bot.rule_regex(r"(ошибка|не работает|bug)", """
 Похоже на проблему или баг. Опиши, что именно сломалось, и добавь шаги воспроизведения.
-"""
+""", flags="i")
 
-handoff """
+bot.handoff("""
 Если вопрос нестандартный, связан с оплатой или конфликтной ситуацией, передай диалог человеку.
-"""
+""")
 
-default """
+bot.default("""
 Опиши задачу чуть подробнее, и я подберу для тебя следующий шаг.
-"""`
+""")`
 
 function createUserMessage(content: string): BotChatMessage {
   return {
@@ -249,8 +253,8 @@ export function BotsHome({
           <CardHeader>
             <CardTitle>Язык ботов</CardTitle>
             <CardDescription>
-              {user.firstName}, теперь бот создаётся кодом во встроенном редакторе. Пишете сценарий на
-              встроенном DSL, публикуете и сразу тестируете его как диалог.
+              {user.firstName}, теперь бот создаётся кодом во встроенном редакторе. Основной формат
+              теперь похож на Python-библиотеку `ShalterBot(...)`, а старый DSL тоже остаётся рабочим.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 xl:grid-cols-[0.92fr_1.18fr_0.9fr]">
@@ -300,9 +304,9 @@ export function BotsHome({
                   <div className="space-y-2 rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
                     <p className="font-medium">Что умеет язык</p>
                     <p className="text-muted-foreground">
-                      <code>name</code>, <code>niche</code>, <code>goal</code>, <code>tone</code>, блоки{" "}
-                      <code>greeting/default/guard/handoff</code>, правила <code>rule includes</code> и{" "}
-                      <code>rule regex</code>.
+                      <code>bot = ShalterBot(...)</code>, методы <code>bot.greeting()</code>,{" "}
+                      <code>bot.guard()</code>, <code>bot.handoff()</code>, <code>bot.default()</code>, а также
+                      правила <code>bot.rule_contains()</code> и <code>bot.rule_regex()</code>.
                     </p>
                   </div>
 
@@ -360,33 +364,29 @@ export function BotsHome({
                 <CardHeader>
                   <CardTitle className="text-base">Встроенный редактор</CardTitle>
                   <CardDescription>
-                    Пишите код сценария прямо здесь. Каждое правило содержит условие и многострочный ответ.
+                    Пишите код сценария прямо здесь. Бот можно описывать как питоноподобную библиотеку.
+                    Полная документация: <code>docs/BOT_LANGUAGE.md</code>
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <textarea
-                    value={script}
-                    onChange={(event) => setScript(event.target.value)}
-                    spellCheck={false}
-                    className="min-h-[38rem] w-full rounded-2xl border border-border/70 bg-[#0b1220] px-4 py-3 font-mono text-sm leading-6 text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
+                  <BotCodeEditor value={script} onChange={setScript} />
                   <div className="rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
                     <p className="font-medium">Шпаргалка</p>
                     <div className="mt-2 space-y-1 text-muted-foreground">
                       <p>
-                        <code>name &quot;Имя бота&quot;</code>
+                        <code>bot = ShalterBot(name=&quot;Имя бота&quot;, ...)</code>
                       </p>
                       <p>
-                        <code>greeting &quot;&quot;&quot; ... &quot;&quot;&quot;</code>
+                        <code>bot.greeting(&quot;&quot;&quot; ... &quot;&quot;&quot;)</code>
                       </p>
                       <p>
-                        <code>rule includes &quot;цена&quot; | &quot;тариф&quot; &quot;&quot;&quot; ... &quot;&quot;&quot;</code>
+                        <code>bot.rule_contains([&quot;цена&quot;, &quot;тариф&quot;], &quot;&quot;&quot; ... &quot;&quot;&quot;)</code>
                       </p>
                       <p>
-                        <code>rule regex &quot;/(bug|ошибка)/i&quot; &quot;&quot;&quot; ... &quot;&quot;&quot;</code>
+                        <code>bot.rule_regex(r&quot;(bug|ошибка)&quot;, &quot;&quot;&quot; ... &quot;&quot;&quot;, flags=&quot;i&quot;)</code>
                       </p>
                       <p>
-                        <code>default &quot;&quot;&quot; ... &quot;&quot;&quot;</code>
+                        <code>bot.default(&quot;&quot;&quot; ... &quot;&quot;&quot;)</code>
                       </p>
                     </div>
                   </div>

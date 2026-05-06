@@ -16,17 +16,35 @@ import { useI18n } from "@/features/i18n/model/i18n-provider"
 
 type NavSection = "settings" | "contacts" | "chats" | "channels" | "feed" | "bots" | "server"
 
+type BottomNavProps = {
+  active?: NavSection
+  onChatsClick?: () => void
+  chatsBadgeCount?: number
+  showServerTab?: boolean
+}
+
+function buildItemClassName(isActive: boolean) {
+  return [
+    "relative h-auto min-w-0 flex-1 rounded-[1rem] px-0.5 py-1.5 text-[10px] leading-tight transition-all sm:min-w-14 sm:rounded-[1.3rem] sm:px-2 sm:py-2",
+    isActive
+      ? "bg-primary text-primary-foreground shadow-[0_10px_22px_-14px_rgba(15,23,42,0.85)]"
+      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+  ].join(" ")
+}
+
+function buildLabelClassName(isActive: boolean) {
+  return [
+    "truncate text-[9px] transition-all sm:text-[11px]",
+    isActive ? "mt-0.5 max-w-full opacity-100" : "max-h-0 max-w-0 opacity-0 sm:mt-0.5 sm:max-h-4 sm:max-w-full sm:opacity-100",
+  ].join(" ")
+}
+
 export function BottomNav({
   active,
   onChatsClick,
   chatsBadgeCount,
   showServerTab = false,
-}: {
-  active?: NavSection
-  onChatsClick?: () => void
-  chatsBadgeCount?: number
-  showServerTab?: boolean
-}) {
+}: BottomNavProps) {
   const router = useRouter()
   const { tr } = useI18n()
   const [liveChatsBadgeCount, setLiveChatsBadgeCount] = useState(0)
@@ -53,74 +71,81 @@ export function BottomNav({
   }, [useExternalBadge])
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 px-1.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] sm:px-3 sm:pb-3">
-      <div className="mx-auto flex w-full max-w-md items-center justify-around gap-0.5 rounded-[1.45rem] border border-white/50 bg-card/92 px-1 py-1 shadow-[0_18px_42px_-22px_rgba(15,23,42,0.58)] backdrop-blur-2xl dark:border-white/8 sm:max-w-2xl sm:gap-1 sm:rounded-[2rem] sm:px-2 sm:py-2">
+    <nav className="fixed inset-x-0 bottom-0 z-30 px-2 pb-[max(0.35rem,env(safe-area-inset-bottom))] sm:px-3 sm:pb-3">
+      <div className="mx-auto flex w-full max-w-md items-end justify-around gap-1 rounded-[1.35rem] border border-white/45 bg-card/88 px-1.5 py-1.5 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-white/8 sm:max-w-2xl sm:gap-1.5 sm:rounded-[1.8rem] sm:px-2 sm:py-2">
         <Button
           variant={active === "settings" ? "default" : "ghost"}
-          className="h-auto min-w-0 flex-1 flex-col gap-0.5 rounded-[1.1rem] px-0.5 py-1.5 text-[10px] leading-tight sm:min-w-14 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
+          className={buildItemClassName(active === "settings")}
           onClick={() => router.push("/")}
         >
-          <SettingsIcon className="size-3.5 sm:size-4" />
-          <span className="truncate text-[9px] sm:text-xs">
-            {tr("\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438")}
-          </span>
+          <div className="flex flex-col items-center justify-center gap-0.5">
+            <SettingsIcon className="size-4 sm:size-4.5" />
+          </div>
+          <span className={buildLabelClassName(active === "settings")}>{tr("Настройки")}</span>
         </Button>
+
         <Button
           variant={active === "contacts" ? "default" : "ghost"}
-          className="h-auto min-w-0 flex-1 flex-col gap-0.5 rounded-[1.1rem] px-0.5 py-1.5 text-[10px] leading-tight sm:min-w-14 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
+          className={buildItemClassName(active === "contacts")}
           onClick={() => router.push("/contacts")}
         >
-          <UsersIcon className="size-3.5 sm:size-4" />
-          <span className="truncate text-[9px] sm:text-xs">
-            {tr("\u041a\u043e\u043d\u0442\u0430\u043a\u0442\u044b")}
-          </span>
+          <div className="flex flex-col items-center justify-center gap-0.5">
+            <UsersIcon className="size-4 sm:size-4.5" />
+          </div>
+          <span className={buildLabelClassName(active === "contacts")}>{tr("Контакты")}</span>
         </Button>
+
         <Button
           variant={active === "chats" ? "default" : "ghost"}
-          className="relative h-auto min-w-0 flex-1 flex-col gap-0.5 rounded-[1.1rem] px-0.5 py-1.5 text-[10px] leading-tight sm:min-w-14 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
+          className={buildItemClassName(active === "chats")}
           onClick={() => {
             onChatsClick?.()
             router.push("/chats")
           }}
         >
-          <MessageCircleIcon className="size-3.5 sm:size-4" />
-          <span className="truncate text-[9px] sm:text-xs">
-            {tr("\u0427\u0430\u0442\u044b")}
-          </span>
-          {effectiveChatsBadgeCount > 0 && (
-            <span className="absolute -top-1 right-0.5 inline-flex min-w-4.5 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground sm:right-1 sm:min-w-5 sm:px-1.5 sm:text-[10px]">
+          <div className="flex flex-col items-center justify-center gap-0.5">
+            <MessageCircleIcon className="size-4 sm:size-4.5" />
+          </div>
+          <span className={buildLabelClassName(active === "chats")}>{tr("Чаты")}</span>
+          {effectiveChatsBadgeCount > 0 ? (
+            <span className="absolute top-0.5 right-0.5 inline-flex min-w-4.5 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground shadow-sm sm:right-1 sm:min-w-5 sm:px-1.5 sm:text-[10px]">
               {effectiveChatsBadgeCount > 99 ? "99+" : effectiveChatsBadgeCount}
             </span>
-          )}
+          ) : null}
         </Button>
+
         <Button
           variant={active === "feed" ? "default" : "ghost"}
-          className="h-auto min-w-0 flex-1 flex-col gap-0.5 rounded-[1.1rem] px-0.5 py-1.5 text-[10px] leading-tight sm:min-w-14 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
+          className={buildItemClassName(active === "feed")}
           onClick={() => router.push("/feed")}
         >
-          <NewspaperIcon className="size-3.5 sm:size-4" />
-          <span className="truncate text-[9px] sm:text-xs">
-            {tr("\u041b\u0435\u043d\u0442\u0430")}
-          </span>
+          <div className="flex flex-col items-center justify-center gap-0.5">
+            <NewspaperIcon className="size-4 sm:size-4.5" />
+          </div>
+          <span className={buildLabelClassName(active === "feed")}>{tr("Лента")}</span>
         </Button>
+
         <Button
           variant={active === "bots" ? "default" : "ghost"}
-          className="h-auto min-w-0 flex-1 flex-col gap-0.5 rounded-[1.1rem] px-0.5 py-1.5 text-[10px] leading-tight sm:min-w-14 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
+          className={buildItemClassName(active === "bots")}
           onClick={() => router.push("/bots")}
         >
-          <BotIcon className="size-3.5 sm:size-4" />
-          <span className="truncate text-[9px] sm:text-xs">
-            {tr("\u0411\u043e\u0442\u044b")}
-          </span>
+          <div className="flex flex-col items-center justify-center gap-0.5">
+            <BotIcon className="size-4 sm:size-4.5" />
+          </div>
+          <span className={buildLabelClassName(active === "bots")}>{tr("Боты")}</span>
         </Button>
+
         {showServerTab ? (
           <Button
             variant={active === "server" ? "default" : "ghost"}
-            className="h-auto min-w-0 flex-1 flex-col gap-0.5 rounded-[1.1rem] px-0.5 py-1.5 text-[10px] leading-tight sm:min-w-14 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
+            className={buildItemClassName(active === "server")}
             onClick={() => router.push("/server")}
           >
-            <HardDriveIcon className="size-3.5 sm:size-4" />
-            <span className="truncate text-[9px] sm:text-xs">Сервер</span>
+            <div className="flex flex-col items-center justify-center gap-0.5">
+              <HardDriveIcon className="size-4 sm:size-4.5" />
+            </div>
+            <span className={buildLabelClassName(active === "server")}>Сервер</span>
           </Button>
         ) : null}
       </div>
