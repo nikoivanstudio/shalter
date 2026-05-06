@@ -959,7 +959,7 @@ export function FeedHome({
         </Card>
       </div>
 
-      <BottomNav active="feed" />
+      <BottomNav active="feed" showServerTab={hasAdministrativeAccess(user.role)} />
     </main>
   )
 }

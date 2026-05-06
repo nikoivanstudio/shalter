@@ -1167,7 +1167,7 @@ export function ProfileHome({
         </div>
       </div>
 
-      <BottomNav active="settings" />
+      <BottomNav active="settings" showServerTab={canReviewPayments} />
     </main>
   )
 }

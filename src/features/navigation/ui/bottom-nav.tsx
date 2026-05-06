@@ -2,6 +2,7 @@
 
 import {
   BotIcon,
+  HardDriveIcon,
   MessageCircleIcon,
   NewspaperIcon,
   SettingsIcon,
@@ -13,16 +14,18 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 
-type NavSection = "settings" | "contacts" | "chats" | "channels" | "feed" | "bots"
+type NavSection = "settings" | "contacts" | "chats" | "channels" | "feed" | "bots" | "server"
 
 export function BottomNav({
   active,
   onChatsClick,
   chatsBadgeCount,
+  showServerTab = false,
 }: {
   active?: NavSection
   onChatsClick?: () => void
   chatsBadgeCount?: number
+  showServerTab?: boolean
 }) {
   const router = useRouter()
   const { tr } = useI18n()
@@ -51,7 +54,7 @@ export function BottomNav({
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 px-1.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] sm:px-3 sm:pb-3">
-      <div className="mx-auto flex w-full max-w-md items-center justify-around gap-0.5 rounded-[1.45rem] border border-white/50 bg-card/92 px-1 py-1 shadow-[0_18px_42px_-22px_rgba(15,23,42,0.58)] backdrop-blur-2xl dark:border-white/8 sm:max-w-xl sm:gap-1 sm:rounded-[2rem] sm:px-2 sm:py-2">
+      <div className="mx-auto flex w-full max-w-md items-center justify-around gap-0.5 rounded-[1.45rem] border border-white/50 bg-card/92 px-1 py-1 shadow-[0_18px_42px_-22px_rgba(15,23,42,0.58)] backdrop-blur-2xl dark:border-white/8 sm:max-w-2xl sm:gap-1 sm:rounded-[2rem] sm:px-2 sm:py-2">
         <Button
           variant={active === "settings" ? "default" : "ghost"}
           className="h-auto min-w-0 flex-1 flex-col gap-0.5 rounded-[1.1rem] px-0.5 py-1.5 text-[10px] leading-tight sm:min-w-14 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
@@ -110,6 +113,16 @@ export function BottomNav({
             {tr("\u0411\u043e\u0442\u044b")}
           </span>
         </Button>
+        {showServerTab ? (
+          <Button
+            variant={active === "server" ? "default" : "ghost"}
+            className="h-auto min-w-0 flex-1 flex-col gap-0.5 rounded-[1.1rem] px-0.5 py-1.5 text-[10px] leading-tight sm:min-w-14 sm:gap-1 sm:rounded-[1.45rem] sm:px-2 sm:py-2.5 sm:text-xs"
+            onClick={() => router.push("/server")}
+          >
+            <HardDriveIcon className="size-3.5 sm:size-4" />
+            <span className="truncate text-[9px] sm:text-xs">Сервер</span>
+          </Button>
+        ) : null}
       </div>
     </nav>
   )

@@ -1337,7 +1337,7 @@ export function ChannelsHome({
         </section>
       </div>
 
-      <BottomNav active="channels" />
+      <BottomNav active="channels" showServerTab={hasAdministrativeAccess(user.role)} />
     </main>
   )
 }

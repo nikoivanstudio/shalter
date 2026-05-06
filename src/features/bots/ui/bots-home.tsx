@@ -16,6 +16,7 @@ import {
   createInitialBotMessages,
 } from "@/features/bots/lib/runtime"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
+import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 
 type BotUser = {
   id: number
@@ -525,7 +526,7 @@ export function BotsHome({
         </Card>
       </section>
 
-      <BottomNav active="bots" />
+      <BottomNav active="bots" showServerTab={hasAdministrativeAccess(user.role)} />
     </main>
   )
 }

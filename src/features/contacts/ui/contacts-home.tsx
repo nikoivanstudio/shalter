@@ -21,6 +21,7 @@ import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 import {
   canAssignManagedRole,
   DEVELOPER_ROLE,
+  hasAdministrativeAccess,
   PREMIUM_ROLE,
   USER_ROLE,
   type ManagedUserRole,
@@ -727,7 +728,7 @@ export function ContactsHome({
           </CardContent>
         </Card>
       </div>
-      <BottomNav active="contacts" />
+      <BottomNav active="contacts" showServerTab={hasAdministrativeAccess(user.role)} />
     </main>
   )
 }

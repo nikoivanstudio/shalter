@@ -15,6 +15,7 @@ import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 
 type ProfileUser = {
@@ -345,7 +346,7 @@ export function BlacklistHome({
           </CardContent>
         </Card>
       </div>
-      <BottomNav active="contacts" />
+      <BottomNav active="contacts" showServerTab={hasAdministrativeAccess(user.role)} />
     </main>
   )
 }

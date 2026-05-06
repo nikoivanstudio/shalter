@@ -40,6 +40,7 @@ import {
 } from "@/features/chats/lib/dialog-title"
 import { buildEmblem, getEmblemTone } from "@/features/profile/lib/emblem"
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
+import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import type { MediaAttachment, MediaKind } from "@/shared/lib/media/constants"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
@@ -2297,6 +2298,7 @@ export function ChatsHome({
       <BottomNav
         active={isDialogView ? undefined : "chats"}
         chatsBadgeCount={unreadDialogsCount}
+        showServerTab={hasAdministrativeAccess(user.role)}
         onChatsClick={() => {
           setIsDialogView(false)
           setShowCreateForm(false)
