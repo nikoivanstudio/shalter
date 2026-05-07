@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Providers } from "@/app/providers"
 import { PwaRegisterClient } from "@/app/pwa-register-client"
@@ -10,6 +10,7 @@ import { syncPurchaseRequestWithYooKassaPayment } from "@/shared/lib/billing/pur
 import { getYooKassaPayment } from "@/shared/lib/billing/yookassa"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { prisma } from "@/shared/lib/db/prisma"
+import { cn } from "@/lib/utils"
 
 function getStatusCopy(status: string) {
   if (status === "APPROVED") {
@@ -127,13 +128,13 @@ export default async function BillingReturnPage({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button asChild>
-                  <Link href="/">Вернуться в профиль</Link>
-                </Button>
+                <Link href="/" className={cn(buttonVariants({ variant: "default" }))}>
+                  Вернуться в профиль
+                </Link>
                 {freshRequest.status !== "APPROVED" ? (
-                  <Button asChild variant="outline">
-                    <Link href="/">Открыть покупки</Link>
-                  </Button>
+                  <Link href="/" className={cn(buttonVariants({ variant: "outline" }))}>
+                    Открыть покупки
+                  </Link>
                 ) : null}
               </div>
             </CardContent>
