@@ -12,6 +12,7 @@ import {
   PhoneCallIcon,
   RefreshCcwIcon,
   StopCircleIcon,
+  UserPlusIcon,
   VideoIcon,
   XIcon,
 } from "lucide-react"
@@ -29,6 +30,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { LogoutButton } from "@/features/auth/ui/logout-button"
+import {
+  type BotChatMessage,
+  type BotConfig,
+  buildBotReply,
+  createInitialBotMessages,
+} from "@/features/bots/lib/runtime"
 import { ChatCallOverlay } from "@/features/calls/ui/chat-call-overlay"
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
@@ -94,6 +101,10 @@ type ChatDialog = {
   lastMessage: ChatMessage | null
 }
 
+type BotConversationMessage = BotChatMessage & {
+  createdAt: string
+}
+
 export type ChatsHomeProps = {
   user: UserShort
   dialogs: ChatDialog[]
@@ -103,14 +114,17 @@ export type ChatsHomeProps = {
     title: string
     username?: string | null
     description: string | null
+    avatarUrl?: string | null
   }>
   bots?: Array<{
     id: number
     name: string
     username?: string | null
     niche: string | null
+    config: BotConfig
   }>
   initialDialogId: number | null
+  initialBotId?: number | null
   initialCallMode?: "audio" | "video" | null
   initialAnswerIncoming?: boolean
 }
@@ -307,6 +321,22 @@ function createRecordedFile(parts: BlobPart[], mimeType: string, baseName: strin
   return new File(parts, `${baseName}.${extension}`, { type: mimeType })
 }
 
+function createBotConversationMessage(role: BotChatMessage["role"], content: string): BotConversationMessage {
+  return {
+    id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    role,
+    content,
+    createdAt: new Date().toISOString(),
+  }
+}
+
+function createBotConversationSeed(config: BotConfig) {
+  return createInitialBotMessages(config).map((message) => ({
+    ...message,
+    createdAt: new Date().toISOString(),
+  }))
+}
+
 export function ChatsHome({
   user,
   dialogs: initialDialogs,
@@ -314,10 +344,13 @@ export function ChatsHome({
   channels: initialChannels = [],
   bots: initialBots = [],
   initialDialogId,
+  initialBotId = null,
   initialCallMode = null,
   initialAnswerIncoming = false,
 }: ChatsHomeProps) {
   const { tr } = useI18n()
+  const hasInitialBot =
+    !initialDialogId && Boolean(initialBotId && initialBots.some((bot) => bot.id === initialBotId))
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const audioInputRef = useRef<HTMLInputElement | null>(null)
@@ -335,10 +368,14 @@ export function ChatsHome({
   const [dialogs, setDialogs] = useState(initialDialogs)
   const [channels, setChannels] = useState(initialChannels)
   const [bots] = useState(initialBots)
+  const [selectedBotId, setSelectedBotId] = useState<number | null>(
+    hasInitialBot ? initialBotId : null
+  )
+  const [botMessagesById, setBotMessagesById] = useState<Record<number, BotConversationMessage[]>>({})
   const [selectedDialogId, setSelectedDialogId] = useState<number | null>(
     initialDialogId ?? null
   )
-  const [isDialogView, setIsDialogView] = useState(Boolean(initialDialogId))
+  const [isDialogView, setIsDialogView] = useState(Boolean(initialDialogId || hasInitialBot))
   const [messages, setMessages] = useState<ChatMessage[] | null>(null)
   const [messagesReloadKey, setMessagesReloadKey] = useState(0)
   const [sseSince, setSseSince] = useState(0)
@@ -397,21 +434,36 @@ export function ChatsHome({
   }, [])
 
   const activeDialogId = useMemo(() => {
+    if (selectedBotId) {
+      return null
+    }
+
     if (selectedDialogId && dialogs.some((item) => item.id === selectedDialogId)) {
       return selectedDialogId
     }
     return null
-  }, [dialogs, selectedDialogId])
+  }, [dialogs, selectedBotId, selectedDialogId])
 
   const selectedDialog = useMemo(
     () => dialogs.find((item) => item.id === activeDialogId) ?? null,
     [activeDialogId, dialogs]
   )
+  const selectedBot = useMemo(
+    () => bots.find((item) => item.id === selectedBotId) ?? null,
+    [bots, selectedBotId]
+  )
+  const botMessages = useMemo(() => {
+    if (!selectedBot) {
+      return null
+    }
+
+    return botMessagesById[selectedBot.id] ?? []
+  }, [botMessagesById, selectedBot])
   const selectedDialogAvailableContacts = useMemo(
     () => (selectedDialog ? getAvailableContactsForDialog(selectedDialog, contacts) : []),
     [contacts, selectedDialog]
   )
-  const isMessageListReady = messages !== null
+  const isMessageListReady = selectedBot ? botMessages !== null : messages !== null
 
   function startDialogCall(media: "audio" | "video") {
     if (!activeDialogId) {
@@ -1016,6 +1068,17 @@ export function ChatsHome({
   }, [activeDialogId, isDialogView, messages, user.id])
 
   useEffect(() => {
+    if (!selectedBot || botMessagesById[selectedBot.id]) {
+      return
+    }
+
+    setBotMessagesById((prev) => ({
+      ...prev,
+      [selectedBot.id]: createBotConversationSeed(selectedBot.config),
+    }))
+  }, [botMessagesById, selectedBot])
+
+  useEffect(() => {
     if (!isMessageListReady || !isDialogView) {
       return
     }
@@ -1023,7 +1086,7 @@ export function ChatsHome({
     requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
     })
-  }, [activeDialogId, isDialogView, isMessageListReady, messages])
+  }, [activeDialogId, botMessages, isDialogView, isMessageListReady, messages, selectedBotId])
 
   function openDialog(dialogId: number) {
     stopTyping()
@@ -1032,6 +1095,7 @@ export function ChatsHome({
     setShowAddParticipants(false)
     setSelectedParticipantIdsToAdd([])
     setTypingUserIds([])
+    setSelectedBotId(null)
     setDialogs((prev) =>
       prev.map((dialog) =>
         dialog.id === dialogId ? { ...dialog, unreadCount: 0 } : dialog
@@ -1044,6 +1108,36 @@ export function ChatsHome({
     setIsDialogView(true)
     setShowCreateForm(false)
     setEditingMessageId(null)
+    setEditingText("")
+  }
+
+  function openBot(botId: number) {
+    const nextBot = bots.find((item) => item.id === botId)
+    if (!nextBot) {
+      return
+    }
+
+    stopTyping()
+    setOpenDialogMenuId(null)
+    setShowParticipants(false)
+    setShowAddParticipants(false)
+    setSelectedParticipantIdsToAdd([])
+    setTypingUserIds([])
+    setSelectedDialogId(null)
+    setMessages(null)
+    setEditingMessageId(null)
+    setEditingText("")
+    setSelectedBotId(botId)
+    setIsDialogView(true)
+    setShowCreateForm(false)
+    setBotMessagesById((prev) =>
+      prev[botId]
+        ? prev
+        : {
+            ...prev,
+            [botId]: createBotConversationSeed(nextBot.config),
+          }
+    )
   }
 
   function toggleContact(contactId: number) {
@@ -1141,12 +1235,33 @@ export function ChatsHome({
   }
 
   function sendMessage() {
-    if (!activeDialogId) {
+    if (!activeDialogId && !selectedBot) {
       return
     }
 
     const content = messageText.trim()
     if (!content && composerAttachments.length === 0) {
+      return
+    }
+
+    if (selectedBot) {
+      if (composerAttachments.length > 0) {
+        toast.error("В чате с ботом пока доступны только текстовые сообщения")
+        return
+      }
+
+      const userMessage = createBotConversationMessage("user", content)
+      const botReply = createBotConversationMessage("bot", buildBotReply(selectedBot.config, content))
+
+      setBotMessagesById((prev) => ({
+        ...prev,
+        [selectedBot.id]: [
+          ...(prev[selectedBot.id] ?? createBotConversationSeed(selectedBot.config)),
+          userMessage,
+          botReply,
+        ],
+      }))
+      resetComposer()
       return
     }
 
@@ -1657,26 +1772,43 @@ export function ChatsHome({
                       <button
                         key={`channel-${channel.id}`}
                         type="button"
-                        className="w-full rounded-[1.1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
+                        className="flex w-full items-start gap-3 rounded-[1.1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
                         onClick={() => location.assign(`/channels?channelId=${channel.id}`)}
                       >
-                        <p className="truncate text-sm font-medium"># {channel.title}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {channel.username ? `@${channel.username}` : channel.description || "Открыть канал"}
-                        </p>
+                        <UserAvatar
+                          firstName={channel.title}
+                          lastName={null}
+                          avatarUrl={channel.avatarUrl}
+                          className="size-10 shrink-0"
+                        />
+                        <span className="min-w-0">
+                          <p className="truncate text-sm font-medium"># {channel.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {channel.username
+                              ? `@${channel.username}`
+                              : channel.description || "Открыть канал"}
+                          </p>
+                        </span>
                       </button>
                     ))}
                     {bots.map((bot) => (
                       <button
                         key={`bot-${bot.id}`}
                         type="button"
-                        className="w-full rounded-[1.1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
-                        onClick={() => location.assign(`/bots?botId=${bot.id}`)}
+                        className="flex w-full items-start gap-3 rounded-[1.1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
+                        onClick={() => openBot(bot.id)}
                       >
-                        <p className="truncate text-sm font-medium">{bot.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {bot.username ? `@${bot.username}` : bot.niche || "Открыть чат с ботом"}
-                        </p>
+                        <UserAvatar
+                          firstName={bot.name}
+                          lastName={null}
+                          className="size-10 shrink-0"
+                        />
+                        <span className="min-w-0">
+                          <p className="truncate text-sm font-medium">{bot.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {bot.username ? `@${bot.username}` : bot.niche || "Открыть чат с ботом"}
+                          </p>
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1702,6 +1834,13 @@ export function ChatsHome({
                           />
                         ) : null
                       })()
+                    ) : selectedBot ? (
+                      <UserAvatar
+                        firstName={selectedBot.name}
+                        lastName={null}
+                        className="size-11 shrink-0"
+                        textClassName="text-xs font-semibold"
+                      />
                     ) : null}
                   <div className="min-w-0">
                     {selectedDialog ? (
@@ -1716,6 +1855,14 @@ export function ChatsHome({
                         }}
                       >
                         {getDialogDisplayTitle(selectedDialog, user.id)}
+                      </button>
+                    ) : selectedBot ? (
+                      <button
+                        type="button"
+                        className="truncate text-left text-sm font-semibold hover:text-primary"
+                        onClick={() => location.assign(`/bots?botId=${selectedBot.id}`)}
+                      >
+                        {selectedBot.name}
                       </button>
                     ) : (
                       <p className="truncate text-sm font-semibold">{tr("Выберите чат")}</p>
@@ -1751,6 +1898,13 @@ export function ChatsHome({
                           </p>
                         )
                       })()}
+                    {selectedBot ? (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {selectedBot.username
+                          ? `@${selectedBot.username}`
+                          : selectedBot.niche || "Чат с ботом"}
+                      </p>
+                    ) : null}
                   </div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1781,6 +1935,22 @@ export function ChatsHome({
                         onClick={() => setShowParticipants((prev) => !prev)}
                       >
                         {showParticipants ? tr("Скрыть участников") : tr("Участники")}
+                      </Button>
+                    )}
+                    {selectedDialog && canManageDialogParticipants(selectedDialog, user.id) && (
+                      <Button
+                        size="sm"
+                        variant={showAddParticipants ? "secondary" : "outline"}
+                        onClick={() => {
+                          setShowParticipants(true)
+                          setShowAddParticipants((prev) => !prev)
+                          if (showAddParticipants) {
+                            setSelectedParticipantIdsToAdd([])
+                          }
+                        }}
+                      >
+                        <UserPlusIcon className="size-4" />
+                        Добавить участников
                       </Button>
                     )}
                     {selectedDialog &&
@@ -2002,7 +2172,7 @@ export function ChatsHome({
                 )}
 
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-                  {!activeDialogId ? (
+                  {!activeDialogId && !selectedBot ? (
                     <p className="text-sm text-muted-foreground">Сначала выберите или создайте чат.</p>
                   ) : null}
 
@@ -2010,11 +2180,44 @@ export function ChatsHome({
                     <p className="text-sm text-muted-foreground">Загружаем сообщения...</p>
                   ) : null}
 
+                  {selectedBot && botMessages !== null && botMessages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      История бота пуста. Напишите первое сообщение.
+                    </p>
+                  ) : null}
+
                   {activeDialogId && messages !== null && messages.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       Сообщений пока нет. Напишите первое сообщение.
                     </p>
                   ) : null}
+
+                  {selectedBot &&
+                    botMessages?.map((message) => {
+                      const mine = message.role === "user"
+
+                      return (
+                        <div
+                          key={message.id}
+                          className={`flex ${mine ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`w-fit max-w-[85%] rounded-[1.35rem] px-3.5 py-2.5 text-sm shadow-sm ${
+                              mine
+                                ? "rounded-br-md bg-primary text-primary-foreground"
+                                : "rounded-bl-md border border-white/45 bg-background/96 text-foreground dark:border-white/8"
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                            <p className="mt-1 text-[11px] opacity-75">
+                              {mine ? "Вы" : selectedBot.name}
+                              {" · "}
+                              {formatTime(message.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
 
                   {messages !== null &&
                     messages.map((message) => {
@@ -2229,7 +2432,7 @@ export function ChatsHome({
                         size="icon"
                         variant="outline"
                         onClick={() => galleryInputRef.current?.click()}
-                        disabled={!activeDialogId || isSending}
+                        disabled={!activeDialogId || Boolean(selectedBot) || isSending}
                         aria-label="Открыть галерею"
                       >
                         <FileImageIcon className="size-4" />
@@ -2239,7 +2442,7 @@ export function ChatsHome({
                         size="icon"
                         variant="outline"
                         onClick={() => audioInputRef.current?.click()}
-                        disabled={!activeDialogId || isSending}
+                        disabled={!activeDialogId || Boolean(selectedBot) || isSending}
                         aria-label="Выбрать аудио"
                       >
                         <MusicIcon className="size-4" />
@@ -2249,7 +2452,7 @@ export function ChatsHome({
                         size="icon"
                         variant="outline"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={!activeDialogId || isSending}
+                        disabled={!activeDialogId || Boolean(selectedBot) || isSending}
                         aria-label="Выбрать файл"
                       >
                         <PaperclipIcon className="size-4" />
@@ -2259,7 +2462,13 @@ export function ChatsHome({
                         size="icon"
                         variant="outline"
                         onClick={() => void startMediaRecording("VOICE")}
-                        disabled={!activeDialogId || isSending || isRecordingVoice || isRecordingVideoNote}
+                        disabled={
+                          !activeDialogId ||
+                          Boolean(selectedBot) ||
+                          isSending ||
+                          isRecordingVoice ||
+                          isRecordingVideoNote
+                        }
                         aria-label="Записать голосовое"
                       >
                         <MicIcon className="size-4" />
@@ -2269,7 +2478,13 @@ export function ChatsHome({
                         size="icon"
                         variant="outline"
                         onClick={() => void startMediaRecording("VIDEO_NOTE")}
-                        disabled={!activeDialogId || isSending || isRecordingVoice || isRecordingVideoNote}
+                        disabled={
+                          !activeDialogId ||
+                          Boolean(selectedBot) ||
+                          isSending ||
+                          isRecordingVoice ||
+                          isRecordingVideoNote
+                        }
                         aria-label="Записать видеокружок"
                       >
                         <CircleIcon className="size-4" />
@@ -2278,8 +2493,13 @@ export function ChatsHome({
                         value={messageText}
                         onChange={(event) => setMessageText(event.target.value)}
                         className="border-0 bg-transparent shadow-none focus-visible:ring-0"
-                        placeholder="Введите сообщение"
-                        disabled={!activeDialogId || isSending || isRecordingVoice || isRecordingVideoNote}
+                        placeholder={selectedBot ? "Введите сообщение боту" : "Введите сообщение"}
+                        disabled={
+                          (!activeDialogId && !selectedBot) ||
+                          isSending ||
+                          isRecordingVoice ||
+                          isRecordingVideoNote
+                        }
                         onKeyDown={(event) => {
                           if (event.key === "Enter" && !event.shiftKey) {
                             event.preventDefault()
@@ -2291,7 +2511,7 @@ export function ChatsHome({
                         className="min-w-0 rounded-full px-4 sm:min-w-28"
                         onClick={sendMessage}
                         disabled={
-                          !activeDialogId ||
+                          (!activeDialogId && !selectedBot) ||
                           isSending ||
                           isRecordingVoice ||
                           isRecordingVideoNote ||

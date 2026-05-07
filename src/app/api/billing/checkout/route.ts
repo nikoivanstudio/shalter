@@ -1,7 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+import { getAppUrlFromRequest } from "@/shared/lib/app-url"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
-import { getBillingCheckoutUrl, getBillingProduct } from "@/shared/lib/billing/catalog"
+import { getBillingProduct } from "@/shared/lib/billing/catalog"
+import {
+  createYooKassaPayment,
+  getYooKassaConfigurationError,
+  isYooKassaConfigured,
+} from "@/shared/lib/billing/yookassa"
 import { prisma } from "@/shared/lib/db/prisma"
 
 export async function POST(request: NextRequest) {
@@ -19,12 +25,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Неизвестный продукт оплаты" }, { status: 400 })
   }
 
-  const checkoutUrl = getBillingCheckoutUrl(product.key)
-
-  if (product.requiresCheckout && !checkoutUrl) {
+  if (product.requiresCheckout && !isYooKassaConfigured()) {
     return NextResponse.json(
       {
-        message: "Для этого товара ещё не настроена безопасная оплата картой через платёжного провайдера.",
+        message:
+          getYooKassaConfigurationError() ??
+          "Для этого товара ещё не настроена безопасная оплата через провайдера.",
       },
       { status: 503 }
     )
@@ -39,7 +45,8 @@ export async function POST(request: NextRequest) {
       starsAmount: product.starsAmount,
       status: "PENDING",
       note,
-      checkoutUrl,
+      paymentProvider: "yookassa",
+      providerStatus: "pending",
     },
     select: {
       id: true,
@@ -50,19 +57,74 @@ export async function POST(request: NextRequest) {
       status: true,
       note: true,
       checkoutUrl: true,
+      paymentProvider: true,
+      providerPaymentId: true,
+      providerStatus: true,
       createdAt: true,
     },
   })
 
-  return NextResponse.json(
-    {
-      request: {
-        ...purchaseRequest,
-        createdAt: purchaseRequest.createdAt.toISOString(),
+  try {
+    const appUrl = getAppUrlFromRequest(request)
+    const payment = await createYooKassaPayment({
+      amountRub: product.amountRub,
+      description: `${product.title} - user ${userId} - request ${purchaseRequest.id}`,
+      returnUrl: `${appUrl}/billing/return?requestId=${purchaseRequest.id}`,
+      metadata: {
+        purchase_request_id: String(purchaseRequest.id),
+        product_key: product.key,
+        user_id: String(userId),
       },
-      checkoutUrl,
-      mode: "checkout",
-    },
-    { status: 201 }
-  )
+    })
+
+    const updatedRequest = await prisma.purchaseRequest.update({
+      where: { id: purchaseRequest.id },
+      data: {
+        providerPaymentId: payment.id,
+        providerStatus: payment.status,
+        checkoutUrl: payment.confirmationUrl,
+      },
+      select: {
+        id: true,
+        productKey: true,
+        amountRub: true,
+        premiumMonths: true,
+        starsAmount: true,
+        status: true,
+        note: true,
+        checkoutUrl: true,
+        paymentProvider: true,
+        providerPaymentId: true,
+        providerStatus: true,
+        createdAt: true,
+      },
+    })
+
+    return NextResponse.json(
+      {
+        request: {
+          ...updatedRequest,
+          createdAt: updatedRequest.createdAt.toISOString(),
+        },
+        checkoutUrl: payment.confirmationUrl,
+        mode: "checkout",
+        provider: "yookassa",
+      },
+      { status: 201 }
+    )
+  } catch (error) {
+    await prisma.purchaseRequest.delete({
+      where: { id: purchaseRequest.id },
+    })
+
+    return NextResponse.json(
+      {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Не удалось открыть безопасную оплату через ЮKassa",
+      },
+      { status: 502 }
+    )
+  }
 }

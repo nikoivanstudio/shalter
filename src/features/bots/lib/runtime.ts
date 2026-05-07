@@ -60,6 +60,17 @@ export type BotChatMessage = {
   content: string
 }
 
+const BOT_TEXT_RULE_METHODS = ["rule_contains"] as const
+const BOT_SINGLE_BLOCK_METHODS = [
+  ["greeting", "greeting"],
+  ["guard", "guard"],
+  ["safety", "guard"],
+  ["handoff", "handoff"],
+  ["escalate", "handoff"],
+  ["default", "fallback"],
+  ["reply", "fallback"],
+] as const
+
 const DEFAULT_GREETING = "Здравствуйте! Я бот. Чем могу помочь?"
 const DEFAULT_FALLBACK = "Опишите задачу чуть подробнее, и я подберу следующий шаг."
 
@@ -182,7 +193,7 @@ function extractNamedArgument(args: string[], name: string) {
 function compilePythonLibraryBotScript(script: string): BotScriptProgram | null {
   if (
     !/(ShalterBot|Bot)\s*\(/.test(script) &&
-    !/bot\.(greeting|default|rule_contains|rule_regex|command|on_command|on_text|on_regex)/.test(script)
+    !/bot\.(greeting|guard|safety|handoff|escalate|default|reply|rule_contains|rule_regex|command|on_command|on_text|on_regex|hears|matches)/.test(script)
   ) {
     return null
   }
@@ -221,14 +232,7 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
     }
   }
 
-  const singleBlockMethods = [
-    ["greeting", "greeting"],
-    ["guard", "guard"],
-    ["handoff", "handoff"],
-    ["default", "fallback"],
-  ] as const
-
-  for (const [methodName, targetKey] of singleBlockMethods) {
+  for (const [methodName, targetKey] of BOT_SINGLE_BLOCK_METHODS) {
     const methodMatch = script.match(
       new RegExp(`bot\\.${methodName}\\(\\s*(r?"""[\\s\\S]*?"""|r?"[^"]*")\\s*\\)`, "m")
     )
@@ -243,11 +247,20 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
   }
 
   const ruleContainsMatches = Array.from(
-    script.matchAll(/bot\.rule_contains\(\s*(\[[\s\S]*?\])\s*,\s*(r?"""[\s\S]*?"""|r?"[^"]*")\s*\)/g)
+    script.matchAll(
+      new RegExp(
+        `bot\\.(?:${BOT_TEXT_RULE_METHODS.join("|")})\\(\\s*(\\[[\\s\\S]*?\\]|r?"[^"]*")\\s*,\\s*(r?"""[\\s\\S]*?"""|r?"[^"]*")\\s*\\)`,
+        "g"
+      )
+    )
   )
 
   for (const match of ruleContainsMatches) {
-    const patterns = parsePythonPatternList(match[1] ?? "")
+    const patternsArg = match[1] ?? ""
+    const patterns =
+      parsePythonPatternList(patternsArg).length > 0
+        ? parsePythonPatternList(patternsArg)
+        : parseQuotedValues(patternsArg)
     const reply = parsePythonStringLiteral(match[2] ?? "") ?? ""
     if (patterns.length === 0) {
       errors.push("У правила bot.rule_contains() должен быть список шаблонов.")
@@ -333,6 +346,30 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
     })
   }
 
+  const hearsMatches = Array.from(script.matchAll(/bot\.hears\(([\s\S]*?)\)/g))
+
+  for (const match of hearsMatches) {
+    const args = splitPythonArguments(match[1] ?? "")
+    const patternsArg = args[0] ?? ""
+    const replyArg = args[1] ?? ""
+    const patterns =
+      parsePythonPatternList(patternsArg).length > 0
+        ? parsePythonPatternList(patternsArg)
+        : parseQuotedValues(patternsArg)
+    const reply = parsePythonStringLiteral(replyArg) ?? ""
+
+    if (patterns.length === 0) {
+      errors.push("У правила bot.hears() должен быть список или строка шаблонов.")
+    }
+
+    program.rules.push({
+      id: `rule-${program.rules.length + 1}`,
+      kind: "includes",
+      patterns,
+      reply: reply.trim(),
+    })
+  }
+
   const regexAliasMatches = Array.from(script.matchAll(/bot\.on_regex\(([\s\S]*?)\)/g))
 
   for (const match of regexAliasMatches) {
@@ -343,6 +380,27 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
 
     if (!rawPattern) {
       errors.push("У правила bot.on_regex() нет шаблона.")
+    }
+
+    program.rules.push({
+      id: `rule-${program.rules.length + 1}`,
+      kind: "regex",
+      pattern: (rawPattern ?? "").replace(/^\/|\/[a-z]*$/gi, ""),
+      flags,
+      reply: reply.trim(),
+    })
+  }
+
+  const matchesAliasMatches = Array.from(script.matchAll(/bot\.matches\(([\s\S]*?)\)/g))
+
+  for (const match of matchesAliasMatches) {
+    const args = splitPythonArguments(match[1] ?? "")
+    const rawPattern = parsePythonStringLiteral(args[0] ?? "")
+    const reply = parsePythonStringLiteral(args[1] ?? "") ?? ""
+    const flags = extractNamedArgument(args, "flags") ?? ""
+
+    if (!rawPattern) {
+      errors.push("У правила bot.matches() нет шаблона.")
     }
 
     program.rules.push({

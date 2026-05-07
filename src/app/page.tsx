@@ -33,7 +33,13 @@ export default async function Home() {
     }),
     canAssignManagedRole(user.role)
       ? prisma.purchaseRequest.findMany({
-          where: { status: "PENDING" },
+          where: {
+            status: "PENDING",
+            OR: [
+              { paymentProvider: null },
+              { providerStatus: "succeeded" },
+            ],
+          },
           orderBy: { createdAt: "asc" },
           take: 20,
           select: {

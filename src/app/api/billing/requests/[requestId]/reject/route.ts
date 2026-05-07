@@ -41,19 +41,34 @@ export async function POST(
     return NextResponse.json({ message: "Заявка уже обработана" }, { status: 409 })
   }
 
-  const updated = await prisma.purchaseRequest.update({
-    where: { id: existing.id },
+  const updatedCount = await prisma.purchaseRequest.updateMany({
+    where: {
+      id: existing.id,
+      status: "PENDING",
+    },
     data: {
       status: "REJECTED",
       reviewedByUserId: actor.id,
       reviewedAt: new Date(),
     },
+  })
+
+  if (updatedCount.count === 0) {
+    return NextResponse.json({ message: "Заявка уже обработана" }, { status: 409 })
+  }
+
+  const updated = await prisma.purchaseRequest.findUnique({
+    where: { id: existing.id },
     select: {
       id: true,
       status: true,
       reviewedAt: true,
     },
   })
+
+  if (!updated) {
+    return NextResponse.json({ message: "Заявка не найдена" }, { status: 404 })
+  }
 
   return NextResponse.json(
     {

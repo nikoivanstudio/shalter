@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 
 import { Providers } from "@/app/providers"
 import { PwaRegisterClient } from "@/app/pwa-register-client"
+import type { BotConfig } from "@/features/bots/lib/runtime"
 import { ChatsHomeClient } from "@/features/chats/ui/chats-home-client"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { findUsersWhoBlockedActor } from "@/shared/lib/blacklist"
@@ -12,7 +13,13 @@ import { isUserOnline } from "@/shared/lib/user-activity"
 export default async function ChatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ contactId?: string; dialogId?: string; startCall?: string; answerCall?: string }>
+  searchParams: Promise<{
+    contactId?: string
+    dialogId?: string
+    botId?: string
+    startCall?: string
+    answerCall?: string
+  }>
 }) {
   const user = await getCurrentUser()
 
@@ -23,10 +30,12 @@ export default async function ChatsPage({
   const params = await searchParams
   const parsedContactId = Number(params.contactId)
   const parsedDialogId = Number(params.dialogId)
+  const parsedBotId = Number(params.botId)
   const requestedContactId =
     Number.isInteger(parsedContactId) && parsedContactId > 0 ? parsedContactId : null
   const requestedDialogId =
     Number.isInteger(parsedDialogId) && parsedDialogId > 0 ? parsedDialogId : null
+  const requestedBotId = Number.isInteger(parsedBotId) && parsedBotId > 0 ? parsedBotId : null
   const requestedStartCall =
     params.startCall === "audio" || params.startCall === "video" ? params.startCall : null
   const requestedAnswerCall = params.answerCall === "1"
@@ -224,6 +233,7 @@ export default async function ChatsPage({
         title: true,
         username: true,
         description: true,
+        avatarUrl: true,
       },
       orderBy: { updatedAt: "desc" },
       take: 10,
@@ -234,6 +244,7 @@ export default async function ChatsPage({
         name: true,
         username: true,
         niche: true,
+        config: true,
       },
       orderBy: { publishedAt: "desc" },
       take: 10,
@@ -255,11 +266,19 @@ export default async function ChatsPage({
           avatarUrl: user.avatarUrl,
         }}
         initialDialogId={initialDialogId}
+        initialBotId={
+          !initialDialogId && requestedBotId && bots.some((bot) => bot.id === requestedBotId)
+            ? requestedBotId
+            : null
+        }
         initialCallMode={requestedStartCall}
         initialAnswerIncoming={requestedAnswerCall}
         contacts={contacts.map((item) => item.contactUser)}
         channels={channels}
-        bots={bots}
+        bots={bots.map((bot) => ({
+          ...bot,
+          config: bot.config as BotConfig,
+        }))}
         dialogs={dialogs.map((dialog) => ({
           id: dialog.id,
           ownerId: dialog.ownerId,

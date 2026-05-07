@@ -84,6 +84,18 @@ function isVideoStream(stream: MediaStream | null) {
   return Boolean(stream?.getVideoTracks().some((track) => track.enabled))
 }
 
+async function playMediaElement(element: HTMLMediaElement | null) {
+  if (!element) {
+    return
+  }
+
+  try {
+    await element.play()
+  } catch {
+    // Ignore autoplay failures until the user interacts with the page.
+  }
+}
+
 function VolumeLabel({
   preset,
   active,
@@ -128,11 +140,13 @@ function VideoTile({
     if (videoRef.current) {
       videoRef.current.srcObject = hasVideo ? stream : null
       videoRef.current.volume = muted ? 0 : volume
+      void playMediaElement(videoRef.current)
     }
 
     if (audioRef.current) {
       audioRef.current.srcObject = stream
       audioRef.current.volume = muted ? 0 : volume
+      void playMediaElement(audioRef.current)
     }
   }, [hasVideo, muted, stream, volume])
 
@@ -200,6 +214,7 @@ export function ChatCallOverlay({
   const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false)
   const [isCameraDisabled, setIsCameraDisabled] = useState(false)
   const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user")
+  const [availableVideoInputCount, setAvailableVideoInputCount] = useState(0)
   const [remoteStreams, setRemoteStreams] = useState<Record<number, RemoteStreamEntry>>({})
   const [volumePreset, setVolumePreset] = useState<VolumePreset>("normal")
   const [, forceLocalStreamRender] = useState(0)
@@ -233,6 +248,40 @@ export function ChatCallOverlay({
   useEffect(() => {
     incomingCallRef.current = incomingCall
   }, [incomingCall])
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
+      return
+    }
+
+    let cancelled = false
+    const syncVideoInputs = () => {
+      void navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => {
+          if (cancelled) {
+            return
+          }
+
+          setAvailableVideoInputCount(
+            devices.filter((device) => device.kind === "videoinput").length
+          )
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setAvailableVideoInputCount(0)
+          }
+        })
+    }
+
+    syncVideoInputs()
+    navigator.mediaDevices.addEventListener?.("devicechange", syncVideoInputs)
+
+    return () => {
+      cancelled = true
+      navigator.mediaDevices.removeEventListener?.("devicechange", syncVideoInputs)
+    }
+  }, [])
 
   const stopIncomingTone = useCallback(() => {
     if (incomingToneIntervalRef.current !== null) {
@@ -417,6 +466,13 @@ export function ChatCallOverlay({
     })
   }, [])
 
+  const updateRemoteStream = useCallback((user: CallUser, stream: MediaStream) => {
+    setRemoteStreams((prev) => ({
+      ...prev,
+      [user.userId]: { user, stream },
+    }))
+  }, [])
+
   const syncLocalStreamToPeers = useCallback((stream: MediaStream | null) => {
     for (const peer of peerConnectionsRef.current.values()) {
       const audioTrack = stream?.getAudioTracks()[0] ?? null
@@ -496,6 +552,12 @@ export function ChatCallOverlay({
       }
 
       peer.ontrack = (event) => {
+        const remoteStream = event.streams[0] ?? null
+        if (remoteStream) {
+          updateRemoteStream(remoteUser, remoteStream)
+          return
+        }
+
         updateRemoteTrack(remoteUser, event.track)
       }
 
@@ -507,7 +569,7 @@ export function ChatCallOverlay({
 
       return peer
     },
-    [destroyPeer, getRemoteUser, updateRemoteTrack]
+    [destroyPeer, getRemoteUser, updateRemoteStream, updateRemoteTrack]
   )
 
   async function createOfferForRemote(call: CallSnapshot, remoteUserId: number) {
@@ -747,8 +809,27 @@ export function ChatCallOverlay({
     const nextFacing = cameraFacing === "user" ? "environment" : "user"
 
     try {
+      const videoDevices = await navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => devices.filter((device) => device.kind === "videoinput"))
+        .catch(() => [])
+      const currentTrack = currentStream.getVideoTracks()[0] ?? null
+      const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
+      const currentDeviceIndex = videoDevices.findIndex(
+        (device) => device.deviceId && device.deviceId === currentDeviceId
+      )
+      const nextDevice =
+        videoDevices.length > 1
+          ? videoDevices[
+              currentDeviceIndex >= 0
+                ? (currentDeviceIndex + 1) % videoDevices.length
+                : 0
+            ] ?? null
+          : null
       const replacementStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: nextFacing },
+        video: nextDevice?.deviceId
+          ? { deviceId: { exact: nextDevice.deviceId } }
+          : { facingMode: nextFacing },
       })
 
       const replacementTrack = replacementStream.getVideoTracks()[0] ?? null
@@ -908,6 +989,7 @@ export function ChatCallOverlay({
   const localUser = currentUser
   const showOverlay = Boolean(activeCall || incomingCall)
   const canToggleCamera = activeCall?.media === "video"
+  const canSwitchCamera = canToggleCamera && availableVideoInputCount > 1
   const remoteVolume = VOLUME_LEVELS[volumePreset]
   const incomingCaller =
     incomingCall?.participants.find((user) => user.userId !== currentUser.userId) ??
@@ -998,7 +1080,7 @@ export function ChatCallOverlay({
                       {isCameraDisabled ? "Камера выкл." : "Камера"}
                     </Button>
                   ) : null}
-                  {canToggleCamera ? (
+                  {canSwitchCamera ? (
                     <Button type="button" variant="outline" onClick={() => void switchCamera()}>
                       <RefreshCcwIcon className="size-4" />
                       Сменить камеру

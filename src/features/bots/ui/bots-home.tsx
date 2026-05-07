@@ -69,7 +69,7 @@ bot.guard("""
 Не придумывай цены, сроки и юридические обещания без подтверждения.
 """)
 
-bot.rule_contains(["привет", "здравствуйте", "hello"], """
+bot.hears(["привет", "здравствуйте", "hello"], """
 Привет! Я на связи. Могу подсказать по продукту, заявке или следующему действию.
 """)
 
@@ -81,7 +81,7 @@ bot.rule_contains(["заявка", "менеджер", "контакт"], """
 Оставь контакт и коротко опиши задачу. Если нужно, я передам диалог человеку.
 """)
 
-bot.rule_regex(r"(ошибка|не работает|bug)", """
+bot.matches(r"(ошибка|не работает|bug)", """
 Похоже на проблему или баг. Опиши, что именно сломалось, и добавь шаги воспроизведения.
 """, flags="i")
 
@@ -305,8 +305,8 @@ export function BotsHome({
                     <p className="font-medium">Что умеет язык</p>
                     <p className="text-muted-foreground">
                       <code>bot = ShalterBot(...)</code>, методы <code>bot.greeting()</code>,{" "}
-                      <code>bot.guard()</code>, <code>bot.handoff()</code>, <code>bot.default()</code>, а также
-                      правила <code>bot.rule_contains()</code> и <code>bot.rule_regex()</code>.
+                      <code>bot.guard()</code>, <code>bot.handoff()</code>, <code>bot.default()</code>,{" "}
+                      <code>bot.hears()</code> и <code>bot.matches()</code>.
                     </p>
                   </div>
 
@@ -380,10 +380,10 @@ export function BotsHome({
                         <code>bot.greeting(&quot;&quot;&quot; ... &quot;&quot;&quot;)</code>
                       </p>
                       <p>
-                        <code>bot.rule_contains([&quot;цена&quot;, &quot;тариф&quot;], &quot;&quot;&quot; ... &quot;&quot;&quot;)</code>
+                        <code>bot.hears([&quot;цена&quot;, &quot;тариф&quot;], &quot;&quot;&quot; ... &quot;&quot;&quot;)</code>
                       </p>
                       <p>
-                        <code>bot.rule_regex(r&quot;(bug|ошибка)&quot;, &quot;&quot;&quot; ... &quot;&quot;&quot;, flags=&quot;i&quot;)</code>
+                        <code>bot.matches(r&quot;(bug|ошибка)&quot;, &quot;&quot;&quot; ... &quot;&quot;&quot;, flags=&quot;i&quot;)</code>
                       </p>
                       <p>
                         <code>bot.default(&quot;&quot;&quot; ... &quot;&quot;&quot;)</code>

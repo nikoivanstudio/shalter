@@ -87,6 +87,26 @@ function getFieldError(errors: FieldErrors, key: string) {
   return errors[key]?.[0]
 }
 
+function getPurchaseRequestStatusLabel(status: string) {
+  if (status === "APPROVED") {
+    return "Оплачено"
+  }
+
+  if (status === "PENDING") {
+    return "Ожидает оплаты"
+  }
+
+  if (status === "CANCELED") {
+    return "Отменено"
+  }
+
+  if (status === "REJECTED") {
+    return "Отклонено"
+  }
+
+  return status
+}
+
 function withAvatarCacheBuster(url: string | null | undefined) {
   if (!url) {
     return null
@@ -480,7 +500,7 @@ export function ProfileHome({
       }
 
       if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
-        window.open(data.checkoutUrl, "_blank", "noopener,noreferrer")
+        window.location.assign(data.checkoutUrl)
         toast.success(`Открыта безопасная оплата картой: ${product.title}`)
         return
       }
@@ -1084,9 +1104,21 @@ export function ProfileHome({
                           </p>
                         </div>
                         <span className="rounded-full border border-border/70 px-3 py-1 text-xs font-medium">
-                          {item.status}
+                          {getPurchaseRequestStatusLabel(item.status)}
                         </span>
                       </div>
+                      {item.status === "PENDING" && item.checkoutUrl ? (
+                        <div className="mt-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.location.assign(item.checkoutUrl!)}
+                          >
+                            Продолжить оплату
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   ))
                 )}
