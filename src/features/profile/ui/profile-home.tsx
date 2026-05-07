@@ -128,10 +128,16 @@ export function ProfileHome({
   user,
   purchaseRequests,
   pendingPurchaseRequests,
+  billingReady,
+  billingProvider,
+  billingIssues,
 }: {
   user: EditableUser
   purchaseRequests: PurchaseRequestItem[]
   pendingPurchaseRequests: PendingPurchaseRequestItem[]
+  billingReady: boolean
+  billingProvider: string
+  billingIssues: string[]
 }) {
   const router = useRouter()
   const { tr } = useI18n()
@@ -1043,6 +1049,37 @@ export function ProfileHome({
               </CardHeader>
 
               <CardContent className="space-y-4">
+                <div
+                  className={`rounded-2xl border p-4 text-sm ${
+                    billingReady
+                      ? "border-emerald-500/30 bg-emerald-500/10"
+                      : "border-amber-500/30 bg-amber-500/10"
+                  }`}
+                >
+                  <p className="font-medium">
+                    {billingReady
+                      ? `Оплата через ${billingProvider} готова`
+                      : `Оплата через ${billingProvider} ещё не настроена`}
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    {billingReady
+                      ? "Платёж открывается на защищённой странице провайдера и после оплаты возвращает пользователя в приложение."
+                      : "Чтобы включить оплату, задайте production APP_URL и ключи платёжного провайдера в переменных окружения."}
+                  </p>
+                  {!billingReady && billingIssues.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {billingIssues.map((issue) => (
+                        <span
+                          key={issue}
+                          className="rounded-full border border-amber-500/30 px-2.5 py-1 text-xs text-amber-100"
+                        >
+                          {issue}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
                 {user.premiumUntil ? (
                   <div className="rounded-2xl border border-border/70 bg-muted/25 p-4 text-sm">
                     <p className="font-medium">Текущий premium</p>
@@ -1070,7 +1107,7 @@ export function ProfileHome({
                       <Button
                         type="button"
                         variant="outline"
-                        disabled={isBillingPending}
+                        disabled={isBillingPending || !billingReady}
                         onClick={() => createPurchaseRequest(product.key)}
                       >
                         {isBillingPending ? "Открываем оплату..." : `Оплатить картой ${product.amountRub} ₽`}

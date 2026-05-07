@@ -26,12 +26,16 @@ type Token = {
 type EditorSuggestion = {
   label: string
   detail: string
+  documentation: string
+  example?: string
   insertText: string
+  kind: "import" | "constructor" | "method" | "snippet"
 }
 
 type SuggestionState = {
   start: number
   end: number
+  query: string
   items: EditorSuggestion[]
 }
 
@@ -61,89 +65,140 @@ const TOKEN_PATTERN = new RegExp(
 const EDITOR_SUGGESTIONS: EditorSuggestion[] = [
   {
     label: "from shalter import ShalterBot",
-    detail: "Импорт основной библиотеки",
+    detail: "Import",
+    documentation: "Import the main Shalter bot class before declaring any rules.",
+    example: "from shalter import ShalterBot",
     insertText: "from shalter import ShalterBot",
+    kind: "import",
   },
   {
     label: "bot = ShalterBot(...)",
-    detail: "Создание бота",
+    detail: "Create bot",
+    documentation: "Create the bot object and define its identity, niche, goal, and tone.",
+    example: 'bot = ShalterBot(name="Support", niche="Help", goal="Answer questions")',
     insertText:
-      'bot = ShalterBot(\n    name="Новый бот",\n    niche="Поддержка",\n    goal="Помогать пользователю.",\n    tone="Спокойный и точный.",\n)',
+      'bot = ShalterBot(\n    name="New bot",\n    niche="Support",\n    goal="Help the user clearly.",\n    tone="Calm and precise.",\n)',
+    kind: "constructor",
   },
   {
     label: "bot.greeting(...)",
-    detail: "Первое сообщение",
-    insertText: 'bot.greeting("""\nПривет! Чем помочь?\n""")',
+    detail: "Greeting",
+    documentation: "First message users see when they open the bot conversation.",
+    example: 'bot.greeting("""\nHello! How can I help?\n""")',
+    insertText: 'bot.greeting("""\nHello! How can I help?\n""")',
+    kind: "method",
   },
   {
     label: "bot.default(...)",
-    detail: "Ответ по умолчанию",
-    insertText: 'bot.default("""\nОпиши задачу чуть подробнее, и я помогу.\n""")',
+    detail: "Fallback reply",
+    documentation: "Reply used when no keyword, regex, or command rule matches.",
+    example: 'bot.default("""\nTell me a bit more and I will help.\n""")',
+    insertText: 'bot.default("""\nTell me a bit more and I will help.\n""")',
+    kind: "method",
   },
   {
     label: "bot.reply(...)",
-    detail: "Алиас bot.default(...)",
-    insertText: 'bot.reply("""\nОпиши задачу чуть подробнее, и я помогу.\n""")',
+    detail: "Alias of default",
+    documentation: "Alias for bot.default when you want a cleaner DSL style.",
+    example: 'bot.reply("""\nDescribe the task in more detail.\n""")',
+    insertText: 'bot.reply("""\nDescribe the task in more detail.\n""")',
+    kind: "method",
   },
   {
     label: "bot.guard(...)",
-    detail: "Защитное примечание",
-    insertText: 'bot.guard("""\nНе обещай неподтвержденные цены и сроки.\n""")',
+    detail: "Guardrail",
+    documentation: "Adds safety and business constraints the bot must respect.",
+    example: 'bot.guard("""\nDo not invent prices or deadlines.\n""")',
+    insertText: 'bot.guard("""\nDo not invent prices or deadlines.\n""")',
+    kind: "method",
   },
   {
     label: "bot.safety(...)",
-    detail: "Алиас bot.guard(...)",
-    insertText: 'bot.safety("""\nНе обещай неподтвержденные цены и сроки.\n""")',
+    detail: "Alias of guard",
+    documentation: "Alias for bot.guard with the same behavior.",
+    example: 'bot.safety("""\nDo not ask for unsafe personal data.\n""")',
+    insertText: 'bot.safety("""\nDo not ask for unsafe personal data.\n""")',
+    kind: "method",
   },
   {
     label: "bot.handoff(...)",
-    detail: "Передача человеку",
-    insertText: 'bot.handoff("""\nЕсли вопрос нестандартный, передай диалог человеку.\n""")',
+    detail: "Human transfer",
+    documentation: "Explains when the dialog should be escalated to a real person.",
+    example: 'bot.handoff("""\nEscalate refund disputes to a manager.\n""")',
+    insertText: 'bot.handoff("""\nEscalate complex or custom cases to a human.\n""")',
+    kind: "method",
   },
   {
     label: "bot.escalate(...)",
-    detail: "Алиас bot.handoff(...)",
-    insertText: 'bot.escalate("""\nЕсли вопрос нестандартный, передай диалог человеку.\n""")',
+    detail: "Alias of handoff",
+    documentation: "Alias for bot.handoff for a more Python-like naming style.",
+    example: 'bot.escalate("""\nPass legal issues to a manager.\n""")',
+    insertText: 'bot.escalate("""\nPass legal issues to a manager.\n""")',
+    kind: "method",
   },
   {
     label: "bot.rule_contains(...)",
-    detail: "Правило по ключевым словам",
-    insertText: 'bot.rule_contains(["цена", "тариф"], """\nСтоимость зависит от задачи.\n""")',
+    detail: "Keyword rule",
+    documentation: "Matches incoming text by one or more keywords.",
+    example: 'bot.rule_contains(["price", "cost"], """\nPricing depends on the task.\n""")',
+    insertText: 'bot.rule_contains(["price", "cost"], """\nPricing depends on the task.\n""")',
+    kind: "method",
   },
   {
     label: "bot.on_text(...)",
-    detail: "Алиас текстового правила",
-    insertText: 'bot.on_text(["менеджер", "оператор"], """\nМогу передать диалог человеку.\n""")',
+    detail: "Alias of keyword rule",
+    documentation: "Alias for bot.rule_contains.",
+    example: 'bot.on_text(["manager"], """\nI can transfer you to a human.\n""")',
+    insertText: 'bot.on_text(["manager", "operator"], """\nI can transfer you to a human.\n""")',
+    kind: "method",
   },
   {
     label: "bot.hears(...)",
-    detail: "Python-style алиас текстового правила",
-    insertText: 'bot.hears(["доставка", "срок"], """\nПодскажу по срокам и доставке.\n""")',
+    detail: "Python-style keyword rule",
+    documentation: "Python-style alias for keyword matching.",
+    example: 'bot.hears(["delivery"], """\nI can explain delivery times.\n""")',
+    insertText: 'bot.hears(["delivery", "timing"], """\nI can explain delivery times.\n""")',
+    kind: "method",
   },
   {
     label: "bot.rule_regex(...)",
-    detail: "Правило по регулярному выражению",
-    insertText: 'bot.rule_regex(r"(ошибка|bug)", """\nПохоже на техническую проблему.\n""", flags="i")',
+    detail: "Regex rule",
+    documentation: "Matches incoming text with a regular expression.",
+    example: 'bot.rule_regex(r"(bug|error)", """\nThis looks like a technical issue.\n""", flags="i")',
+    insertText: 'bot.rule_regex(r"(bug|error)", """\nThis looks like a technical issue.\n""", flags="i")',
+    kind: "method",
   },
   {
     label: "bot.on_regex(...)",
-    detail: "Алиас regex-правила",
-    insertText: 'bot.on_regex(r"^/debug$", """\nКоманда диагностики принята.\n""", flags="i")',
+    detail: "Alias of regex rule",
+    documentation: "Alias for bot.rule_regex.",
+    example: 'bot.on_regex(r"^/debug$", """\nDebug mode enabled.\n""", flags="i")',
+    insertText: 'bot.on_regex(r"^/debug$", """\nDebug mode enabled.\n""", flags="i")',
+    kind: "method",
   },
   {
     label: "bot.matches(...)",
-    detail: "Python-style алиас regex-правила",
-    insertText: 'bot.matches(r"(оплата|платеж)", """\nПодскажу по оплате.\n""", flags="i")',
+    detail: "Python-style regex rule",
+    documentation: "Python-style alias for regex matching.",
+    example: 'bot.matches(r"(payment|billing)", """\nI can help with billing.\n""", flags="i")',
+    insertText: 'bot.matches(r"(payment|billing)", """\nI can help with billing.\n""", flags="i")',
+    kind: "method",
   },
   {
     label: "bot.command(...)",
-    detail: "Обработчик команды",
-    insertText: 'bot.command("start", """\nПривет! Это команда /start.\n""")',
+    detail: "Command handler",
+    documentation: "Registers a slash command, for example /start or /help.",
+    example: 'bot.command("start", """\nWelcome to the bot.\n""")',
+    insertText: 'bot.command("start", """\nWelcome to the bot.\n""")',
+    kind: "method",
   },
   {
     label: "bot.on_command(...)",
-    detail: "Алиас команды",
-    insertText: 'bot.on_command("help", """\nНапиши вопрос, и я помогу.\n""")',
+    detail: "Alias of command",
+    documentation: "Alias for bot.command.",
+    example: 'bot.on_command("help", """\nAsk a question and I will help.\n""")',
+    insertText: 'bot.on_command("help", """\nAsk a question and I will help.\n""")',
+    kind: "method",
   },
 ]
 
@@ -224,7 +279,8 @@ function getWordBounds(source: string, cursor: number) {
 
 function buildSuggestionState(source: string, cursor: number): SuggestionState | null {
   const { start, end } = getWordBounds(source, cursor)
-  const query = source.slice(start, end).trim().toLowerCase()
+  const rawQuery = source.slice(start, end).trim().toLowerCase()
+  const query = rawQuery.includes(".") ? rawQuery.slice(rawQuery.lastIndexOf(".") + 1) : rawQuery
   const currentLine = source.slice(source.lastIndexOf("\n", cursor - 1) + 1, cursor)
   const showBotMethodsOnly = currentLine.includes("bot.")
 
@@ -237,14 +293,29 @@ function buildSuggestionState(source: string, cursor: number): SuggestionState |
       return item.label.startsWith(showBotMethodsOnly ? "bot." : "from") || item.label.startsWith("bot =")
     }
 
-    return item.label.toLowerCase().includes(query)
+    const normalizedLabel = item.label.toLowerCase()
+    const normalizedDetail = item.detail.toLowerCase()
+    const normalizedDocs = item.documentation.toLowerCase()
+    const methodName = normalizedLabel.startsWith("bot.") ? normalizedLabel.slice(4) : normalizedLabel
+
+    return (
+      normalizedLabel.includes(query) ||
+      normalizedDetail.includes(query) ||
+      normalizedDocs.includes(query) ||
+      methodName.includes(query)
+    )
   }).slice(0, 8)
 
   if (items.length === 0) {
     return null
   }
 
-  return { start, end, items }
+  return { start, end, query, items }
+}
+
+function shouldOpenSuggestions(nextValue: string, cursor: number) {
+  const typed = nextValue[cursor - 1] ?? ""
+  return /[a-zA-Z_.]/.test(typed) || nextValue.trim().length === 0
 }
 
 export function BotCodeEditor({ value, onChange, className = "" }: BotCodeEditorProps) {
@@ -252,11 +323,19 @@ export function BotCodeEditor({ value, onChange, className = "" }: BotCodeEditor
   const highlightRef = useRef<HTMLPreElement | null>(null)
   const [cursorPosition, setCursorPosition] = useState(value.length)
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0)
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(true)
   const tokens = useMemo(() => tokenizeBotScript(value), [value])
   const suggestionState = useMemo(
     () => buildSuggestionState(value, cursorPosition),
     [cursorPosition, value]
   )
+
+  const hasSuggestions = Boolean(suggestionState && suggestionState.items.length > 0)
+  const showSuggestions = isSuggestionsOpen && hasSuggestions
+  const activeSuggestion =
+    suggestionState?.items[
+      Math.min(selectedSuggestionIndex, Math.max((suggestionState?.items.length ?? 1) - 1, 0))
+    ] ?? null
 
   function syncScroll() {
     if (!textareaRef.current || !highlightRef.current) {
@@ -279,11 +358,13 @@ export function BotCodeEditor({ value, onChange, className = "" }: BotCodeEditor
       value.slice(suggestionState.end)
 
     onChange(nextValue)
+    setIsSuggestionsOpen(false)
 
     requestAnimationFrame(() => {
       const nextCursor = suggestionState.start + item.insertText.length
       textarea.focus()
       textarea.setSelectionRange(nextCursor, nextCursor)
+      setCursorPosition(nextCursor)
     })
   }
 
@@ -312,16 +393,35 @@ export function BotCodeEditor({ value, onChange, className = "" }: BotCodeEditor
         ref={textareaRef}
         value={value}
         onChange={(event) => {
-          onChange(event.target.value)
-          setCursorPosition(event.target.selectionStart)
+          const nextValue = event.target.value
+          const nextCursor = event.target.selectionStart
+          onChange(nextValue)
+          setCursorPosition(nextCursor)
           setSelectedSuggestionIndex(0)
+          setIsSuggestionsOpen(shouldOpenSuggestions(nextValue, nextCursor))
         }}
         onSelect={(event) => {
           setCursorPosition((event.target as HTMLTextAreaElement).selectionStart)
         }}
-        onClick={() => setSelectedSuggestionIndex(0)}
+        onClick={() => {
+          setSelectedSuggestionIndex(0)
+          setIsSuggestionsOpen(true)
+        }}
+        onFocus={() => setIsSuggestionsOpen(true)}
         onKeyDown={(event) => {
-          if (!suggestionState || suggestionState.items.length === 0) {
+          if (event.ctrlKey && event.key === " ") {
+            event.preventDefault()
+            setIsSuggestionsOpen(true)
+            return
+          }
+
+          if (event.key === "Escape") {
+            setIsSuggestionsOpen(false)
+            setSelectedSuggestionIndex(0)
+            return
+          }
+
+          if (!showSuggestions || !suggestionState || suggestionState.items.length === 0) {
             return
           }
 
@@ -346,12 +446,6 @@ export function BotCodeEditor({ value, onChange, className = "" }: BotCodeEditor
                 Math.min(selectedSuggestionIndex, suggestionState.items.length - 1)
               ] as EditorSuggestion
             )
-            setSelectedSuggestionIndex(0)
-            return
-          }
-
-          if (event.key === "Escape") {
-            setSelectedSuggestionIndex(0)
           }
         }}
         onScroll={syncScroll}
@@ -359,37 +453,89 @@ export function BotCodeEditor({ value, onChange, className = "" }: BotCodeEditor
         className="absolute inset-0 min-h-[38rem] w-full resize-none bg-transparent px-4 py-3 font-mono text-sm leading-6 text-transparent caret-slate-100 outline-none selection:bg-sky-500/30"
       />
 
-      {suggestionState ? (
-        <div className="absolute right-3 top-3 z-10 w-full max-w-md rounded-2xl border border-white/10 bg-slate-950/95 p-2 shadow-2xl backdrop-blur">
-          <p className="px-2 pb-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">
-            Подсказки Shalter
-          </p>
-          <div className="space-y-1">
-            {suggestionState.items.map((item, index) => {
-              const active = index === Math.min(selectedSuggestionIndex, suggestionState.items.length - 1)
+      {showSuggestions && suggestionState ? (
+        <div className="absolute inset-x-3 bottom-3 z-10 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/95 shadow-2xl backdrop-blur">
+          <div className="grid md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
+            <div className="border-b border-white/10 md:border-b-0 md:border-r md:border-white/10">
+              <div className="flex items-center justify-between gap-3 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                  Shalter IntelliSense
+                </p>
+                <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                  <span className="rounded-full border border-white/10 px-2 py-0.5">Ctrl+Space</span>
+                  <span className="rounded-full border border-white/10 px-2 py-0.5">
+                    {suggestionState.query || "all"}
+                  </span>
+                </div>
+              </div>
 
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  className={`flex w-full items-start justify-between gap-3 rounded-xl px-2 py-2 text-left ${
-                    active ? "bg-sky-500/15 text-white" : "text-slate-200 hover:bg-white/5"
-                  }`}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    applySuggestion(item)
-                  }}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-mono text-xs">{item.label}</span>
-                    <span className="block truncate text-[11px] text-slate-400">{item.detail}</span>
-                  </span>
-                  <span className="shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-400">
-                    {active ? "Enter" : "Tab"}
-                  </span>
-                </button>
-              )
-            })}
+              <div className="max-h-72 overflow-y-auto p-2">
+                <div className="space-y-1">
+                  {suggestionState.items.map((item, index) => {
+                    const active = index === Math.min(selectedSuggestionIndex, suggestionState.items.length - 1)
+
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        className={`flex w-full items-start justify-between gap-3 rounded-xl px-2.5 py-2 text-left ${
+                          active
+                            ? "bg-sky-500/15 text-white ring-1 ring-sky-400/30"
+                            : "text-slate-200 hover:bg-white/5"
+                        }`}
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                          applySuggestion(item)
+                        }}
+                      >
+                        <span className="min-w-0">
+                          <span className="mb-1 flex items-center gap-2">
+                            <span className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-300">
+                              {item.kind}
+                            </span>
+                            <span className="truncate font-mono text-xs">{item.label}</span>
+                          </span>
+                          <span className="block truncate text-[11px] text-slate-400">{item.detail}</span>
+                        </span>
+                        <span className="shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-400">
+                          {active ? "Enter" : "Tab"}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex min-h-52 flex-col bg-slate-950/90 p-3">
+              {activeSuggestion ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-md border border-sky-400/20 bg-sky-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">
+                      {activeSuggestion.kind}
+                    </span>
+                    <p className="truncate font-mono text-xs text-slate-200">{activeSuggestion.label}</p>
+                  </div>
+
+                  <p className="mt-3 text-sm text-slate-200">{activeSuggestion.documentation}</p>
+
+                  {activeSuggestion.example ? (
+                    <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                      <p className="mb-2 text-[10px] uppercase tracking-[0.16em] text-slate-500">Example</p>
+                      <pre className="overflow-x-auto font-mono text-xs leading-5 whitespace-pre-wrap text-slate-300">
+                        {activeSuggestion.example}
+                      </pre>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-auto flex flex-wrap gap-2 pt-3 text-[11px] text-slate-500">
+                    <span>Enter or Tab to insert</span>
+                    <span>Arrow keys to navigate</span>
+                    <span>Esc to close</span>
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}

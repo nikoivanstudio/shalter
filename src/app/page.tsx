@@ -5,6 +5,8 @@ import { PwaRegisterClient } from "@/app/pwa-register-client"
 import { ProfileHome } from "@/features/profile/ui/profile-home"
 import { getCurrentUser } from "@/shared/lib/auth/current-user"
 import { canAssignManagedRole } from "@/shared/lib/auth/roles"
+import { getAppUrlFromRequest } from "@/shared/lib/app-url"
+import { getYooKassaConfigStatus } from "@/shared/lib/billing/yookassa"
 import { prisma } from "@/shared/lib/db/prisma"
 
 export default async function Home() {
@@ -13,6 +15,15 @@ export default async function Home() {
   if (!user) {
     redirect("/auth")
   }
+
+  const billingConfig = getYooKassaConfigStatus()
+  const appUrl = getAppUrlFromRequest()
+  const isAppUrlConfigured = !appUrl.startsWith("http://localhost:")
+  const billingReady = billingConfig.isConfigured && isAppUrlConfigured
+  const billingIssues = [
+    ...billingConfig.missing.map((key) => `Missing ${key}`),
+    ...(isAppUrlConfigured ? [] : ["APP_URL is not configured for production"]),
+  ]
 
   const [purchaseRequests, pendingPurchaseRequests] = await Promise.all([
     prisma.purchaseRequest.findMany({
@@ -96,6 +107,9 @@ export default async function Home() {
           ...item,
           createdAt: item.createdAt.toISOString(),
         }))}
+        billingReady={billingReady}
+        billingProvider="YooKassa"
+        billingIssues={billingIssues}
       />
     </Providers>
   )

@@ -42,6 +42,14 @@ function getYooKassaConfig() {
   }
 }
 
+export function getYooKassaConfigStatus() {
+  const config = getYooKassaConfig()
+  return {
+    isConfigured: config.missing.length === 0,
+    missing: config.missing,
+  }
+}
+
 export function isYooKassaConfigured() {
   return getYooKassaConfig().missing.length === 0
 }

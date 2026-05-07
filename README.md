@@ -71,6 +71,32 @@ WEB_PUSH_SUBJECT=...
 WEB_PUSH_EMAIL=admin@example.com
 ```
 
+## Billing setup
+
+Safe card payments are configured through YooKassa hosted checkout. Card data is never entered into this app and goes directly through the provider page.
+
+Required environment variables:
+
+```bash
+APP_URL=https://your-domain.example
+YOOKASSA_SHOP_ID=...
+YOOKASSA_SECRET_KEY=...
+```
+
+After deployment:
+
+1. Apply Prisma migrations with `npm run db:prepare` or your usual production migration step.
+2. Set the YooKassa webhook URL to `https://your-domain.example/api/billing/yookassa/webhook`.
+3. Open the profile page and start a purchase from the billing section.
+
+The current billing flow includes:
+
+- `POST /api/billing/checkout` to create a purchase request and YooKassa payment
+- `/billing/return` to refresh payment status after redirect back
+- `POST /api/billing/yookassa/webhook` to confirm successful payments server-to-server
+
+If `YOOKASSA_SHOP_ID` or `YOOKASSA_SECRET_KEY` is missing, the UI will keep the purchase flow unavailable until the provider is configured.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

@@ -56,15 +56,37 @@ type BroadcastEvent =
       signal: BroadcastSignalPayload
     }
 
-const RTC_CONFIGURATION: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
+type IceServerConfig = NonNullable<RTCConfiguration["iceServers"]>[number]
+
+type ChannelMessage = {
+  id: number
+  channelId: number
+  content: string
+  createdAt: string
+  author: {
+    id: number
+    firstName: string
+    lastName: string | null
+    avatarTone?: string | null
+    avatarUrl?: string | null
+  }
 }
+
+const DEFAULT_ICE_SERVERS: IceServerConfig[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+]
 
 function getDisplayName(user: BroadcastUser) {
   return `${user.firstName} ${user.lastName ?? ""}`.trim() || user.email
+}
+
+function playMediaElement(element: HTMLMediaElement | null) {
+  if (!element) {
+    return
+  }
+
+  void element.play().catch(() => null)
 }
 
 export function ChannelBroadcastOverlay({
@@ -84,8 +106,11 @@ export function ChannelBroadcastOverlay({
   const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false)
   const [isCameraDisabled, setIsCameraDisabled] = useState(false)
   const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user")
-  const [, forceRender] = useState(0)
   const [remoteHostStream, setRemoteHostStream] = useState<MediaStream | null>(null)
+  const [iceServers, setIceServers] = useState<IceServerConfig[]>(DEFAULT_ICE_SERVERS)
+  const [broadcastMessages, setBroadcastMessages] = useState<ChannelMessage[]>([])
+  const [broadcastMessageText, setBroadcastMessageText] = useState("")
+  const [isSendingMessage, setIsSendingMessage] = useState(false)
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -95,6 +120,8 @@ export function ChannelBroadcastOverlay({
   const pendingIceCandidatesRef = useRef(new Map<number, RTCIceCandidateInit[]>())
   const activeBroadcastRef = useRef<BroadcastSnapshot | null>(null)
   const incomingBroadcastRef = useRef<BroadcastSnapshot | null>(null)
+  const iceServersRef = useRef<IceServerConfig[]>(DEFAULT_ICE_SERVERS)
+  const iceServersRequestRef = useRef<Promise<IceServerConfig[]> | null>(null)
 
   const channelTitle = useMemo(() => {
     const channelId = activeBroadcast?.channelId ?? incomingBroadcast?.channelId ?? selectedChannelId
@@ -103,6 +130,7 @@ export function ChannelBroadcastOverlay({
 
   const isHost = activeBroadcast?.host.userId === currentUser.userId
   const showOverlay = Boolean(activeBroadcast || incomingBroadcast)
+  const activeViewers = activeBroadcast?.viewers ?? []
 
   useEffect(() => {
     activeBroadcastRef.current = activeBroadcast
@@ -113,17 +141,25 @@ export function ChannelBroadcastOverlay({
   }, [incomingBroadcast])
 
   useEffect(() => {
+    iceServersRef.current = iceServers
+  }, [iceServers])
+
+  useEffect(() => {
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current
+      playMediaElement(localVideoRef.current)
     }
   }, [activeBroadcast, isCameraDisabled])
 
   useEffect(() => {
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = remoteHostStream
+      playMediaElement(remoteVideoRef.current)
     }
+
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = remoteHostStream
+      playMediaElement(remoteAudioRef.current)
     }
   }, [remoteHostStream])
 
@@ -161,41 +197,68 @@ export function ChannelBroadcastOverlay({
       setActiveBroadcast(null)
       activeBroadcastRef.current = null
       setIsConnecting(false)
-      setCameraFacing("user")
       setIsMicrophoneMuted(false)
       setIsCameraDisabled(false)
-      forceRender((value) => value + 1)
+      setCameraFacing("user")
+      setBroadcastMessages([])
+      setBroadcastMessageText("")
     },
     [destroyPeer]
   )
 
-  const ensureLocalStream = useCallback(async (media: BroadcastMediaMode) => {
-    if (localStreamRef.current) {
-      return localStreamRef.current
+  const ensureIceServersLoaded = useCallback(async () => {
+    if (!iceServersRequestRef.current) {
+      iceServersRequestRef.current = fetch("/api/calls/ice")
+        .then(async (response) => {
+          const data = (await response.json().catch(() => null)) as
+            | { iceServers?: IceServerConfig[] }
+            | null
+
+          if (!response.ok) {
+            return DEFAULT_ICE_SERVERS
+          }
+
+          return Array.isArray(data?.iceServers) && data.iceServers.length > 0
+            ? data.iceServers
+            : DEFAULT_ICE_SERVERS
+        })
+        .catch(() => DEFAULT_ICE_SERVERS)
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video:
-        media === "video"
-          ? {
-              facingMode: cameraFacing,
-            }
-          : false,
-    })
+    const nextIceServers = await iceServersRequestRef.current
+    setIceServers(nextIceServers)
+    return nextIceServers
+  }, [])
 
-    localStreamRef.current = stream
-    setIsMicrophoneMuted(false)
-    setIsCameraDisabled(media !== "video")
-    forceRender((value) => value + 1)
-    return stream
-  }, [cameraFacing])
+  useEffect(() => {
+    void ensureIceServersLoaded()
+  }, [ensureIceServersLoaded])
 
-  async function sendSignal(
-    broadcastId: string,
-    toUserId: number,
-    signal: BroadcastSignalPayload
-  ) {
+  const ensureLocalStream = useCallback(
+    async (media: BroadcastMediaMode) => {
+      if (localStreamRef.current) {
+        return localStreamRef.current
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video:
+          media === "video"
+            ? {
+                facingMode: cameraFacing,
+              }
+            : false,
+      })
+
+      localStreamRef.current = stream
+      setIsMicrophoneMuted(false)
+      setIsCameraDisabled(media !== "video")
+      return stream
+    },
+    [cameraFacing]
+  )
+
+  async function sendSignal(broadcastId: string, toUserId: number, signal: BroadcastSignalPayload) {
     await fetch(`/api/channel-broadcasts/${broadcastId}/signal`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -207,10 +270,8 @@ export function ChannelBroadcastOverlay({
     for (const peer of peerConnectionsRef.current.values()) {
       const audioTrack = stream?.getAudioTracks()[0] ?? null
       const videoTrack = stream?.getVideoTracks()[0] ?? null
-      const audioSender =
-        peer.getSenders().find((sender) => sender.track?.kind === "audio") ?? null
-      const videoSender =
-        peer.getSenders().find((sender) => sender.track?.kind === "video") ?? null
+      const audioSender = peer.getSenders().find((sender) => sender.track?.kind === "audio") ?? null
+      const videoSender = peer.getSenders().find((sender) => sender.track?.kind === "video") ?? null
 
       if (audioSender) {
         void audioSender.replaceTrack(audioTrack)
@@ -233,7 +294,9 @@ export function ChannelBroadcastOverlay({
         return existing
       }
 
-      const peer = new RTCPeerConnection(RTC_CONFIGURATION)
+      const peer = new RTCPeerConnection({
+        iceServers: iceServersRef.current,
+      })
 
       if (broadcast.host.userId === currentUser.userId) {
         for (const track of localStreamRef.current?.getTracks() ?? []) {
@@ -253,9 +316,9 @@ export function ChannelBroadcastOverlay({
       }
 
       peer.ontrack = (event) => {
-        const [stream] = event.streams
-        if (stream) {
-          setRemoteHostStream(stream)
+        const remoteStream = event.streams[0] ?? null
+        if (remoteStream) {
+          setRemoteHostStream(remoteStream)
           return
         }
 
@@ -293,11 +356,11 @@ export function ChannelBroadcastOverlay({
       const peer = ensurePeerConnection(broadcast, remoteUser)
 
       if (signal.type === "offer") {
-        await peer.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit))
+        await peer.setRemoteDescription(signal.payload as RTCSessionDescriptionInit)
 
         const pending = pendingIceCandidatesRef.current.get(fromUserId) ?? []
         for (const candidate of pending) {
-          await peer.addIceCandidate(new RTCIceCandidate(candidate))
+          await peer.addIceCandidate(candidate)
         }
         pendingIceCandidatesRef.current.delete(fromUserId)
 
@@ -311,14 +374,14 @@ export function ChannelBroadcastOverlay({
       }
 
       if (signal.type === "answer") {
-        await peer.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit))
+        await peer.setRemoteDescription(signal.payload as RTCSessionDescriptionInit)
         return
       }
 
-      if (signal.type === "ice-candidate") {
+      if (signal.type === "ice-candidate" && signal.payload) {
         const candidate = signal.payload as RTCIceCandidateInit
         if (peer.remoteDescription) {
-          await peer.addIceCandidate(new RTCIceCandidate(candidate))
+          await peer.addIceCandidate(candidate)
         } else {
           const pending = pendingIceCandidatesRef.current.get(fromUserId) ?? []
           pending.push(candidate)
@@ -346,6 +409,7 @@ export function ChannelBroadcastOverlay({
     setIsConnecting(true)
 
     try {
+      await ensureIceServersLoaded()
       const response = await fetch(`/api/channel-broadcasts/${broadcast.id}/join`, {
         method: "POST",
       })
@@ -377,7 +441,9 @@ export function ChannelBroadcastOverlay({
     setIsConnecting(true)
 
     try {
+      await ensureIceServersLoaded()
       await ensureLocalStream(media)
+
       const response = await fetch("/api/channel-broadcasts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -430,7 +496,6 @@ export function ChannelBroadcastOverlay({
     for (const track of localStreamRef.current?.getVideoTracks() ?? []) {
       track.enabled = !nextDisabled
     }
-    forceRender((value) => value + 1)
   }
 
   async function switchCamera() {
@@ -445,7 +510,6 @@ export function ChannelBroadcastOverlay({
       const replacementStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: nextFacing },
       })
-
       const replacementTrack = replacementStream.getVideoTracks()[0] ?? null
       if (!replacementTrack) {
         throw new Error("camera")
@@ -460,7 +524,6 @@ export function ChannelBroadcastOverlay({
       }
 
       currentStream.addTrack(replacementTrack)
-
       if (isCameraDisabled) {
         replacementTrack.enabled = false
       }
@@ -468,11 +531,11 @@ export function ChannelBroadcastOverlay({
       localStreamRef.current = new MediaStream([...audioTracks, replacementTrack])
       syncLocalStreamToPeers(localStreamRef.current)
       setCameraFacing(nextFacing)
+
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = localStreamRef.current
-        void localVideoRef.current.play().catch(() => null)
+        playMediaElement(localVideoRef.current)
       }
-      forceRender((value) => value + 1)
     } catch {
       toast.error("Не удалось переключить камеру")
     }
@@ -485,11 +548,12 @@ export function ChannelBroadcastOverlay({
       const payload = JSON.parse(event.data) as BroadcastEvent
 
       if (payload.type === "broadcast.snapshot") {
-        const current = payload.broadcasts.find(
-          (broadcast) =>
-            broadcast.host.userId === currentUser.userId ||
-            broadcast.viewers.some((viewer) => viewer.userId === currentUser.userId)
-        )
+        const current =
+          payload.broadcasts.find((broadcast) => broadcast.id === activeBroadcastRef.current?.id) ??
+          payload.broadcasts.find((broadcast) => broadcast.id === incomingBroadcastRef.current?.id) ??
+          payload.broadcasts.find((broadcast) => broadcast.channelId === selectedChannelId) ??
+          payload.broadcasts[0] ??
+          null
 
         if (!current) {
           if (activeBroadcastRef.current || incomingBroadcastRef.current) {
@@ -518,20 +582,10 @@ export function ChannelBroadcastOverlay({
       }
 
       if (payload.type === "broadcast.updated") {
-        const isHost = payload.broadcast.host.userId === currentUser.userId
-        const isViewer = payload.broadcast.viewers.some((viewer) => viewer.userId === currentUser.userId)
+        const isHostNow = payload.broadcast.host.userId === currentUser.userId
+        const isViewerNow = payload.broadcast.viewers.some((viewer) => viewer.userId === currentUser.userId)
 
-        if (!isHost && !isViewer) {
-          if (activeBroadcastRef.current?.id === payload.broadcast.id) {
-            void cleanupBroadcast(false)
-          }
-          if (incomingBroadcastRef.current?.id === payload.broadcast.id) {
-            setIncomingBroadcast(null)
-          }
-          return
-        }
-
-        if (isHost && activeBroadcastRef.current?.id === payload.broadcast.id) {
+        if (isHostNow && activeBroadcastRef.current?.id === payload.broadcast.id) {
           const previousViewerIds = new Set(activeBroadcastRef.current.viewers.map((viewer) => viewer.userId))
           const nextViewers = payload.broadcast.viewers.filter((viewer) => !previousViewerIds.has(viewer.userId))
           for (const viewer of nextViewers) {
@@ -540,10 +594,14 @@ export function ChannelBroadcastOverlay({
         }
 
         setActiveBroadcast((prev) =>
-          prev?.id === payload.broadcast.id || isHost || isViewer ? payload.broadcast : prev
+          prev?.id === payload.broadcast.id || isHostNow || isViewerNow ? payload.broadcast : prev
         )
         setIncomingBroadcast((prev) =>
-          isHost || isViewer ? null : prev?.id === payload.broadcast.id ? payload.broadcast : prev
+          isHostNow || isViewerNow
+            ? null
+            : prev?.id === payload.broadcast.id || payload.broadcast.channelId === selectedChannelId
+              ? payload.broadcast
+              : prev
         )
         return
       }
@@ -563,6 +621,7 @@ export function ChannelBroadcastOverlay({
         if (activeBroadcastRef.current?.id !== payload.broadcastId) {
           return
         }
+
         void handleSignal(payload.fromUserId, payload.signal)
       }
     }
@@ -576,7 +635,7 @@ export function ChannelBroadcastOverlay({
     return () => {
       eventSource.close()
     }
-  }, [cleanupBroadcast, createOfferForViewer, currentUser.userId, handleSignal])
+  }, [cleanupBroadcast, createOfferForViewer, currentUser.userId, handleSignal, selectedChannelId])
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -597,7 +656,75 @@ export function ChannelBroadcastOverlay({
     }
   }, [])
 
-  const activeViewers = activeBroadcast?.viewers ?? []
+  useEffect(() => {
+    const channelId = activeBroadcast?.channelId ?? null
+    if (!channelId) {
+      setBroadcastMessages([])
+      setBroadcastMessageText("")
+      return
+    }
+
+    let cancelled = false
+
+    const loadMessages = async () => {
+      const response = await fetch(`/api/channels/${channelId}/messages`)
+      const data = (await response.json().catch(() => null)) as
+        | { messages?: ChannelMessage[] }
+        | null
+
+      if (!response.ok || cancelled) {
+        return
+      }
+
+      setBroadcastMessages(Array.isArray(data?.messages) ? data.messages : [])
+    }
+
+    void loadMessages()
+    const intervalId = window.setInterval(() => {
+      void loadMessages()
+    }, 3000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [activeBroadcast?.channelId])
+
+  async function sendBroadcastMessage() {
+    const channelId = activeBroadcast?.channelId ?? null
+    const content = broadcastMessageText.trim()
+    if (!channelId || !content || isSendingMessage) {
+      return
+    }
+
+    setIsSendingMessage(true)
+
+    try {
+      const response = await fetch(`/api/channels/${channelId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      })
+      const data = (await response.json().catch(() => null)) as
+        | { message?: ChannelMessage; messageText?: string }
+        | { message?: string }
+        | null
+
+      if (!response.ok || !data?.message || typeof data.message === "string") {
+        throw new Error(
+          (data && typeof data.message === "string" ? data.message : null) ??
+            "Не удалось отправить сообщение в чат трансляции"
+        )
+      }
+
+      setBroadcastMessages((prev) => [...prev, data.message as ChannelMessage])
+      setBroadcastMessageText("")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось отправить сообщение в чат трансляции")
+    } finally {
+      setIsSendingMessage(false)
+    }
+  }
 
   return (
     <>
@@ -660,11 +787,7 @@ export function ChannelBroadcastOverlay({
                           variant={isCameraDisabled ? "secondary" : "outline"}
                           onClick={toggleCamera}
                         >
-                          {isCameraDisabled ? (
-                            <VideoOffIcon className="size-4" />
-                          ) : (
-                            <VideoIcon className="size-4" />
-                          )}
+                          {isCameraDisabled ? <VideoOffIcon className="size-4" /> : <VideoIcon className="size-4" />}
                           {isCameraDisabled ? "Камера выкл." : "Камера"}
                         </Button>
                       ) : null}
@@ -691,11 +814,7 @@ export function ChannelBroadcastOverlay({
                     <RadioIcon className="size-4" />
                     Подключиться
                   </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => setIncomingBroadcast(null)}
-                  >
+                  <Button type="button" variant="destructive" onClick={() => setIncomingBroadcast(null)}>
                     Закрыть
                   </Button>
                 </div>
@@ -703,7 +822,7 @@ export function ChannelBroadcastOverlay({
             </div>
 
             {activeBroadcast ? (
-              <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="min-h-0 overflow-hidden rounded-[1.6rem] border border-white/15 bg-black/30">
                   {isHost ? (
                     activeBroadcast.media === "video" ? (
@@ -752,9 +871,7 @@ export function ChannelBroadcastOverlay({
                             className="mx-auto size-24 border border-white/20"
                             textClassName="text-2xl font-semibold"
                           />
-                          <p className="mt-4 text-lg font-semibold">
-                            {getDisplayName(activeBroadcast.host)}
-                          </p>
+                          <p className="mt-4 text-lg font-semibold">{getDisplayName(activeBroadcast.host)}</p>
                           <p className="mt-2 text-sm text-white/70">Прямой эфир</p>
                         </div>
                       </div>
@@ -763,53 +880,118 @@ export function ChannelBroadcastOverlay({
                   )}
                 </div>
 
-                <div className="flex min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/4 p-4">
-                  <p className="text-sm font-medium text-white/80">
-                    {isHost ? "Зрители" : "Сейчас в эфире"}
-                  </p>
-                  <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                    {isHost ? (
-                      activeViewers.length > 0 ? (
-                        activeViewers.map((viewer) => (
-                          <div
-                            key={viewer.userId}
-                            className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-2"
-                          >
-                            <UserAvatar
-                              firstName={viewer.firstName}
-                              lastName={viewer.lastName}
-                              avatarTone={viewer.avatarTone}
-                              avatarUrl={viewer.avatarUrl}
-                              className="size-10 border border-white/10"
-                            />
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium">{getDisplayName(viewer)}</p>
-                              <p className="text-xs text-white/60">Слушает эфир</p>
+                <div className="grid min-h-0 gap-4 lg:grid-rows-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
+                  <div className="flex min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/4 p-4">
+                    <p className="text-sm font-medium text-white/80">
+                      {isHost ? "Зрители" : "Сейчас в эфире"}
+                    </p>
+                    <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                      {isHost ? (
+                        activeViewers.length > 0 ? (
+                          activeViewers.map((viewer) => (
+                            <div
+                              key={viewer.userId}
+                              className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-2"
+                            >
+                              <UserAvatar
+                                firstName={viewer.firstName}
+                                lastName={viewer.lastName}
+                                avatarTone={viewer.avatarTone}
+                                avatarUrl={viewer.avatarUrl}
+                                className="size-10 border border-white/10"
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{getDisplayName(viewer)}</p>
+                                <p className="text-xs text-white/60">Слушает эфир</p>
+                              </div>
                             </div>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-white/15 px-4 py-6 text-center text-sm text-white/70">
+                            Пока никто не подключился к трансляции.
+                          </div>
+                        )
+                      ) : (
+                        <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-2">
+                          <UserAvatar
+                            firstName={activeBroadcast.host.firstName}
+                            lastName={activeBroadcast.host.lastName}
+                            avatarTone={activeBroadcast.host.avatarTone}
+                            avatarUrl={activeBroadcast.host.avatarUrl}
+                            className="size-10 border border-white/10"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{getDisplayName(activeBroadcast.host)}</p>
+                            <p className="text-xs text-white/60">Ведущий</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex min-h-0 flex-col overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/4 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-white/80">Чат трансляции</p>
+                      <span className="text-xs text-white/50">{broadcastMessages.length}</span>
+                    </div>
+                    <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                      {broadcastMessages.length > 0 ? (
+                        broadcastMessages.map((message) => (
+                          <div
+                            key={message.id}
+                            className="rounded-2xl border border-white/8 bg-white/4 px-3 py-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <UserAvatar
+                                firstName={message.author.firstName}
+                                lastName={message.author.lastName}
+                                avatarTone={message.author.avatarTone}
+                                avatarUrl={message.author.avatarUrl}
+                                className="size-8 border border-white/10"
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-medium text-white/90">
+                                  {`${message.author.firstName} ${message.author.lastName ?? ""}`.trim()}
+                                </p>
+                                <p className="text-[11px] text-white/50">
+                                  {new Date(message.createdAt).toLocaleTimeString("ru-RU", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="mt-2 break-words text-sm text-white/80">{message.content}</p>
                           </div>
                         ))
                       ) : (
                         <div className="rounded-2xl border border-dashed border-white/15 px-4 py-6 text-center text-sm text-white/70">
-                          Пока никто не подключился к трансляции.
+                          Чат пуст. Напишите первое сообщение в эфире.
                         </div>
-                      )
-                    ) : (
-                      <div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-2">
-                        <UserAvatar
-                          firstName={activeBroadcast.host.firstName}
-                          lastName={activeBroadcast.host.lastName}
-                          avatarTone={activeBroadcast.host.avatarTone}
-                          avatarUrl={activeBroadcast.host.avatarUrl}
-                          className="size-10 border border-white/10"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
-                            {getDisplayName(activeBroadcast.host)}
-                          </p>
-                          <p className="text-xs text-white/60">Ведущий</p>
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        value={broadcastMessageText}
+                        onChange={(event) => setBroadcastMessageText(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault()
+                            void sendBroadcastMessage()
+                          }
+                        }}
+                        placeholder="Сообщение в чат трансляции"
+                        className="flex-1 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-white outline-none placeholder:text-white/35"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isSendingMessage || !broadcastMessageText.trim()}
+                        onClick={() => void sendBroadcastMessage()}
+                      >
+                        {isSendingMessage ? "..." : "Отправить"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>

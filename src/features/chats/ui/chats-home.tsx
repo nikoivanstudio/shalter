@@ -134,6 +134,17 @@ type ComposerAttachment = {
   file: File
 }
 
+type ChannelSearchResult = {
+  id: number
+  title: string
+  description: string | null
+  avatarUrl?: string | null
+  ownerId: number
+  memberCount: number
+  joined: boolean
+  myRole?: string | null
+}
+
 const GALLERY_ACCEPT = "image/*,video/*"
 const AUDIO_ACCEPT = "audio/*"
 const FILES_ACCEPT =
@@ -396,6 +407,9 @@ export function ChatsHome({
   const [newChannelTitle, setNewChannelTitle] = useState("")
   const [newChannelUsername, setNewChannelUsername] = useState("")
   const [newChannelDescription, setNewChannelDescription] = useState("")
+  const [channelSearchQuery, setChannelSearchQuery] = useState("")
+  const [channelSearchResults, setChannelSearchResults] = useState<ChannelSearchResult[]>([])
+  const [isChannelSearchLoading, setIsChannelSearchLoading] = useState(false)
   const [openDialogMenuId, setOpenDialogMenuId] = useState<number | null>(null)
   const [showParticipants, setShowParticipants] = useState(false)
   const [showAddParticipants, setShowAddParticipants] = useState(false)
@@ -463,6 +477,7 @@ export function ChatsHome({
     () => (selectedDialog ? getAvailableContactsForDialog(selectedDialog, contacts) : []),
     [contacts, selectedDialog]
   )
+  const trimmedChannelSearchQuery = channelSearchQuery.trim()
   const isMessageListReady = selectedBot ? botMessages !== null : messages !== null
 
   function startDialogCall(media: "audio" | "video") {
@@ -740,6 +755,55 @@ export function ChatsHome({
   useEffect(() => {
     dialogsRef.current = dialogs
   }, [dialogs])
+
+  useEffect(() => {
+    if (!trimmedChannelSearchQuery) {
+      setChannelSearchResults([])
+      setIsChannelSearchLoading(false)
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+    setIsChannelSearchLoading(true)
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/channels/search?q=${encodeURIComponent(trimmedChannelSearchQuery)}`,
+          { signal: controller.signal }
+        )
+        const data = await response.json().catch(() => null)
+
+        if (!response.ok) {
+          if (!cancelled) {
+            setChannelSearchResults([])
+          }
+          return
+        }
+
+        if (!cancelled) {
+          setChannelSearchResults(
+            Array.isArray(data?.channels) ? (data.channels as ChannelSearchResult[]) : []
+          )
+        }
+      } catch {
+        if (!cancelled) {
+          setChannelSearchResults([])
+        }
+      } finally {
+        if (!cancelled) {
+          setIsChannelSearchLoading(false)
+        }
+      }
+    }, 250)
+
+    return () => {
+      cancelled = true
+      controller.abort()
+      clearTimeout(timeoutId)
+    }
+  }, [trimmedChannelSearchQuery])
 
   useEffect(() => {
     activeDialogIdRef.current = activeDialogId
@@ -1767,6 +1831,57 @@ export function ChatsHome({
                       <Button size="sm" variant="outline" onClick={() => location.assign("/bots")}>
                         Конструктор
                       </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <Input
+                        value={channelSearchQuery}
+                        onChange={(event) => setChannelSearchQuery(event.target.value)}
+                        placeholder="Поиск канала по названию"
+                      />
+                      {trimmedChannelSearchQuery ? (
+                        <div className="space-y-2 rounded-[1rem] border border-border/60 bg-background/60 p-2">
+                          <div className="flex items-center justify-between gap-2 px-1">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Результаты поиска каналов
+                            </p>
+                            {isChannelSearchLoading ? (
+                              <span className="text-xs text-muted-foreground">Ищем...</span>
+                            ) : null}
+                          </div>
+                          {channelSearchResults.length > 0 ? (
+                            channelSearchResults.map((channel) => (
+                              <button
+                                key={`search-channel-${channel.id}`}
+                                type="button"
+                                className="flex w-full items-start gap-3 rounded-[1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
+                                onClick={() => location.assign(`/channels?channelId=${channel.id}`)}
+                              >
+                                <UserAvatar
+                                  firstName={channel.title}
+                                  lastName={null}
+                                  avatarUrl={channel.avatarUrl}
+                                  className="size-10 shrink-0"
+                                />
+                                <span className="min-w-0">
+                                  <p className="truncate text-sm font-medium"># {channel.title}</p>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {channel.description || "Открыть канал"}
+                                  </p>
+                                  <p className="truncate text-[11px] text-muted-foreground">
+                                    {channel.joined
+                                      ? `Вы уже внутри • ${channel.memberCount} участников`
+                                      : `${channel.memberCount} участников`}
+                                  </p>
+                                </span>
+                              </button>
+                            ))
+                          ) : !isChannelSearchLoading ? (
+                            <p className="px-2 py-1 text-xs text-muted-foreground">
+                              Ничего не найдено.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                     {channels.map((channel) => (
                       <button

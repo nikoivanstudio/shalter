@@ -62,12 +62,12 @@ type RemoteStreamEntry = {
   stream: MediaStream
 }
 
-const RTC_CONFIGURATION: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
-}
+type IceServerConfig = NonNullable<RTCConfiguration["iceServers"]>[number]
+
+const DEFAULT_ICE_SERVERS: IceServerConfig[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+]
 
 const VOLUME_LEVELS: Record<VolumePreset, number> = {
   quiet: 0.35,
@@ -217,6 +217,7 @@ export function ChatCallOverlay({
   const [availableVideoInputCount, setAvailableVideoInputCount] = useState(0)
   const [remoteStreams, setRemoteStreams] = useState<Record<number, RemoteStreamEntry>>({})
   const [volumePreset, setVolumePreset] = useState<VolumePreset>("normal")
+  const [iceServers, setIceServers] = useState<IceServerConfig[]>(DEFAULT_ICE_SERVERS)
   const [, forceLocalStreamRender] = useState(0)
 
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -224,6 +225,8 @@ export function ChatCallOverlay({
   const audioContextRef = useRef<AudioContext | null>(null)
   const peerConnectionsRef = useRef(new Map<number, RTCPeerConnection>())
   const pendingIceCandidatesRef = useRef(new Map<number, RTCIceCandidateInit[]>())
+  const iceServersRef = useRef<IceServerConfig[]>(DEFAULT_ICE_SERVERS)
+  const iceServersRequestRef = useRef<Promise<IceServerConfig[]> | null>(null)
   const activeCallRef = useRef<CallSnapshot | null>(null)
   const incomingCallRef = useRef<CallSnapshot | null>(null)
   const autoStartDoneRef = useRef(false)
@@ -248,6 +251,40 @@ export function ChatCallOverlay({
   useEffect(() => {
     incomingCallRef.current = incomingCall
   }, [incomingCall])
+
+  useEffect(() => {
+    iceServersRef.current = iceServers
+  }, [iceServers])
+
+  const ensureIceServersLoaded = useCallback(async () => {
+    if (iceServersRequestRef.current) {
+      return iceServersRequestRef.current
+    }
+
+    iceServersRequestRef.current = fetch("/api/calls/ice")
+      .then(async (response) => {
+        if (!response.ok) {
+          return DEFAULT_ICE_SERVERS
+        }
+
+        const data = (await response.json().catch(() => null)) as
+          | { iceServers?: IceServerConfig[] }
+          | null
+        const nextIceServers =
+          Array.isArray(data?.iceServers) && data.iceServers.length > 0
+            ? data.iceServers
+            : DEFAULT_ICE_SERVERS
+        setIceServers(nextIceServers)
+        return nextIceServers
+      })
+      .catch(() => DEFAULT_ICE_SERVERS)
+
+    return iceServersRequestRef.current
+  }, [])
+
+  useEffect(() => {
+    void ensureIceServersLoaded()
+  }, [ensureIceServersLoaded])
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
@@ -533,7 +570,9 @@ export function ChatCallOverlay({
         throw new Error("Не удалось определить собеседника для звонка")
       }
 
-      const peer = new RTCPeerConnection(RTC_CONFIGURATION)
+      const peer = new RTCPeerConnection({
+        iceServers: iceServersRef.current,
+      })
       peerConnectionsRef.current.set(remoteUserId, peer)
 
       for (const track of localStreamRef.current?.getTracks() ?? []) {
@@ -715,6 +754,7 @@ export function ChatCallOverlay({
     setIsConnecting(true)
 
     try {
+      await ensureIceServersLoaded()
       stopIncomingTone()
       await ensureLocalStream(call.media)
 
@@ -754,6 +794,7 @@ export function ChatCallOverlay({
     setIsConnecting(true)
 
     try {
+      await ensureIceServersLoaded()
       const response = await fetch("/api/calls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

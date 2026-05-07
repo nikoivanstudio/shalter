@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+import { getActiveBroadcastForChannel } from "@/features/channels/lib/broadcast-store"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 import { prisma } from "@/shared/lib/db/prisma"
 import { parseMessageInput } from "@/shared/lib/media/message-input"
@@ -73,7 +74,9 @@ export async function POST(
     return NextResponse.json({ message: "РљР°РЅР°Р» РЅРµ РЅР°Р№РґРµРЅ" }, { status: 404 })
   }
 
-  if (membership.role === "MEMBER") {
+  const activeBroadcast = getActiveBroadcastForChannel(channelId)
+
+  if (membership.role === "MEMBER" && !activeBroadcast) {
     return NextResponse.json(
       { message: "РџРёСЃР°С‚СЊ РІ РєР°РЅР°Р» РјРѕРіСѓС‚ С‚РѕР»СЊРєРѕ РІР»Р°РґРµР»РµС† Рё Р°РґРјРёРЅС‹" },
       { status: 403 }
