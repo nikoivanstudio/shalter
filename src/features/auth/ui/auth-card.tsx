@@ -16,6 +16,7 @@ import {
   recoveryPhoneSchema,
   registerSchema,
 } from "@/features/auth/model/schemas"
+import { PhoneInput } from "@/features/auth/ui/phone-input"
 import { TurnstileWidget } from "@/features/auth/ui/turnstile-widget"
 
 type LoginForm = {
@@ -129,8 +130,8 @@ export function AuthCard() {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
   }, [searchParams])
 
-  function submitLogin(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  function submitLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     setServerMessage("")
     setLoginErrors({})
     setIsRecoveryConfirmOpen(false)
@@ -147,11 +148,11 @@ export function AuthCard() {
       const { response, data } = await sendAuthRequest("/api/auth/login", parsed.data)
       if (!response.ok) {
         setLoginErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setServerMessage(tr(data?.message ?? "РћС€РёР±РєР° РІС…РѕРґР°"))
+        setServerMessage(tr(data?.message ?? "Ошибка входа"))
         return
       }
 
-      toast.success(tr("Р’С…РѕРґ РІС‹РїРѕР»РЅРµРЅ"))
+      toast.success(tr("Вход выполнен"))
       router.replace("/")
       router.refresh()
     })
@@ -174,14 +175,13 @@ export function AuthCard() {
       )
       if (!response.ok) {
         setRecoveryErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setRecoveryMessage(tr(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РєРѕРґ"))
+        setRecoveryMessage(tr(data?.message ?? "Не удалось отправить код"))
         return
       }
 
       setIsRecoveryCodeSent(true)
-      setRecoveryMessage("РљРѕРґ СЃРѕР·РґР°РЅ. Р’РІРµРґРёС‚Рµ РµРіРѕ, С‡С‚РѕР±С‹ РІРѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ Р°РєРєР°СѓРЅС‚.")
-      toast.success("РљРѕРґ СЃРѕР·РґР°РЅ")
-      return
+      setRecoveryMessage("Код создан. Введите его, чтобы восстановить аккаунт.")
+      toast.success("Код создан")
     })
   }
 
@@ -199,21 +199,21 @@ export function AuthCard() {
       const { response, data } = await sendAuthRequest("/api/auth/recover", parsed.data)
       if (!response.ok) {
         setRecoveryErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setRecoveryMessage(tr(data?.message ?? "РћС€РёР±РєР° РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ Р°РєРєР°СѓРЅС‚Р°"))
+        setRecoveryMessage(tr(data?.message ?? "Ошибка восстановления аккаунта"))
         return
       }
 
       setIsRecoveryConfirmOpen(false)
       setIsRecoveryCodeSent(false)
       setRecoveryForm({ phone: "", code: "" })
-      toast.success(tr("РђРєРєР°СѓРЅС‚ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅ"))
+      toast.success(tr("Аккаунт восстановлен"))
       router.replace("/")
       router.refresh()
     })
   }
 
-  function submitRegister(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  function submitRegister(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     setServerMessage("")
     setRegisterErrors({})
 
@@ -230,12 +230,12 @@ export function AuthCard() {
       const { response, data } = await sendAuthRequest("/api/auth/register", parsed.data)
       if (!response.ok) {
         setRegisterErrors((data?.fieldErrors ?? {}) as FieldErrors)
-        setServerMessage(tr(data?.message ?? "РћС€РёР±РєР° СЂРµРіРёСЃС‚СЂР°С†РёРё"))
+        setServerMessage(tr(data?.message ?? "Ошибка регистрации"))
         setTurnstileResetKey((prev) => prev + 1)
         return
       }
 
-      toast.success(tr("Р РµРіРёСЃС‚СЂР°С†РёСЏ Р·Р°РІРµСЂС€РµРЅР°"))
+      toast.success(tr("Регистрация завершена"))
       router.replace("/")
       router.refresh()
     })
@@ -245,16 +245,18 @@ export function AuthCard() {
     <>
       <Card className="w-full max-w-xl border-border/80 shadow-xl shadow-black/5">
         <CardHeader>
-          <CardTitle className="text-2xl">{tr("РђРІС‚РѕСЂРёР·Р°С†РёСЏ")}</CardTitle>
+          <CardTitle className="text-2xl">{tr("Авторизация")}</CardTitle>
           <CardDescription>
-            {tr("Р’РѕР№РґРёС‚Рµ РІ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёР№ Р°РєРєР°СѓРЅС‚ РёР»Рё СЃРѕР·РґР°Р№С‚Рµ РЅРѕРІС‹Р№ РїРѕСЃР»Рµ РїСЂРѕРІРµСЂРєРё Turnstile.")}
+            {tr(
+              "Войдите в существующий аккаунт или создайте новый после проверки Turnstile."
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="space-y-4">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">{tr("Р’С…РѕРґ")}</TabsTrigger>
-              <TabsTrigger value="register">{tr("Р РµРіРёСЃС‚СЂР°С†РёСЏ")}</TabsTrigger>
+              <TabsTrigger value="login">{tr("Вход")}</TabsTrigger>
+              <TabsTrigger value="register">{tr("Регистрация")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login" className="space-y-4">
@@ -265,32 +267,32 @@ export function AuthCard() {
                     id="login-email"
                     type="email"
                     value={loginForm.email}
-                    onChange={(e) =>
-                      setLoginForm((prev) => ({ ...prev, email: e.target.value }))
+                    onChange={(event) =>
+                      setLoginForm((prev) => ({ ...prev, email: event.target.value }))
                     }
                     placeholder="you@example.com"
                     autoComplete="email"
                   />
-                  {getFieldError(loginErrors, "email") && (
+                  {getFieldError(loginErrors, "email") ? (
                     <p className="text-sm text-destructive">{getFieldError(loginErrors, "email")}</p>
-                  )}
+                  ) : null}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">{tr("РџР°СЂРѕР»СЊ")}</Label>
+                  <Label htmlFor="login-password">{tr("Пароль")}</Label>
                   <Input
                     id="login-password"
                     type="password"
                     value={loginForm.password}
-                    onChange={(e) =>
-                      setLoginForm((prev) => ({ ...prev, password: e.target.value }))
+                    onChange={(event) =>
+                      setLoginForm((prev) => ({ ...prev, password: event.target.value }))
                     }
                     autoComplete="current-password"
                   />
-                  {getFieldError(loginErrors, "password") && (
+                  {getFieldError(loginErrors, "password") ? (
                     <p className="text-sm text-destructive">
                       {getFieldError(loginErrors, "password")}
                     </p>
-                  )}
+                  ) : null}
                   <Button
                     type="button"
                     variant="link"
@@ -309,11 +311,11 @@ export function AuthCard() {
                     }}
                     disabled={isPending}
                   >
-                    {tr("Р—Р°Р±С‹Р»Рё РїР°СЂРѕР»СЊ?")}
+                    {tr("Забыли пароль?")}
                   </Button>
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoginDisabled}>
-                  {isPending ? tr("Р’С…РѕРґРёРј...") : tr("Р’РѕР№С‚Рё")}
+                  {isPending ? tr("Входим...") : tr("Войти")}
                 </Button>
               </form>
             </TabsContent>
@@ -322,43 +324,43 @@ export function AuthCard() {
               <form className="space-y-4" onSubmit={submitRegister}>
                 {referrerId ? (
                   <div className="rounded-2xl border border-primary/20 bg-primary/8 px-4 py-3 text-sm text-foreground">
-                    Р РµРіРёСЃС‚СЂР°С†РёСЏ РїРѕ РїР°СЂС‚РЅС‘СЂСЃРєРѕР№ СЃСЃС‹Р»РєРµ. РџСЂРё СѓСЃРїРµС€РЅРѕР№ Р°РєС‚РёРІР°С†РёРё РїСЂРёРіР»Р°СЃРёРІС€РёР№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ
-                    РїРѕР»СѓС‡РёС‚ Р·РІС‘Р·РґС‹.
+                    Регистрация по партнёрской ссылке. При успешной активации пригласивший
+                    пользователь получит звёзды.
                   </div>
                 ) : null}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="register-first-name">{tr("РРјСЏ")}</Label>
+                    <Label htmlFor="register-first-name">{tr("Имя")}</Label>
                     <Input
                       id="register-first-name"
                       value={registerForm.firstName}
-                      onChange={(e) =>
-                        setRegisterForm((prev) => ({ ...prev, firstName: e.target.value }))
+                      onChange={(event) =>
+                        setRegisterForm((prev) => ({ ...prev, firstName: event.target.value }))
                       }
                       autoComplete="given-name"
                     />
-                    {getFieldError(registerErrors, "firstName") && (
+                    {getFieldError(registerErrors, "firstName") ? (
                       <p className="text-sm text-destructive">
                         {getFieldError(registerErrors, "firstName")}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-last-name">{tr("Р¤Р°РјРёР»РёСЏ (РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ)")}</Label>
+                    <Label htmlFor="register-last-name">{tr("Фамилия (необязательно)")}</Label>
                     <Input
                       id="register-last-name"
                       value={registerForm.lastName}
-                      onChange={(e) =>
-                        setRegisterForm((prev) => ({ ...prev, lastName: e.target.value }))
+                      onChange={(event) =>
+                        setRegisterForm((prev) => ({ ...prev, lastName: event.target.value }))
                       }
                       autoComplete="family-name"
-                      placeholder={tr("РњРѕР¶РЅРѕ РѕСЃС‚Р°РІРёС‚СЊ РїСѓСЃС‚С‹Рј")}
+                      placeholder={tr("Можно оставить пустым")}
                     />
-                    {getFieldError(registerErrors, "lastName") && (
+                    {getFieldError(registerErrors, "lastName") ? (
                       <p className="text-sm text-destructive">
                         {getFieldError(registerErrors, "lastName")}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
@@ -368,14 +370,16 @@ export function AuthCard() {
                     id="register-email"
                     type="email"
                     value={registerForm.email}
-                    onChange={(e) =>
-                      setRegisterForm((prev) => ({ ...prev, email: e.target.value }))
+                    onChange={(event) =>
+                      setRegisterForm((prev) => ({ ...prev, email: event.target.value }))
                     }
                     autoComplete="email"
                   />
-                  {getFieldError(registerErrors, "email") && (
-                    <p className="text-sm text-destructive">{getFieldError(registerErrors, "email")}</p>
-                  )}
+                  {getFieldError(registerErrors, "email") ? (
+                    <p className="text-sm text-destructive">
+                      {getFieldError(registerErrors, "email")}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">
@@ -383,124 +387,123 @@ export function AuthCard() {
                   <Input
                     id="register-username"
                     value={registerForm.username}
-                    onChange={(e) =>
-                      setRegisterForm((prev) => ({ ...prev, username: e.target.value }))
+                    onChange={(event) =>
+                      setRegisterForm((prev) => ({ ...prev, username: event.target.value }))
                     }
                     autoComplete="username"
                     placeholder="my_username"
                   />
-                  {getFieldError(registerErrors, "username") && (
-                    <p className="text-sm text-destructive">{getFieldError(registerErrors, "username")}</p>
-                  )}
+                  {getFieldError(registerErrors, "username") ? (
+                    <p className="text-sm text-destructive">
+                      {getFieldError(registerErrors, "username")}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="register-phone">{tr("РўРµР»РµС„РѕРЅ")}</Label>
-                  <Input
+                  <Label htmlFor="register-phone">{tr("Телефон")}</Label>
+                  <PhoneInput
                     id="register-phone"
                     value={registerForm.phone}
-                    onChange={(e) =>
-                      setRegisterForm((prev) => ({ ...prev, phone: e.target.value }))
-                    }
-                    autoComplete="tel"
+                    onChange={(phone) => setRegisterForm((prev) => ({ ...prev, phone }))}
                     placeholder="+7..."
                   />
-                  {getFieldError(registerErrors, "phone") && (
-                    <p className="text-sm text-destructive">{getFieldError(registerErrors, "phone")}</p>
-                  )}
+                  {getFieldError(registerErrors, "phone") ? (
+                    <p className="text-sm text-destructive">
+                      {getFieldError(registerErrors, "phone")}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">{tr("РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ")}</p>
+                  <p className="text-sm font-medium">{tr("Подтверждение")}</p>
                   <div id="register-turnstile" className="space-y-2">
                     <TurnstileWidget
                       resetKey={turnstileResetKey}
                       onTokenChange={handleTurnstileTokenChange}
                     />
                   </div>
-                  {getFieldError(registerErrors, "turnstileToken") && (
+                  {getFieldError(registerErrors, "turnstileToken") ? (
                     <p className="text-sm text-destructive">
                       {getFieldError(registerErrors, "turnstileToken")}
                     </p>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="register-password">{tr("РџР°СЂРѕР»СЊ")}</Label>
+                    <Label htmlFor="register-password">{tr("Пароль")}</Label>
                     <Input
                       id="register-password"
                       type="password"
                       value={registerForm.password}
-                      onChange={(e) =>
-                        setRegisterForm((prev) => ({ ...prev, password: e.target.value }))
+                      onChange={(event) =>
+                        setRegisterForm((prev) => ({ ...prev, password: event.target.value }))
                       }
                       autoComplete="new-password"
                     />
-                    {getFieldError(registerErrors, "password") && (
+                    {getFieldError(registerErrors, "password") ? (
                       <p className="text-sm text-destructive">
                         {getFieldError(registerErrors, "password")}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-confirm-password">{tr("РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РїР°СЂРѕР»СЏ")}</Label>
+                    <Label htmlFor="register-confirm-password">
+                      {tr("Подтверждение пароля")}
+                    </Label>
                     <Input
                       id="register-confirm-password"
                       type="password"
                       value={registerForm.confirmPassword}
-                      onChange={(e) =>
+                      onChange={(event) =>
                         setRegisterForm((prev) => ({
                           ...prev,
-                          confirmPassword: e.target.value,
+                          confirmPassword: event.target.value,
                         }))
                       }
                       autoComplete="new-password"
                     />
-                    {getFieldError(registerErrors, "confirmPassword") && (
+                    {getFieldError(registerErrors, "confirmPassword") ? (
                       <p className="text-sm text-destructive">
                         {getFieldError(registerErrors, "confirmPassword")}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isRegisterDisabled}>
-                  {isPending ? tr("Р РµРіРёСЃС‚СЂРёСЂСѓРµРј...") : tr("Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ")}
+                  {isPending ? tr("Регистрируем...") : tr("Зарегистрироваться")}
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
 
-          {serverMessage && <p className="mt-4 text-sm text-destructive">{serverMessage}</p>}
+          {serverMessage ? <p className="mt-4 text-sm text-destructive">{serverMessage}</p> : null}
         </CardContent>
       </Card>
 
-      {isRecoveryConfirmOpen && (
+      {isRecoveryConfirmOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
-            <h3 className="text-xl font-semibold">Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РґРѕСЃС‚СѓРї?</h3>
+            <h3 className="text-xl font-semibold">Восстановить доступ?</h3>
             <p className="mt-2 text-sm text-muted-foreground">
               Укажите номер телефона, который привязан к аккаунту. Затем создайте код и
               введите его ниже для восстановления доступа.
             </p>
             <div className="mt-4 space-y-3">
               <div className="space-y-2">
-                <Label htmlFor="recovery-phone">РЈРєР°Р·Р°РЅРЅС‹Р№ РЅРѕРјРµСЂ С‚РµР»РµС„РѕРЅР°</Label>
-                <Input
+                <Label htmlFor="recovery-phone">Указанный номер телефона</Label>
+                <PhoneInput
                   id="recovery-phone"
-                  type="tel"
                   value={recoveryForm.phone}
-                  onChange={(e) =>
-                    setRecoveryForm((prev) => ({ ...prev, phone: e.target.value }))
-                  }
-                  autoComplete="tel"
+                  onChange={(phone) => setRecoveryForm((prev) => ({ ...prev, phone }))}
                 />
-                {getFieldError(recoveryErrors, "phone") && (
+                {getFieldError(recoveryErrors, "phone") ? (
                   <p className="text-sm text-destructive">
                     {getFieldError(recoveryErrors, "phone")}
                   </p>
-                )}
+                ) : null}
               </div>
 
               <Button
@@ -510,40 +513,42 @@ export function AuthCard() {
                 onClick={requestRecoveryCode}
                 disabled={isPending}
               >
-                {isPending ? tr("РћС‚РїСЂР°РІР»СЏРµРј...") : "РџСЂРѕРґРѕР»Р¶РёС‚СЊ"}
+                {isPending ? tr("Отправляем...") : "Продолжить"}
               </Button>
 
-              {isRecoveryCodeSent && (
+              {isRecoveryCodeSent ? (
                 <div className="space-y-2">
-                  <Label htmlFor="recovery-code">РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ</Label>
+                  <Label htmlFor="recovery-code">Код подтверждения</Label>
                   <Input
                     id="recovery-code"
                     inputMode="numeric"
                     maxLength={6}
                     value={recoveryForm.code}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setRecoveryForm((prev) => ({
                         ...prev,
-                        code: e.target.value.replace(/\D/g, "").slice(0, 6),
+                        code: event.target.value.replace(/\D/g, "").slice(0, 6),
                       }))
                     }
                     placeholder="123456"
                   />
-                  {getFieldError(recoveryErrors, "code") && (
+                  {getFieldError(recoveryErrors, "code") ? (
                     <p className="text-sm text-destructive">
                       {getFieldError(recoveryErrors, "code")}
                     </p>
-                  )}
+                  ) : null}
                 </div>
-              )}
+              ) : null}
 
               <p className="text-sm text-muted-foreground">
-                {tr("РџРѕСЃР»Рµ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ РєРѕРЅС‚Р°РєС‚С‹, С‡С‘СЂРЅС‹Р№ СЃРїРёСЃРѕРє Рё РІСЃРµ С‡Р°С‚С‹ Р±СѓРґСѓС‚ РѕС‡РёС‰РµРЅС‹.")}
+                {tr(
+                  "После подтверждения контакты, чёрный список и все чаты будут очищены."
+                )}
               </p>
 
-              {recoveryMessage && (
+              {recoveryMessage ? (
                 <p className="text-sm text-muted-foreground">{recoveryMessage}</p>
-              )}
+              ) : null}
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <Button
@@ -557,7 +562,7 @@ export function AuthCard() {
                 }}
                 disabled={isPending}
               >
-                {tr("РќРµС‚")}
+                {tr("Нет")}
               </Button>
               <Button
                 type="button"
@@ -565,12 +570,12 @@ export function AuthCard() {
                 onClick={recoverAccount}
                 disabled={isPending || !isRecoveryCodeSent}
               >
-                {isPending ? tr("РЎР±СЂР°СЃС‹РІР°РµРј...") : "Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ"}
+                {isPending ? tr("Сбрасываем...") : "Восстановить"}
               </Button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </>
   )
 }

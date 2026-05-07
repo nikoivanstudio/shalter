@@ -3,8 +3,15 @@ import bcrypt from "bcryptjs"
 import { prisma } from "@/shared/lib/db/prisma"
 import { env } from "@/shared/config/env"
 import { ADMIN_ROLE, USER_ROLE } from "@/shared/lib/auth/roles"
+import {
+  extendPremiumUntilByDays,
+  resolveRoleAfterPremiumPurchase,
+} from "@/shared/lib/billing/premium"
 import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
-import { PARTNER_REWARD_STARS } from "@/shared/lib/rewards/catalog"
+import {
+  PARTNER_REWARD_PREMIUM_DAYS,
+  PARTNER_REWARD_STARS,
+} from "@/shared/lib/rewards/catalog"
 import { normalizeUsername, reserveUsername } from "@/shared/lib/usernames"
 
 async function resolveInitialRole(email: string) {
@@ -208,18 +215,34 @@ export async function registerUser(input: {
     })
 
     if (input.referrerId) {
-      await prisma.user.update({
+      const referrer = await prisma.user.findUnique({
         where: { id: input.referrerId },
-        data: {
-          starsBalance: {
-            increment: PARTNER_REWARD_STARS,
-          },
-          partnerStarsEarned: {
-            increment: PARTNER_REWARD_STARS,
-          },
-          updatedAt: new Date(),
+        select: {
+          id: true,
+          role: true,
+          premiumUntil: true,
         },
       })
+
+      if (referrer) {
+        await prisma.user.update({
+        where: { id: input.referrerId },
+        data: {
+          role: resolveRoleAfterPremiumPurchase(referrer.role),
+          premiumUntil: extendPremiumUntilByDays(
+            referrer.premiumUntil,
+            PARTNER_REWARD_PREMIUM_DAYS
+          ),
+            starsBalance: {
+              increment: PARTNER_REWARD_STARS,
+            },
+            partnerStarsEarned: {
+              increment: PARTNER_REWARD_STARS,
+            },
+            updatedAt: new Date(),
+          },
+        })
+      }
 
       await prisma.starTransaction.create({
         data: {
@@ -227,7 +250,7 @@ export async function registerUser(input: {
           recipientId: input.referrerId,
           amount: PARTNER_REWARD_STARS,
           kind: "PARTNER_REWARD",
-          note: `Награда за регистрацию пользователя ${user.email}`,
+          note: `Награда за регистрацию пользователя ${user.email}: ${PARTNER_REWARD_STARS} звёзд и ${PARTNER_REWARD_PREMIUM_DAYS} дней premium`,
         },
       })
     }
@@ -247,7 +270,7 @@ export async function registerUser(input: {
       }
 
       if (targets.includes("username") || targets.includes("username_registry_username_key")) {
-        fieldErrors.username = ["Р­С‚РѕС‚ username СѓР¶Рµ Р·Р°РЅСЏС‚"]
+        fieldErrors.username = ["Этот username уже занят"]
       }
 
       return {

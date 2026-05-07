@@ -34,6 +34,7 @@ import { billingProducts, getBillingProduct, type BillingProductKey } from "@/sh
 import {
   giftCatalog,
   hasInfiniteStars,
+  PARTNER_REWARD_PREMIUM_DAYS,
   PARTNER_REWARD_STARS,
   type GiftKey,
 } from "@/shared/lib/rewards/catalog"
@@ -59,6 +60,8 @@ type EditableUser = {
   showGiftsInProfile: boolean
 }
 
+type FieldErrors = Record<string, string[] | undefined>
+
 type PurchaseRequestItem = {
   id: number
   productKey: string
@@ -80,8 +83,6 @@ type PendingPurchaseRequestItem = PurchaseRequestItem & {
     lastName: string | null
   }
 }
-
-type FieldErrors = Record<string, string[] | undefined>
 
 function getFieldError(errors: FieldErrors, key: string) {
   return errors[key]?.[0]
@@ -126,18 +127,8 @@ const FIRST_NAME_MIN_MESSAGE = "Имя должно быть не короче 2
 
 export function ProfileHome({
   user,
-  purchaseRequests,
-  pendingPurchaseRequests,
-  billingReady,
-  billingProvider,
-  billingIssues,
 }: {
   user: EditableUser
-  purchaseRequests: PurchaseRequestItem[]
-  pendingPurchaseRequests: PendingPurchaseRequestItem[]
-  billingReady: boolean
-  billingProvider: string
-  billingIssues: string[]
 }) {
   const router = useRouter()
   const { tr } = useI18n()
@@ -179,8 +170,11 @@ export function ProfileHome({
   const [giftKey, setGiftKey] = useState<GiftKey>(giftCatalog[0]?.key ?? "coffee")
   const [starRecipientEmail, setStarRecipientEmail] = useState("")
   const [starAmount, setStarAmount] = useState("25")
-  const [requests, setRequests] = useState(purchaseRequests)
-  const [adminQueue, setAdminQueue] = useState(pendingPurchaseRequests)
+  const [requests, setRequests] = useState<PurchaseRequestItem[]>([])
+  const [adminQueue, setAdminQueue] = useState<PendingPurchaseRequestItem[]>([])
+  const billingReady = false
+  const billingProvider = ""
+  const billingIssues: string[] = []
 
   const lastName = form.lastName ?? null
   const displayName = `${form.firstName} ${lastName ?? ""}`.trim()
@@ -926,6 +920,14 @@ export function ProfileHome({
                   <p className="mt-2 break-all text-sm">{partnerLink}</p>
                 </div>
 
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 p-4 text-sm">
+                  <p className="font-medium">За каждого нового пользователя</p>
+                  <p className="mt-1 text-muted-foreground">
+                    По вашей ссылке вы получите {PARTNER_REWARD_PREMIUM_DAYS} дней premium и{" "}
+                    {PARTNER_REWARD_STARS} звёзд.
+                  </p>
+                </div>
+
                 <Button type="button" onClick={handlePartnerProgramAction}>
                   <RocketIcon className="size-4" />
                   Скопировать ссылку
@@ -1040,6 +1042,8 @@ export function ProfileHome({
               }
             />
 
+            {false ? (
+              <>
             <Card>
               <CardHeader>
                 <CardTitle>Покупка premium и звёзд</CardTitle>
@@ -1084,7 +1088,7 @@ export function ProfileHome({
                   <div className="rounded-2xl border border-border/70 bg-muted/25 p-4 text-sm">
                     <p className="font-medium">Текущий premium</p>
                     <p className="text-muted-foreground">
-                      Активен до {new Date(user.premiumUntil).toLocaleString("ru-RU")}
+                      Активен до {new Date(user.premiumUntil!).toLocaleString("ru-RU")}
                     </p>
                   </div>
                 ) : null}
@@ -1215,6 +1219,8 @@ export function ProfileHome({
                   )}
                 </CardContent>
               </Card>
+            ) : null}
+              </>
             ) : null}
 
             <Card className="border-destructive/20">

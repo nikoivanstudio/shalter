@@ -7,6 +7,13 @@ export function extendPremiumUntil(current: Date | null | undefined, months: num
   return next
 }
 
+export function extendPremiumUntilByDays(current: Date | null | undefined, days: number) {
+  const base = current && current.getTime() > Date.now() ? new Date(current) : new Date()
+  const next = new Date(base)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
 export function resolveRoleAfterPremiumPurchase(role: string) {
   const normalized = normalizeRole(role)
   return normalized === PREMIUM_ROLE || normalized === USER_ROLE ? PREMIUM_ROLE : role

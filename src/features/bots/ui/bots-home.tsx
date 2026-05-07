@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
+  LANGUAGE_DOCS,
+  LANGUAGE_NAME,
+} from "@/features/bots/lib/language-docs"
+import {
   type BotChatMessage,
   type BotConfig,
   buildBotReply,
@@ -131,6 +135,9 @@ export function BotsHome({
       ? initialSelectedBotId
       : publishedBots[0]?.id ?? null
   )
+  const [selectedDocSectionId, setSelectedDocSectionId] = useState<string>(
+    LANGUAGE_DOCS[0]?.id ?? "spec"
+  )
   const [botDraft, setBotDraft] = useState("")
   const [botMessagesById, setBotMessagesById] = useState<Record<number, BotChatMessage[]>>({})
   const [isPublishing, startPublishing] = useTransition()
@@ -142,8 +149,9 @@ export function BotsHome({
     () => createBotConfigFromScript(script, normalizedUsername),
     [normalizedUsername, script]
   )
-
   const selectedBot = items.find((item) => item.id === selectedBotId) ?? items[0] ?? null
+  const selectedDocSection =
+    LANGUAGE_DOCS.find((section) => section.id === selectedDocSectionId) ?? LANGUAGE_DOCS[0]
 
   async function copyConfig() {
     try {
@@ -219,7 +227,7 @@ export function BotsHome({
 
   function openBot(botId: number) {
     setSelectedBotId(botId)
-    setBotDraft("")
+    location.assign(`/chats?botId=${botId}`)
   }
 
   function sendMessageToBot() {
@@ -251,19 +259,22 @@ export function BotsHome({
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4">
         <Card className="border-border/70">
           <CardHeader>
-            <CardTitle>Язык ботов</CardTitle>
+            <CardTitle>{LANGUAGE_NAME} Language Studio</CardTitle>
             <CardDescription>
-              {user.firstName}, теперь бот создаётся кодом во встроенном редакторе. Основной формат
-              теперь похож на Python-библиотеку `ShalterBot(...)`, а старый DSL тоже остаётся рабочим.
+              {user.firstName}, справа от редактора теперь находится полная документация нового
+              универсального языка. Telegram рассматривается как суперсила стандартной библиотеки,
+              а не как отдельный внешний фреймворк.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 xl:grid-cols-[0.92fr_1.18fr_0.9fr]">
+
+          <CardContent className="grid gap-4 xl:grid-cols-[0.92fr_1.18fr_1fr]">
             <div className="space-y-4">
               <Card className="border-border/70">
                 <CardHeader>
                   <CardTitle className="text-base">Публикация</CardTitle>
                   <CardDescription>
-                    Username и аудитория задаются отдельно, остальное бот берёт из кода.
+                    Username и аудитория задаются отдельно, остальное бот берёт из текущего
+                    рабочего скрипта.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -278,7 +289,9 @@ export function BotsHome({
                       placeholder="my_bot"
                       autoComplete="off"
                     />
-                    <p className="text-xs text-muted-foreground">@username, 4-32 символа: a-z, 0-9 и _</p>
+                    <p className="text-xs text-muted-foreground">
+                      @username, 4-32 символа: a-z, 0-9 и _
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -301,12 +314,11 @@ export function BotsHome({
                     </div>
                   </div>
 
-                  <div className="space-y-2 rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
-                    <p className="font-medium">Что умеет язык</p>
-                    <p className="text-muted-foreground">
-                      <code>bot = ShalterBot(...)</code>, методы <code>bot.greeting()</code>,{" "}
-                      <code>bot.guard()</code>, <code>bot.handoff()</code>, <code>bot.default()</code>,{" "}
-                      <code>bot.hears()</code> и <code>bot.matches()</code>.
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
+                    <p className="font-medium">Концепция языка</p>
+                    <p className="mt-2 text-muted-foreground">
+                      {LANGUAGE_NAME} проектируется как универсальный язык уровня Python: читаемый,
+                      асинхронный, с батарейками в комплекте и встроенным модулем `telegram`.
                     </p>
                   </div>
 
@@ -330,8 +342,12 @@ export function BotsHome({
                 <CardContent className="space-y-3 text-sm">
                   <div>
                     <p className="font-medium">{previewConfig.name}</p>
-                    {normalizedUsername ? <p className="text-muted-foreground">@{normalizedUsername}</p> : null}
-                    <p className="text-muted-foreground">{previewConfig.niche || "Без указанной ниши"}</p>
+                    {normalizedUsername ? (
+                      <p className="text-muted-foreground">@{normalizedUsername}</p>
+                    ) : null}
+                    <p className="text-muted-foreground">
+                      {previewConfig.niche || "Без указанной ниши"}
+                    </p>
                   </div>
                   <div>
                     <p className="font-medium">Правил</p>
@@ -341,20 +357,18 @@ export function BotsHome({
                     <p className="font-medium">Цель</p>
                     <p className="text-muted-foreground">{previewConfig.goal}</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      onClick={publishBot}
-                      disabled={
-                        isPublishing ||
-                        normalizedUsername.length < 4 ||
-                        scriptProgram.errors.length > 0 ||
-                        previewConfig.name.trim().length < 2
-                      }
-                    >
-                      {isPublishing ? "Публикуем..." : "Опубликовать"}
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    onClick={publishBot}
+                    disabled={
+                      isPublishing ||
+                      normalizedUsername.length < 4 ||
+                      scriptProgram.errors.length > 0 ||
+                      previewConfig.name.trim().length < 2
+                    }
+                  >
+                    {isPublishing ? "Публикуем..." : "Опубликовать"}
+                  </Button>
                 </CardContent>
               </Card>
             </div>
@@ -364,29 +378,30 @@ export function BotsHome({
                 <CardHeader>
                   <CardTitle className="text-base">Встроенный редактор</CardTitle>
                   <CardDescription>
-                    Пишите код сценария прямо здесь. Бот можно описывать как питоноподобную библиотеку.
-                    Полная документация: <code>docs/BOT_LANGUAGE.md</code>
+                    Слева рабочий код конструктора, справа документация по целевому дизайну языка
+                    и меню ключевых функций.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <BotCodeEditor value={script} onChange={setScript} />
                   <div className="rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
-                    <p className="font-medium">Шпаргалка</p>
+                    <p className="font-medium">Шпаргалка концепта</p>
                     <div className="mt-2 space-y-1 text-muted-foreground">
                       <p>
-                        <code>bot = ShalterBot(name=&quot;Имя бота&quot;, ...)</code>
+                        <code>fn main()</code>, <code>class Service</code>,{" "}
+                        <code>async fn fetch()</code>
                       </p>
                       <p>
-                        <code>bot.greeting(&quot;&quot;&quot; ... &quot;&quot;&quot;)</code>
+                        <code>from aster import http, fs, json</code>
                       </p>
                       <p>
-                        <code>bot.hears([&quot;цена&quot;, &quot;тариф&quot;], &quot;&quot;&quot; ... &quot;&quot;&quot;)</code>
+                        <code>from aster import telegram</code>
                       </p>
                       <p>
-                        <code>bot.matches(r&quot;(bug|ошибка)&quot;, &quot;&quot;&quot; ... &quot;&quot;&quot;, flags=&quot;i&quot;)</code>
+                        <code>router.command(&quot;start&quot;)</code>, <code>ctx.reply(...)</code>
                       </p>
                       <p>
-                        <code>bot.default(&quot;&quot;&quot; ... &quot;&quot;&quot;)</code>
+                        <code>telegram.run(bot, router, mode=&quot;webhook&quot;)</code>
                       </p>
                     </div>
                   </div>
@@ -398,7 +413,8 @@ export function BotsHome({
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 p-3 text-sm text-emerald-700 dark:text-emerald-300">
-                      Код разобран успешно. Бот готов к публикации.
+                      Текущий скрипт разобран успешно. Архитектурная документация языка доступна
+                      справа от редактора.
                     </div>
                   )}
                 </CardContent>
@@ -406,10 +422,82 @@ export function BotsHome({
             </div>
 
             <div className="space-y-4">
+              <Card className="border-border/70 xl:sticky xl:top-4">
+                <CardHeader>
+                  <CardTitle className="text-base">{LANGUAGE_NAME}: документация</CardTitle>
+                  <CardDescription>
+                    Меню функций и разделов языка закреплено справа от редактора.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {LANGUAGE_DOCS.map((section) => (
+                      <Button
+                        key={section.id}
+                        type="button"
+                        size="sm"
+                        variant={selectedDocSectionId === section.id ? "default" : "outline"}
+                        onClick={() => setSelectedDocSectionId(section.id)}
+                      >
+                        {section.title}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+                    <p className="text-sm font-medium">{selectedDocSection.title}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {selectedDocSection.summary}
+                    </p>
+                    <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                      {selectedDocSection.bullets.map((bullet) => (
+                        <p key={bullet}>• {bullet}</p>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-border/70 bg-background/85 p-4">
+                    <p className="text-sm font-medium">Меню функций</p>
+                    <div className="mt-3 space-y-3">
+                      {(selectedDocSection.entries ?? []).map((entry) => (
+                        <div
+                          key={entry.label}
+                          className="rounded-xl border border-border/60 bg-muted/20 p-3"
+                        >
+                          <p className="font-mono text-xs font-medium">{entry.label}</p>
+                          {entry.signature ? (
+                            <p className="mt-1 font-mono text-xs text-primary">
+                              {entry.signature}
+                            </p>
+                          ) : null}
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {entry.description}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {selectedDocSection.code ? (
+                    <div className="rounded-2xl border border-border/70 bg-[#0b1220] p-4">
+                      <p className="mb-3 text-sm font-medium text-slate-100">Пример</p>
+                      <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-xs leading-6 text-slate-200">
+                        {selectedDocSection.code}
+                      </pre>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="xl:col-span-3 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
               <Card className="border-border/70">
                 <CardHeader>
                   <CardTitle className="text-base">Опубликованные боты</CardTitle>
-                  <CardDescription>Каждый бот открывается как отдельный диалог и использует свой код.</CardDescription>
+                  <CardDescription>
+                    Конструктор и список ботов сохранены, но документация языка теперь вынесена в
+                    отдельную колонку справа.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {items.length === 0 ? (
@@ -425,7 +513,11 @@ export function BotsHome({
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 space-y-1">
                             <p className="truncate text-sm font-medium">{bot.name}</p>
-                            {bot.username ? <p className="truncate text-xs text-muted-foreground">@{bot.username}</p> : null}
+                            {bot.username ? (
+                              <p className="truncate text-xs text-muted-foreground">
+                                @{bot.username}
+                              </p>
+                            ) : null}
                             <p className="text-xs text-muted-foreground">
                               {audienceLabels[bot.audience]}
                               {bot.niche ? ` · ${bot.niche}` : ""}
@@ -459,10 +551,10 @@ export function BotsHome({
 
               <Card className="border-border/70">
                 <CardHeader>
-                  <CardTitle className="text-base">Диалог с ботом</CardTitle>
+                  <CardTitle className="text-base">Быстрый тест бота</CardTitle>
                   <CardDescription>
                     {selectedBot
-                      ? `Тестовый чат с ботом ${selectedBot.name}.`
+                      ? `Проверьте ответы бота ${selectedBot.name} прямо в конструкторе.`
                       : "Опубликуйте бота или выберите его из списка."}
                   </CardDescription>
                 </CardHeader>
@@ -470,24 +562,25 @@ export function BotsHome({
                   {selectedBot ? (
                     <>
                       <div className="max-h-[28rem] space-y-3 overflow-y-auto rounded-2xl border border-border/70 bg-muted/20 p-3">
-                        {(botMessagesById[selectedBot.id] ?? createInitialBotMessages(selectedBot.config)).map(
-                          (message) => (
+                        {(botMessagesById[selectedBot.id] ??
+                          createInitialBotMessages(selectedBot.config)).map((message) => (
+                          <div
+                            key={message.id}
+                            className={`flex ${
+                              message.role === "user" ? "justify-end" : "justify-start"
+                            }`}
+                          >
                             <div
-                              key={message.id}
-                              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                                message.role === "user"
+                                  ? "bg-primary text-primary-foreground"
+                                  : "border border-border/70 bg-background"
+                              }`}
                             >
-                              <div
-                                className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${
-                                  message.role === "user"
-                                    ? "bg-primary text-primary-foreground"
-                                    : "border border-border/70 bg-background"
-                                }`}
-                              >
-                                {message.content}
-                              </div>
+                              {message.content}
                             </div>
-                          )
-                        )}
+                          </div>
+                        ))}
                       </div>
 
                       <div className="rounded-2xl border border-border/70 p-3">
@@ -507,7 +600,11 @@ export function BotsHome({
                               }
                             }}
                           />
-                          <Button type="button" onClick={sendMessageToBot} disabled={!botDraft.trim()}>
+                          <Button
+                            type="button"
+                            onClick={sendMessageToBot}
+                            disabled={!botDraft.trim()}
+                          >
                             <SendIcon className="size-4" />
                             Отправить
                           </Button>
@@ -516,7 +613,8 @@ export function BotsHome({
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      После публикации бот появится здесь, и его можно будет тестировать как обычный чат.
+                      После публикации бот появится здесь и его можно будет быстро проверить в
+                      тестовом диалоге.
                     </p>
                   )}
                 </CardContent>

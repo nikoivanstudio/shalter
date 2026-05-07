@@ -405,6 +405,23 @@ export function ChannelBroadcastOverlay({
     [ensurePeerConnection]
   )
 
+  const createOffersForMissingViewers = useCallback(
+    async (broadcast: BroadcastSnapshot) => {
+      if (broadcast.host.userId !== currentUser.userId) {
+        return
+      }
+
+      for (const viewer of broadcast.viewers) {
+        if (peerConnectionsRef.current.has(viewer.userId)) {
+          continue
+        }
+
+        await createOfferForViewer(broadcast, viewer)
+      }
+    },
+    [createOfferForViewer, currentUser.userId]
+  )
+
   async function joinBroadcast(broadcast: BroadcastSnapshot) {
     setIsConnecting(true)
 
@@ -507,8 +524,25 @@ export function ChannelBroadcastOverlay({
     const nextFacing = cameraFacing === "user" ? "environment" : "user"
 
     try {
+      const videoDevices = await navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => devices.filter((device) => device.kind === "videoinput"))
+        .catch(() => [])
+      const currentTrack = currentStream.getVideoTracks()[0] ?? null
+      const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
+      const currentDeviceIndex = videoDevices.findIndex(
+        (device) => device.deviceId && device.deviceId === currentDeviceId
+      )
+      const nextDevice =
+        videoDevices.length > 1
+          ? videoDevices[
+              currentDeviceIndex >= 0 ? (currentDeviceIndex + 1) % videoDevices.length : 0
+            ] ?? null
+          : null
       const replacementStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: nextFacing },
+        video: nextDevice?.deviceId
+          ? { deviceId: { exact: nextDevice.deviceId } }
+          : { facingMode: nextFacing },
       })
       const replacementTrack = replacementStream.getVideoTracks()[0] ?? null
       if (!replacementTrack) {
@@ -568,6 +602,9 @@ export function ChannelBroadcastOverlay({
 
         setActiveBroadcast(joined ? current : null)
         setIncomingBroadcast(joined ? null : current)
+        if (joined) {
+          void createOffersForMissingViewers(current)
+        }
         return
       }
 
@@ -585,14 +622,6 @@ export function ChannelBroadcastOverlay({
         const isHostNow = payload.broadcast.host.userId === currentUser.userId
         const isViewerNow = payload.broadcast.viewers.some((viewer) => viewer.userId === currentUser.userId)
 
-        if (isHostNow && activeBroadcastRef.current?.id === payload.broadcast.id) {
-          const previousViewerIds = new Set(activeBroadcastRef.current.viewers.map((viewer) => viewer.userId))
-          const nextViewers = payload.broadcast.viewers.filter((viewer) => !previousViewerIds.has(viewer.userId))
-          for (const viewer of nextViewers) {
-            void createOfferForViewer(payload.broadcast, viewer)
-          }
-        }
-
         setActiveBroadcast((prev) =>
           prev?.id === payload.broadcast.id || isHostNow || isViewerNow ? payload.broadcast : prev
         )
@@ -603,6 +632,9 @@ export function ChannelBroadcastOverlay({
               ? payload.broadcast
               : prev
         )
+        if (isHostNow) {
+          void createOffersForMissingViewers(payload.broadcast)
+        }
         return
       }
 
@@ -635,7 +667,7 @@ export function ChannelBroadcastOverlay({
     return () => {
       eventSource.close()
     }
-  }, [cleanupBroadcast, createOfferForViewer, currentUser.userId, handleSignal, selectedChannelId])
+  }, [cleanupBroadcast, createOffersForMissingViewers, currentUser.userId, handleSignal, selectedChannelId])
 
   useEffect(() => {
     const handlePageHide = () => {

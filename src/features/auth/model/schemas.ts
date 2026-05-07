@@ -38,7 +38,12 @@ export const registerSchema = z
       .trim()
       .min(2, "Имя должно быть не короче 2 символов")
       .max(40, "Имя слишком длинное"),
-    lastName: z.string().trim().max(40, "Фамилия слишком длинная").optional().or(z.literal("")),
+    lastName: z
+      .string()
+      .trim()
+      .max(40, "Фамилия слишком длинная")
+      .optional()
+      .or(z.literal("")),
     username: usernameSchema,
     phone: phoneSchema,
     turnstileToken: z.string().trim().min(1, "Подтвердите, что вы не бот"),

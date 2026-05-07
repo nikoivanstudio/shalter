@@ -48,6 +48,7 @@ import {
 import { ThemeToggle } from "@/features/theme/ui/theme-toggle"
 import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import type { MediaAttachment, MediaKind } from "@/shared/lib/media/constants"
+import { BotAvatar } from "@/shared/ui/bot-avatar"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 import { UserAvatar } from "@/shared/ui/user-avatar"
@@ -258,7 +259,7 @@ function canDeleteDialog(dialog: ChatDialog, currentUserId: number) {
 }
 
 function canManageDialogParticipants(dialog: ChatDialog, currentUserId: number) {
-  return dialog.ownerId === currentUserId
+  return dialog.ownerId === currentUserId && dialog.users.length > 2
 }
 
 function canRemoveParticipant(
@@ -366,6 +367,7 @@ export function ChatsHome({
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const audioInputRef = useRef<HTMLInputElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const channelAvatarInputRef = useRef<HTMLInputElement | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recordingStreamRef = useRef<MediaStream | null>(null)
   const recordingPreviewRef = useRef<HTMLVideoElement | null>(null)
@@ -407,6 +409,7 @@ export function ChatsHome({
   const [newChannelTitle, setNewChannelTitle] = useState("")
   const [newChannelUsername, setNewChannelUsername] = useState("")
   const [newChannelDescription, setNewChannelDescription] = useState("")
+  const [newChannelAvatarFile, setNewChannelAvatarFile] = useState<File | null>(null)
   const [channelSearchQuery, setChannelSearchQuery] = useState("")
   const [channelSearchResults, setChannelSearchResults] = useState<ChannelSearchResult[]>([])
   const [isChannelSearchLoading, setIsChannelSearchLoading] = useState(false)
@@ -478,6 +481,20 @@ export function ChatsHome({
     [contacts, selectedDialog]
   )
   const trimmedChannelSearchQuery = channelSearchQuery.trim()
+  const newChannelAvatarPreviewUrl = useMemo(
+    () => (newChannelAvatarFile ? URL.createObjectURL(newChannelAvatarFile) : null),
+    [newChannelAvatarFile]
+  )
+
+  useEffect(() => {
+    if (!newChannelAvatarPreviewUrl) {
+      return
+    }
+
+    return () => {
+      URL.revokeObjectURL(newChannelAvatarPreviewUrl)
+    }
+  }, [newChannelAvatarPreviewUrl])
   const isMessageListReady = selectedBot ? botMessages !== null : messages !== null
 
   function startDialogCall(media: "audio" | "video") {
@@ -720,9 +737,27 @@ export function ChatsHome({
     const nextFacing = recordingCameraFacing === "user" ? "environment" : "user"
 
     try {
+      const videoDevices = await navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => devices.filter((device) => device.kind === "videoinput"))
+        .catch(() => [])
+      const currentStream = recordingStreamRef.current
+      const currentTrack = currentStream.getVideoTracks()[0] ?? null
+      const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
+      const currentDeviceIndex = videoDevices.findIndex(
+        (device) => device.deviceId && device.deviceId === currentDeviceId
+      )
+      const nextDevice =
+        videoDevices.length > 1
+          ? videoDevices[
+              currentDeviceIndex >= 0 ? (currentDeviceIndex + 1) % videoDevices.length : 0
+            ] ?? null
+          : null
       const nextStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: nextFacing,
+          ...(nextDevice?.deviceId
+            ? { deviceId: { exact: nextDevice.deviceId } }
+            : { facingMode: nextFacing }),
           width: { ideal: 480 },
           height: { ideal: 480 },
         },
@@ -733,7 +768,6 @@ export function ChatsHome({
         throw new Error("camera")
       }
 
-      const currentStream = recordingStreamRef.current
       const previousTrack = currentStream.getVideoTracks()[0] ?? null
       if (previousTrack) {
         currentStream.removeTrack(previousTrack)
@@ -1273,14 +1307,23 @@ export function ChatsHome({
     }
 
     startCreatingChannel(async () => {
-      const response = await fetch("/api/channels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const formData = new FormData()
+      formData.set(
+        "channel",
+        JSON.stringify({
           title: newChannelTitle.trim(),
           username: newChannelUsername.trim(),
           description: newChannelDescription.trim(),
-        }),
+        })
+      )
+
+      if (newChannelAvatarFile) {
+        formData.set("avatarFile", newChannelAvatarFile)
+      }
+
+      const response = await fetch("/api/channels", {
+        method: "POST",
+        body: formData,
       })
 
       const data = await response.json().catch(() => null)
@@ -1293,6 +1336,10 @@ export function ChatsHome({
       setNewChannelTitle("")
       setNewChannelUsername("")
       setNewChannelDescription("")
+      setNewChannelAvatarFile(null)
+      if (channelAvatarInputRef.current) {
+        channelAvatarInputRef.current.value = ""
+      }
       toast.success("Канал создан")
       location.assign(`/channels?channelId=${data.channel.id}`)
     })
@@ -1707,7 +1754,7 @@ export function ChatsHome({
 
             {showListPanel && (
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-[1.75rem] border border-border/70 bg-background/74 p-2.5 shadow-sm">
-                {orderedDialogs.length === 0 && (
+                {orderedDialogs.length === 0 && bots.length === 0 && (
                   <div className="rounded-xl border border-dashed border-border/80 p-6 text-sm text-muted-foreground">
                     {tr("Чаты отсутствуют. Создайте новый чат с пользователем из контактов.")}
                   </div>
@@ -1784,6 +1831,35 @@ export function ChatsHome({
                     )}
                   </div>
                 ))}
+                {bots.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="px-2 pt-1">
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                        Боты
+                      </p>
+                    </div>
+                    {bots.map((bot) => (
+                      <div
+                        key={`bot-dialog-${bot.id}`}
+                        className="flex items-start gap-2 rounded-[1.2rem] border border-transparent p-1"
+                      >
+                        <button
+                          type="button"
+                          className="relative flex w-full items-start gap-3 rounded-[1.3rem] border border-border/60 bg-background/88 p-3.5 text-left transition-colors hover:bg-accent/45"
+                          onClick={() => openBot(bot.id)}
+                        >
+                          <BotAvatar className="size-11 shrink-0" iconClassName="size-5" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{bot.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {bot.username ? `@${bot.username}` : bot.niche || "Открыть чат с ботом"}
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="space-y-3 rounded-[1.2rem] border border-border/60 bg-background/80 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -1794,6 +1870,45 @@ export function ChatsHome({
                     </div>
                   </div>
                   <div className="space-y-2">
+                    <div className="flex items-center gap-3 rounded-[1rem] border border-border/60 bg-background/70 p-3">
+                      <UserAvatar
+                        firstName={newChannelTitle.trim() || "Канал"}
+                        lastName={null}
+                        avatarUrl={newChannelAvatarPreviewUrl}
+                        className="size-12 shrink-0"
+                        textClassName="text-sm font-semibold"
+                      />
+                      <label className="flex-1 cursor-pointer">
+                        <input
+                          ref={channelAvatarInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          className="sr-only"
+                          onChange={(event) =>
+                            setNewChannelAvatarFile(event.target.files?.[0] ?? null)
+                          }
+                        />
+                        <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-2 text-sm hover:bg-accent">
+                          <FileImageIcon className="size-4" />
+                          {newChannelAvatarFile ? "Сменить аватар канала" : "Загрузить аватар канала"}
+                        </span>
+                      </label>
+                      {newChannelAvatarFile ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setNewChannelAvatarFile(null)
+                            if (channelAvatarInputRef.current) {
+                              channelAvatarInputRef.current.value = ""
+                            }
+                          }}
+                        >
+                          <XIcon className="size-4" />
+                        </Button>
+                      ) : null}
+                    </div>
                     <Input
                       value={newChannelTitle}
                       onChange={(event) => setNewChannelTitle(event.target.value)}
@@ -1819,11 +1934,11 @@ export function ChatsHome({
                     </Button>
                   </div>
                 </div>
-                {(channels.length > 0 || bots.length > 0) && (
+                {channels.length > 0 && (
                   <div className="space-y-3 rounded-[1.2rem] border border-border/60 bg-background/80 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <p className="text-sm font-medium">Каналы и чаты с ботами</p>
+                        <p className="text-sm font-medium">Каналы</p>
                         <p className="text-xs text-muted-foreground">
                           Всё собрано в одной вкладке рядом с диалогами.
                         </p>
@@ -1906,26 +2021,6 @@ export function ChatsHome({
                         </span>
                       </button>
                     ))}
-                    {bots.map((bot) => (
-                      <button
-                        key={`bot-${bot.id}`}
-                        type="button"
-                        className="flex w-full items-start gap-3 rounded-[1.1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
-                        onClick={() => openBot(bot.id)}
-                      >
-                        <UserAvatar
-                          firstName={bot.name}
-                          lastName={null}
-                          className="size-10 shrink-0"
-                        />
-                        <span className="min-w-0">
-                          <p className="truncate text-sm font-medium">{bot.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {bot.username ? `@${bot.username}` : bot.niche || "Открыть чат с ботом"}
-                          </p>
-                        </span>
-                      </button>
-                    ))}
                   </div>
                 )}
               </div>
@@ -1950,12 +2045,7 @@ export function ChatsHome({
                         ) : null
                       })()
                     ) : selectedBot ? (
-                      <UserAvatar
-                        firstName={selectedBot.name}
-                        lastName={null}
-                        className="size-11 shrink-0"
-                        textClassName="text-xs font-semibold"
-                      />
+                      <BotAvatar className="size-11 shrink-0" iconClassName="size-5" />
                     ) : null}
                   <div className="min-w-0">
                     {selectedDialog ? (
@@ -2653,6 +2743,15 @@ export function ChatsHome({
           avatarTone: user.avatarTone,
           avatarUrl: user.avatarUrl,
         }}
+        contacts={contacts.map((contact) => ({
+          userId: contact.id,
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          email: contact.email,
+          phone: contact.phone,
+          avatarTone: contact.avatarTone,
+          avatarUrl: contact.avatarUrl,
+        }))}
         selectedDialogId={activeDialogId}
         initialAutoStartCall={initialCallMode}
         autoAnswerIncoming={initialAnswerIncoming}

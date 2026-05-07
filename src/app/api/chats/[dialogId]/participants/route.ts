@@ -72,6 +72,13 @@ export async function POST(
   if (!dialog) {
     return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
   }
+  if (!isGroupDialog(dialog)) {
+    return NextResponse.json(
+      { message: "Добавлять участников можно только в групповой чат" },
+      { status: 400 }
+    )
+  }
+
   const json = await request.json().catch(() => null)
   const parsed = updateDialogParticipantsSchema.safeParse(json)
   if (!parsed.success) {

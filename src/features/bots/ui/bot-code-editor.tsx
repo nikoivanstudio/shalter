@@ -29,7 +29,8 @@ type EditorSuggestion = {
   documentation: string
   example?: string
   insertText: string
-  kind: "import" | "constructor" | "method" | "snippet"
+  kind: "import" | "constructor" | "method" | "snippet" | "argument"
+  searchTerms?: string[]
 }
 
 type SuggestionState = {
@@ -37,6 +38,15 @@ type SuggestionState = {
   end: number
   query: string
   items: EditorSuggestion[]
+}
+
+type SuggestionContext = {
+  currentLine: string
+  rawQuery: string
+  query: string
+  showBotMethodsOnly: boolean
+  isConstructorContext: boolean
+  isFlagsContext: boolean
 }
 
 const BOT_METHOD_NAMES = [
@@ -79,6 +89,42 @@ const EDITOR_SUGGESTIONS: EditorSuggestion[] = [
     insertText:
       'bot = ShalterBot(\n    name="New bot",\n    niche="Support",\n    goal="Help the user clearly.",\n    tone="Calm and precise.",\n)',
     kind: "constructor",
+  },
+  {
+    label: "name=",
+    detail: "Constructor argument",
+    documentation: "Display name of the bot in the profile and chat header.",
+    example: 'name="Support Bot"',
+    insertText: 'name="New bot"',
+    kind: "argument",
+    searchTerms: ["constructor", "title", "bot name"],
+  },
+  {
+    label: "niche=",
+    detail: "Constructor argument",
+    documentation: "The topic or specialization of the bot.",
+    example: 'niche="Sales and support"',
+    insertText: 'niche="Support"',
+    kind: "argument",
+    searchTerms: ["domain", "specialization", "topic"],
+  },
+  {
+    label: "goal=",
+    detail: "Constructor argument",
+    documentation: "The main job the bot should accomplish in the dialogue.",
+    example: 'goal="Help users choose the right plan"',
+    insertText: 'goal="Help the user clearly."',
+    kind: "argument",
+    searchTerms: ["purpose", "mission", "target"],
+  },
+  {
+    label: "tone=",
+    detail: "Constructor argument",
+    documentation: "The style and mood the bot should use in responses.",
+    example: 'tone="Calm, precise, friendly."',
+    insertText: 'tone="Calm and precise."',
+    kind: "argument",
+    searchTerms: ["style", "voice", "mood"],
   },
   {
     label: "bot.greeting(...)",
@@ -200,6 +246,33 @@ const EDITOR_SUGGESTIONS: EditorSuggestion[] = [
     insertText: 'bot.on_command("help", """\nAsk a question and I will help.\n""")',
     kind: "method",
   },
+  {
+    label: 'flags="i"',
+    detail: "Regex flags",
+    documentation: "Case-insensitive regex matching. Use inside bot.rule_regex(...) or bot.matches(...).",
+    example: 'flags="i"',
+    insertText: 'flags="i"',
+    kind: "argument",
+    searchTerms: ["regex", "ignorecase", "case insensitive"],
+  },
+  {
+    label: "# comment",
+    detail: "Comment",
+    documentation: "Leave notes in the bot script. Comments are ignored by the parser.",
+    example: "# pricing rules",
+    insertText: "# ",
+    kind: "snippet",
+    searchTerms: ["note", "annotation"],
+  },
+  {
+    label: "full bot template",
+    detail: "Starter program",
+    documentation: "Insert a full working bot with constructor, greeting, guard, rules, and fallback.",
+    insertText:
+      'from shalter import ShalterBot\n\nbot = ShalterBot(\n    name="New bot",\n    niche="Support",\n    goal="Help the user clearly.",\n    tone="Calm and precise.",\n)\n\nbot.greeting("""\nHello! How can I help?\n""")\n\nbot.guard("""\nDo not invent prices, deadlines, or legal guarantees.\n""")\n\nbot.hears(["price", "cost"], """\nPricing depends on the task.\n""")\n\nbot.default("""\nTell me a bit more and I will help.\n""")',
+    kind: "snippet",
+    searchTerms: ["template", "starter", "program"],
+  },
 ]
 
 function tokenizeBotScript(source: string) {
@@ -277,40 +350,118 @@ function getWordBounds(source: string, cursor: number) {
   return { start, end }
 }
 
-function buildSuggestionState(source: string, cursor: number): SuggestionState | null {
-  const { start, end } = getWordBounds(source, cursor)
+function getSuggestionContext(source: string, cursor: number, start: number, end: number): SuggestionContext {
   const rawQuery = source.slice(start, end).trim().toLowerCase()
   const query = rawQuery.includes(".") ? rawQuery.slice(rawQuery.lastIndexOf(".") + 1) : rawQuery
   const currentLine = source.slice(source.lastIndexOf("\n", cursor - 1) + 1, cursor)
   const showBotMethodsOnly = currentLine.includes("bot.")
+  const linePrefix = currentLine.trimStart()
+  const isConstructorContext =
+    /(?:ShalterBot|Bot)\s*\([\s\S]*$/m.test(source.slice(0, cursor)) &&
+    !/\)\s*$/.test(source.slice(0, cursor))
+  const isFlagsContext = /bot\.(?:rule_regex|on_regex|matches)\([\s\S]*$/m.test(source.slice(0, cursor))
 
-  const items = EDITOR_SUGGESTIONS.filter((item) => {
-    if (showBotMethodsOnly && !item.label.startsWith("bot.")) {
-      return false
+  return {
+    currentLine: linePrefix,
+    rawQuery,
+    query,
+    showBotMethodsOnly,
+    isConstructorContext,
+    isFlagsContext,
+  }
+}
+
+function scoreSuggestion(item: EditorSuggestion, context: SuggestionContext) {
+  if (context.showBotMethodsOnly && item.kind !== "method") {
+    return -1
+  }
+
+  if (context.isConstructorContext && item.kind === "method") {
+    return -1
+  }
+
+  if (context.isFlagsContext && item.label === 'flags="i"') {
+    return 200
+  }
+
+  const label = item.label.toLowerCase()
+  const shortLabel = label.startsWith("bot.") ? label.slice(4) : label
+  const searchSpace = [label, shortLabel, item.detail.toLowerCase(), item.documentation.toLowerCase()]
+    .concat((item.searchTerms ?? []).map((term) => term.toLowerCase()))
+    .join(" ")
+
+  if (!context.query) {
+    let base = 0
+
+    if (context.showBotMethodsOnly && item.kind === "method") {
+      base += 120
     }
 
-    if (!query) {
-      return item.label.startsWith(showBotMethodsOnly ? "bot." : "from") || item.label.startsWith("bot =")
+    if (context.isConstructorContext && item.kind === "argument") {
+      base += 120
     }
 
-    const normalizedLabel = item.label.toLowerCase()
-    const normalizedDetail = item.detail.toLowerCase()
-    const normalizedDocs = item.documentation.toLowerCase()
-    const methodName = normalizedLabel.startsWith("bot.") ? normalizedLabel.slice(4) : normalizedLabel
+    if (!context.showBotMethodsOnly && !context.isConstructorContext) {
+      if (item.kind === "import") base += 80
+      if (item.kind === "constructor") base += 70
+      if (item.kind === "method") base += 40
+      if (item.kind === "snippet") base += 20
+    }
 
-    return (
-      normalizedLabel.includes(query) ||
-      normalizedDetail.includes(query) ||
-      normalizedDocs.includes(query) ||
-      methodName.includes(query)
-    )
-  }).slice(0, 8)
+    return base
+  }
+
+  let score = -1
+  const query = context.query
+
+  if (shortLabel === query || label === query) score = 150
+  else if (shortLabel.startsWith(query)) score = 130
+  else if (label.startsWith(query)) score = 120
+  else if (shortLabel.split(/[^a-z0-9]+/).some((part) => part.startsWith(query))) score = 110
+  else if (searchSpace.includes(query)) score = 70
+
+  if (score < 0) {
+    return -1
+  }
+
+  if (context.showBotMethodsOnly && item.kind === "method") {
+    score += 25
+  }
+
+  if (context.isConstructorContext && item.kind === "argument") {
+    score += 25
+  }
+
+  if (item.kind === "method") score += 8
+  if (item.kind === "argument") score += 6
+  if (item.kind === "constructor") score += 4
+
+  return score
+}
+
+function buildSuggestionState(source: string, cursor: number): SuggestionState | null {
+  const { start, end } = getWordBounds(source, cursor)
+  const context = getSuggestionContext(source, cursor, start, end)
+  const items = EDITOR_SUGGESTIONS.map((item) => ({
+    item,
+    score: scoreSuggestion(item, context),
+  }))
+    .filter((entry) => entry.score >= 0)
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score
+      }
+
+      return left.item.label.localeCompare(right.item.label)
+    })
+    .slice(0, 8)
+    .map((entry) => entry.item)
 
   if (items.length === 0) {
     return null
   }
 
-  return { start, end, query, items }
+  return { start, end, query: context.query, items }
 }
 
 function shouldOpenSuggestions(nextValue: string, cursor: number) {
@@ -362,6 +513,27 @@ export function BotCodeEditor({ value, onChange, className = "" }: BotCodeEditor
 
     requestAnimationFrame(() => {
       const nextCursor = suggestionState.start + item.insertText.length
+      textarea.focus()
+      textarea.setSelectionRange(nextCursor, nextCursor)
+      setCursorPosition(nextCursor)
+    })
+  }
+
+  function insertAtCursor(prefix: string, suffix = "") {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      return
+    }
+
+    const selectionStart = textarea.selectionStart
+    const selectionEnd = textarea.selectionEnd
+    const nextValue = value.slice(0, selectionStart) + prefix + suffix + value.slice(selectionEnd)
+    const nextCursor = selectionStart + prefix.length
+
+    onChange(nextValue)
+    setIsSuggestionsOpen(false)
+
+    requestAnimationFrame(() => {
       textarea.focus()
       textarea.setSelectionRange(nextCursor, nextCursor)
       setCursorPosition(nextCursor)
@@ -422,6 +594,25 @@ export function BotCodeEditor({ value, onChange, className = "" }: BotCodeEditor
           }
 
           if (!showSuggestions || !suggestionState || suggestionState.items.length === 0) {
+            if (event.key === "Tab") {
+              event.preventDefault()
+              insertAtCursor("    ")
+              return
+            }
+
+            if (event.key === "Enter") {
+              const textarea = event.currentTarget
+              const lineStart = value.lastIndexOf("\n", textarea.selectionStart - 1) + 1
+              const currentLine = value.slice(lineStart, textarea.selectionStart)
+              const indent = currentLine.match(/^\s*/)?.[0] ?? ""
+              const trimmed = currentLine.trimEnd()
+              const extraIndent = /(?:\($|\[$)/.test(trimmed) ? "    " : ""
+
+              event.preventDefault()
+              insertAtCursor(`\n${indent}${extraIndent}`)
+              return
+            }
+
             return
           }
 

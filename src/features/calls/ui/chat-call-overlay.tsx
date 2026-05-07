@@ -8,6 +8,7 @@ import {
   PhoneIcon,
   PhoneOffIcon,
   RefreshCcwIcon,
+  UserPlusIcon,
   VideoIcon,
   VideoOffIcon,
   Volume1Icon,
@@ -33,6 +34,10 @@ type CallUser = {
 
 type CallParticipant = CallUser & {
   joinedAt: string
+}
+
+type CallInviteCandidate = CallUser & {
+  phone?: string | null
 }
 
 type CallSnapshot = {
@@ -74,6 +79,14 @@ const VOLUME_LEVELS: Record<VolumePreset, number> = {
   normal: 0.8,
   loud: 1,
 }
+
+const selectedInviteUserIds: number[] = []
+const isInvitingParticipants = false
+const activeCallRef = { current: null as CallSnapshot | null }
+const setSelectedInviteUserIds = (_value: number[] | ((prev: number[]) => number[])) => {}
+const setIsInvitingParticipants = (_value: boolean) => {}
+const setActiveCall = (_value: CallSnapshot | null) => {}
+const setIsInvitePanelOpen = (_value: boolean) => {}
 
 function getDisplayName(user: CallUser) {
   const fullName = `${user.firstName} ${user.lastName ?? ""}`.trim()
@@ -136,6 +149,48 @@ function VideoTile({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const hasVideo = isVideoStream(stream)
 
+  function toggleInviteUser(userId: number) {
+    setSelectedInviteUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    )
+  }
+
+  async function inviteParticipantsToCall() {
+    const currentCall = activeCallRef.current
+    if (!currentCall || selectedInviteUserIds.length === 0 || isInvitingParticipants) {
+      return
+    }
+
+    setIsInvitingParticipants(true)
+
+    try {
+      const response = await fetch(`/api/calls/${currentCall.id}/participants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantIds: selectedInviteUserIds }),
+      })
+      const data = (await response.json().catch(() => null)) as
+        | { call?: CallSnapshot; message?: string }
+        | null
+
+      if (!response.ok || !data?.call) {
+        throw new Error(data?.message ?? "Не удалось пригласить участников в звонок")
+      }
+
+      setActiveCall(data.call)
+      activeCallRef.current = data.call
+      setIsInvitePanelOpen(false)
+      setSelectedInviteUserIds([])
+      toast.success("Участники приглашены в звонок")
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Не удалось пригласить участников в звонок"
+      )
+    } finally {
+      setIsInvitingParticipants(false)
+    }
+  }
+
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.srcObject = hasVideo ? stream : null
@@ -191,6 +246,7 @@ function VideoTile({
 
 export function ChatCallOverlay({
   currentUser,
+  contacts,
   dialogs,
   selectedDialogId,
   initialAutoStartCall = null,
@@ -198,6 +254,7 @@ export function ChatCallOverlay({
   startRequest = null,
 }: {
   currentUser: CallUser
+  contacts: CallInviteCandidate[]
   dialogs: Array<{
     id: number
     title: string | null
@@ -214,10 +271,12 @@ export function ChatCallOverlay({
   const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false)
   const [isCameraDisabled, setIsCameraDisabled] = useState(false)
   const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user")
-  const [availableVideoInputCount, setAvailableVideoInputCount] = useState(0)
   const [remoteStreams, setRemoteStreams] = useState<Record<number, RemoteStreamEntry>>({})
   const [volumePreset, setVolumePreset] = useState<VolumePreset>("normal")
   const [iceServers, setIceServers] = useState<IceServerConfig[]>(DEFAULT_ICE_SERVERS)
+  const [isInvitePanelOpen, setIsInvitePanelOpen] = useState(false)
+  const [selectedInviteUserIds, setSelectedInviteUserIds] = useState<number[]>([])
+  const [isInvitingParticipants, setIsInvitingParticipants] = useState(false)
   const [, forceLocalStreamRender] = useState(0)
 
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -285,40 +344,6 @@ export function ChatCallOverlay({
   useEffect(() => {
     void ensureIceServersLoaded()
   }, [ensureIceServersLoaded])
-
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
-      return
-    }
-
-    let cancelled = false
-    const syncVideoInputs = () => {
-      void navigator.mediaDevices
-        .enumerateDevices()
-        .then((devices) => {
-          if (cancelled) {
-            return
-          }
-
-          setAvailableVideoInputCount(
-            devices.filter((device) => device.kind === "videoinput").length
-          )
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setAvailableVideoInputCount(0)
-          }
-        })
-    }
-
-    syncVideoInputs()
-    navigator.mediaDevices.addEventListener?.("devicechange", syncVideoInputs)
-
-    return () => {
-      cancelled = true
-      navigator.mediaDevices.removeEventListener?.("devicechange", syncVideoInputs)
-    }
-  }, [])
 
   const stopIncomingTone = useCallback(() => {
     if (incomingToneIntervalRef.current !== null) {
@@ -395,6 +420,14 @@ export function ChatCallOverlay({
   useEffect(() => {
     autoAnswerHandledRef.current = false
   }, [autoAnswerIncoming, selectedDialogId])
+
+  useEffect(() => {
+    if (!activeCall) {
+      setIsInvitePanelOpen(false)
+      setSelectedInviteUserIds([])
+      setIsInvitingParticipants(false)
+    }
+  }, [activeCall])
 
   useEffect(() => {
     if (
@@ -532,6 +565,23 @@ export function ChatCallOverlay({
       }
     }
   }, [])
+
+  const createOffersForMissingParticipants = useCallback(
+    async (call: CallSnapshot) => {
+      const remoteParticipants = call.participants.filter(
+        (participant) => participant.userId !== currentUser.userId
+      )
+
+      for (const participant of remoteParticipants) {
+        if (peerConnectionsRef.current.has(participant.userId)) {
+          continue
+        }
+
+        await createOfferForRemote(call, participant.userId)
+      }
+    },
+    [createOfferForRemote, currentUser.userId]
+  )
 
   async function sendSignal(callId: string, toUserId: number, signal: CallSignalPayload) {
     await fetch(`/api/calls/${callId}/signal`, {
@@ -770,13 +820,7 @@ export function ChatCallOverlay({
       setActiveCall(data.call)
       activeCallRef.current = data.call
 
-      const existingParticipants = data.call.participants.filter(
-        (participant) => participant.userId !== currentUser.userId
-      )
-
-      for (const participant of existingParticipants) {
-        await createOfferForRemote(data.call, participant.userId)
-      }
+      await createOffersForMissingParticipants(data.call)
     } catch (error) {
       await cleanupCall(false)
       toast.error(error instanceof Error ? error.message : "Не удалось начать звонок")
@@ -926,6 +970,9 @@ export function ChatCallOverlay({
         )
         setActiveCall(joined ? current : null)
         setIncomingCall(joined ? null : current)
+        if (joined) {
+          void createOffersForMissingParticipants(current)
+        }
         return
       }
 
@@ -959,6 +1006,9 @@ export function ChatCallOverlay({
         setIncomingCall((prev) =>
           isMember ? null : prev?.id === payload.call.id || isInvited ? payload.call : prev
         )
+        if (isMember) {
+          void createOffersForMissingParticipants(payload.call)
+        }
         return
       }
 
@@ -987,7 +1037,7 @@ export function ChatCallOverlay({
     return () => {
       eventSource.close()
     }
-  }, [cleanupCall, currentUser.userId, handleSignal])
+  }, [cleanupCall, createOffersForMissingParticipants, currentUser.userId, handleSignal])
 
   useEffect(() => {
     if (!activeCall) {
@@ -1030,12 +1080,66 @@ export function ChatCallOverlay({
   const localUser = currentUser
   const showOverlay = Boolean(activeCall || incomingCall)
   const canToggleCamera = activeCall?.media === "video"
-  const canSwitchCamera = canToggleCamera && availableVideoInputCount > 1
+  const canSwitchCamera = canToggleCamera
   const remoteVolume = VOLUME_LEVELS[volumePreset]
   const incomingCaller =
     incomingCall?.participants.find((user) => user.userId !== currentUser.userId) ??
     incomingCall?.invitedUsers.find((user) => user.userId !== currentUser.userId) ??
     currentUser
+  const inviteCandidates = useMemo(() => {
+    if (!activeCall) {
+      return []
+    }
+
+    const excludedUserIds = new Set([
+      ...activeCall.participants.map((participant) => participant.userId),
+      ...activeCall.invitedUsers.map((participant) => participant.userId),
+    ])
+
+    return contacts.filter((contact) => !excludedUserIds.has(contact.userId))
+  }, [activeCall, contacts])
+
+  function toggleInviteUser(userId: number) {
+    setSelectedInviteUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    )
+  }
+
+  async function inviteParticipantsToCall() {
+    const currentCall = activeCallRef.current
+    if (!currentCall || selectedInviteUserIds.length === 0 || isInvitingParticipants) {
+      return
+    }
+
+    setIsInvitingParticipants(true)
+
+    try {
+      const response = await fetch(`/api/calls/${currentCall.id}/participants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantIds: selectedInviteUserIds }),
+      })
+      const data = (await response.json().catch(() => null)) as
+        | { call?: CallSnapshot; message?: string }
+        | null
+
+      if (!response.ok || !data?.call) {
+        throw new Error(data?.message ?? "Не удалось пригласить участников в звонок")
+      }
+
+      setActiveCall(data.call)
+      activeCallRef.current = data.call
+      setIsInvitePanelOpen(false)
+      setSelectedInviteUserIds([])
+      toast.success("Участники приглашены в звонок")
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Не удалось пригласить участников в звонок"
+      )
+    } finally {
+      setIsInvitingParticipants(false)
+    }
+  }
 
   return (
     <>
@@ -1099,6 +1203,19 @@ export function ChatCallOverlay({
                     active={volumePreset === "loud"}
                     onClick={() => setVolumePreset("loud")}
                   />
+                  <Button
+                    type="button"
+                    variant={isInvitePanelOpen ? "secondary" : "outline"}
+                    onClick={() => {
+                      setIsInvitePanelOpen((prev) => !prev)
+                      if (isInvitePanelOpen) {
+                        setSelectedInviteUserIds([])
+                      }
+                    }}
+                  >
+                    <UserPlusIcon className="size-4" />
+                    Добавить в звонок
+                  </Button>
                   <Button
                     type="button"
                     variant={isMicrophoneMuted ? "secondary" : "outline"}
@@ -1177,6 +1294,66 @@ export function ChatCallOverlay({
                   <VideoTile label="Вы" user={localUser} stream={localStreamRef.current} muted />
 
                   <div className="mt-4 flex min-h-0 flex-1 flex-col space-y-2">
+                    {isInvitePanelOpen ? (
+                      <div className="space-y-3 rounded-[1.2rem] border border-white/10 bg-black/20 p-3">
+                        <div>
+                          <p className="text-sm font-medium text-white">Пригласить в звонок</p>
+                          <p className="text-xs text-white/60">
+                            Контакты добавятся только в текущий звонок, не в переписку.
+                          </p>
+                        </div>
+                        {inviteCandidates.length > 0 ? (
+                          <>
+                            <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+                              {inviteCandidates.map((contact) => (
+                                <label
+                                  key={contact.userId}
+                                  className="flex cursor-pointer items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-2 text-sm"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="size-4 shrink-0 accent-sky-400"
+                                    checked={selectedInviteUserIds.includes(contact.userId)}
+                                    onChange={() => toggleInviteUser(contact.userId)}
+                                  />
+                                  <UserAvatar
+                                    firstName={contact.firstName}
+                                    lastName={contact.lastName}
+                                    avatarTone={contact.avatarTone}
+                                    avatarUrl={contact.avatarUrl}
+                                    className="size-9 border border-white/10"
+                                  />
+                                  <span className="min-w-0 truncate">{getDisplayName(contact)}</span>
+                                </label>
+                              ))}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => void inviteParticipantsToCall()}
+                                disabled={isInvitingParticipants || selectedInviteUserIds.length === 0}
+                              >
+                                {isInvitingParticipants ? "Приглашаем..." : "Пригласить"}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setIsInvitePanelOpen(false)
+                                  setSelectedInviteUserIds([])
+                                }}
+                              >
+                                Скрыть
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-sm text-white/60">Нет доступных контактов для приглашения.</p>
+                        )}
+                      </div>
+                    ) : null}
                     <p className="text-sm font-medium text-white/80">Участники</p>
                     <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                       {activeCall.participants.map((participant) => (

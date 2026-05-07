@@ -60,7 +60,9 @@ export type BotChatMessage = {
   content: string
 }
 
-const BOT_TEXT_RULE_METHODS = ["rule_contains"] as const
+const BOT_TEXT_RULE_METHODS = ["rule_contains", "on_text", "hears"] as const
+const BOT_REGEX_RULE_METHODS = ["rule_regex", "on_regex", "matches"] as const
+const BOT_COMMAND_METHODS = ["command", "on_command"] as const
 const BOT_SINGLE_BLOCK_METHODS = [
   ["greeting", "greeting"],
   ["guard", "guard"],
@@ -275,7 +277,7 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
   }
 
   const ruleRegexMatches = Array.from(
-    script.matchAll(/bot\.rule_regex\(([\s\S]*?)\)/g)
+    script.matchAll(new RegExp(`bot\\.(?:${BOT_REGEX_RULE_METHODS.join("|")})\\(([\\s\\S]*?)\\)`, "g"))
   )
 
   for (const match of ruleRegexMatches) {
@@ -300,10 +302,12 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
     })
   }
 
-  const commandMatches = Array.from(script.matchAll(/bot\.(command|on_command)\(([\s\S]*?)\)/g))
+  const commandMatches = Array.from(
+    script.matchAll(new RegExp(`bot\\.(?:${BOT_COMMAND_METHODS.join("|")})\\(([\\s\\S]*?)\\)`, "g"))
+  )
 
   for (const match of commandMatches) {
-    const args = splitPythonArguments(match[2] ?? "")
+    const args = splitPythonArguments(match[1] ?? "")
     const commandArg = args[0] ?? ""
     const replyArg = args[1] ?? ""
     const command = parsePythonStringLiteral(commandArg)?.trim().replace(/^\/+/, "") ?? ""

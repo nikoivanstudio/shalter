@@ -1,6 +1,7 @@
 import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 
-export const PARTNER_REWARD_STARS = 25
+export const PARTNER_REWARD_STARS = 10
+export const PARTNER_REWARD_PREMIUM_DAYS = 5
 
 export const giftCatalog = [
   {
