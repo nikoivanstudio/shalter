@@ -234,39 +234,7 @@ export function ChannelBroadcastOverlay({
     void ensureIceServersLoaded()
   }, [ensureIceServersLoaded])
 
-  const ensureLocalStream = useCallback(
-    async (media: BroadcastMediaMode) => {
-      if (localStreamRef.current) {
-        return localStreamRef.current
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video:
-          media === "video"
-            ? {
-                facingMode: cameraFacing,
-              }
-            : false,
-      })
-
-      localStreamRef.current = stream
-      setIsMicrophoneMuted(false)
-      setIsCameraDisabled(media !== "video")
-      return stream
-    },
-    [cameraFacing]
-  )
-
-  async function sendSignal(broadcastId: string, toUserId: number, signal: BroadcastSignalPayload) {
-    await fetch(`/api/channel-broadcasts/${broadcastId}/signal`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ toUserId, signal }),
-    })
-  }
-
-  const syncLocalStreamToPeers = useCallback((stream: MediaStream | null) => {
+  function syncLocalStreamToPeers(stream: MediaStream | null) {
     for (const peer of peerConnectionsRef.current.values()) {
       const audioTrack = stream?.getAudioTracks()[0] ?? null
       const videoTrack = stream?.getVideoTracks()[0] ?? null
@@ -285,7 +253,58 @@ export function ChannelBroadcastOverlay({
         peer.addTrack(videoTrack, stream)
       }
     }
-  }, [])
+  }
+
+  const ensureLocalStream = useCallback(
+    async (media: BroadcastMediaMode) => {
+      const existingStream = localStreamRef.current
+      const needsVideoUpgrade = media === "video" && !existingStream?.getVideoTracks().length
+
+      if (existingStream && !needsVideoUpgrade) {
+        for (const track of existingStream.getAudioTracks()) {
+          track.enabled = true
+        }
+        for (const track of existingStream.getVideoTracks()) {
+          track.enabled = media === "video"
+        }
+        syncLocalStreamToPeers(existingStream)
+        setIsMicrophoneMuted(false)
+        setIsCameraDisabled(media !== "video")
+        return existingStream
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video:
+          media === "video"
+            ? {
+                facingMode: cameraFacing,
+              }
+            : false,
+      })
+
+      if (existingStream) {
+        for (const track of existingStream.getTracks()) {
+          track.stop()
+        }
+      }
+
+      localStreamRef.current = stream
+      syncLocalStreamToPeers(stream)
+      setIsMicrophoneMuted(false)
+      setIsCameraDisabled(media !== "video")
+      return stream
+    },
+    [cameraFacing]
+  )
+
+  async function sendSignal(broadcastId: string, toUserId: number, signal: BroadcastSignalPayload) {
+    await fetch(`/api/channel-broadcasts/${broadcastId}/signal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ toUserId, signal }),
+    })
+  }
 
   const ensurePeerConnection = useCallback(
     (broadcast: BroadcastSnapshot, remoteUser: BroadcastUser) => {

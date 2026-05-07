@@ -172,7 +172,15 @@ export function createCall(input: {
     createdByUserId: input.createdBy.userId,
     createdAt,
     usersById: new Map(input.users.map((user) => [user.userId, user])),
-    participantsById: new Map(),
+    participantsById: new Map([
+      [
+        input.createdBy.userId,
+        {
+          ...input.createdBy,
+          joinedAt: createdAt,
+        },
+      ],
+    ]),
   }
 
   store.calls.set(id, call)

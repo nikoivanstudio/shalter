@@ -80,6 +80,7 @@ const VOLUME_LEVELS: Record<VolumePreset, number> = {
   loud: 1,
 }
 
+// Legacy no-op stubs kept only because old invite helpers are still embedded in VideoTile.
 const selectedInviteUserIds: number[] = []
 const isInvitingParticipants = false
 const activeCallRef = { current: null as CallSnapshot | null }
@@ -148,12 +149,6 @@ function VideoTile({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const hasVideo = isVideoStream(stream)
-
-  function toggleInviteUser(userId: number) {
-    setSelectedInviteUserIds((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    )
-  }
 
   async function inviteParticipantsToCall() {
     const currentCall = activeCallRef.current
@@ -573,6 +568,11 @@ export function ChatCallOverlay({
       )
 
       for (const participant of remoteParticipants) {
+        // Deterministic offer ownership prevents both peers from creating offers at once.
+        if (currentUser.userId > participant.userId) {
+          continue
+        }
+
         if (peerConnectionsRef.current.has(participant.userId)) {
           continue
         }
