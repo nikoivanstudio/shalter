@@ -14,12 +14,14 @@ import type { ViewedContactProfile } from "@/features/contacts/lib/viewed-profil
 import { giftCatalog } from "@/shared/lib/rewards/catalog"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
 import { UserAvatar } from "@/shared/ui/user-avatar"
+
 export type { ViewedContactProfile } from "@/features/contacts/lib/viewed-profile"
 
 export function ContactProfileCard({
   profile,
   isLoading,
   onClose,
+  viewerUserId,
   onOpenChat,
   onStartAudioCall,
   onStartVideoCall,
@@ -27,6 +29,7 @@ export function ContactProfileCard({
   profile: ViewedContactProfile | null
   isLoading: boolean
   onClose: () => void
+  viewerUserId?: number
   onOpenChat: (contactId: number) => void
   onStartAudioCall?: (contactId: number) => void
   onStartVideoCall?: (contactId: number) => void
@@ -34,6 +37,8 @@ export function ContactProfileCard({
   if (!profile && !isLoading) {
     return null
   }
+
+  const isSelfProfile = Boolean(profile && viewerUserId === profile.id)
 
   return (
     <div className="flex max-h-[min(72dvh,42rem)] min-h-0 flex-col overflow-hidden rounded-[1.7rem] border border-border/70 bg-card/88 p-4 shadow-[0_24px_70px_-34px_rgba(15,23,42,0.48)]">
@@ -168,24 +173,26 @@ export function ContactProfileCard({
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => onOpenChat(profile.id)}>
-              <MessageCircleIcon className="size-4" />
-              Открыть чат
-            </Button>
-            {onStartAudioCall ? (
-              <Button type="button" variant="outline" onClick={() => onStartAudioCall(profile.id)}>
-                <PhoneCallIcon className="size-4" />
-                Аудио
+          {!isSelfProfile ? (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={() => onOpenChat(profile.id)}>
+                <MessageCircleIcon className="size-4" />
+                Открыть чат
               </Button>
-            ) : null}
-            {onStartVideoCall ? (
-              <Button type="button" variant="outline" onClick={() => onStartVideoCall(profile.id)}>
-                <VideoIcon className="size-4" />
-                Видео
-              </Button>
-            ) : null}
-          </div>
+              {onStartAudioCall ? (
+                <Button type="button" variant="outline" onClick={() => onStartAudioCall(profile.id)}>
+                  <PhoneCallIcon className="size-4" />
+                  Аудио
+                </Button>
+              ) : null}
+              {onStartVideoCall ? (
+                <Button type="button" variant="outline" onClick={() => onStartVideoCall(profile.id)}>
+                  <VideoIcon className="size-4" />
+                  Видео
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

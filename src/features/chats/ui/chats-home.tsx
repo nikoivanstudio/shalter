@@ -50,6 +50,7 @@ import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import type { MediaAttachment, MediaKind } from "@/shared/lib/media/constants"
 import { BotAvatar } from "@/shared/ui/bot-avatar"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
+import { getReplacementCameraStream } from "@/shared/lib/media/camera"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 import { UserAvatar } from "@/shared/ui/user-avatar"
 
@@ -744,23 +745,16 @@ export function ChatsHome({
       const currentStream = recordingStreamRef.current
       const currentTrack = currentStream.getVideoTracks()[0] ?? null
       const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
-      const currentDeviceIndex = videoDevices.findIndex(
-        (device) => device.deviceId && device.deviceId === currentDeviceId
-      )
-      const nextDevice =
+      const alternativeDeviceId =
         videoDevices.length > 1
-          ? videoDevices[
-              currentDeviceIndex >= 0 ? (currentDeviceIndex + 1) % videoDevices.length : 0
-            ] ?? null
+          ? videoDevices.find((device) => device.deviceId && device.deviceId !== currentDeviceId)
+              ?.deviceId ?? null
           : null
-      const nextStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          ...(nextDevice?.deviceId
-            ? { deviceId: { exact: nextDevice.deviceId } }
-            : { facingMode: nextFacing }),
-          width: { ideal: 480 },
-          height: { ideal: 480 },
-        },
+      const nextStream = await getReplacementCameraStream({
+        nextFacing,
+        currentDeviceId: alternativeDeviceId,
+        width: 480,
+        height: 480,
       })
 
       const nextTrack = nextStream.getVideoTracks()[0] ?? null
@@ -775,6 +769,11 @@ export function ChatsHome({
       }
 
       currentStream.addTrack(nextTrack)
+      for (const track of nextStream.getTracks()) {
+        if (track.id !== nextTrack.id) {
+          track.stop()
+        }
+      }
       setRecordingCameraFacing(nextFacing)
 
       if (recordingPreviewRef.current) {
@@ -2753,7 +2752,6 @@ export function ChatsHome({
           avatarUrl: contact.avatarUrl,
         }))}
         selectedDialogId={activeDialogId}
-        initialAutoStartCall={initialCallMode}
         autoAnswerIncoming={initialAnswerIncoming}
         startRequest={callStartRequest}
         dialogs={dialogs.map((dialog) => ({

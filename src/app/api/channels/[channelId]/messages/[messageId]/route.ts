@@ -51,43 +51,36 @@ export async function PATCH(
 ) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
 
   const { channelId: rawChannelId, messageId: rawMessageId } = await context.params
   const channelId = parsePositiveInt(rawChannelId)
   const messageId = parsePositiveInt(rawMessageId)
   if (!channelId || !messageId) {
-    return NextResponse.json({ message: "Неверные идентификаторы" }, { status: 400 })
+    return NextResponse.json({ message: "Invalid identifiers" }, { status: 400 })
   }
 
   const membership = await getMembership(channelId, userId)
   if (!membership) {
-    return NextResponse.json({ message: "Канал не найден" }, { status: 404 })
-  }
-
-  if (membership.role === "MEMBER") {
-    return NextResponse.json(
-      { message: "Редактировать сообщения могут только владелец и админы" },
-      { status: 403 }
-    )
+    return NextResponse.json({ message: "Channel not found" }, { status: 404 })
   }
 
   const existing = await getMessage(channelId, messageId)
   if (!existing) {
-    return NextResponse.json({ message: "Сообщение не найдено" }, { status: 404 })
+    return NextResponse.json({ message: "Message not found" }, { status: 404 })
   }
 
   if (existing.authorId !== userId) {
     return NextResponse.json(
-      { message: "Можно редактировать только свои сообщения" },
+      { message: "You can only edit your own messages" },
       { status: 403 }
     )
   }
 
   if (existing.mediaKind || existing.attachments.length > 0) {
     return NextResponse.json(
-      { message: "Медиа-сообщения пока можно только удалить и отправить заново" },
+      { message: "Media messages can only be deleted and sent again" },
       { status: 400 }
     )
   }
@@ -97,7 +90,7 @@ export async function PATCH(
   if (!parsed.success) {
     return NextResponse.json(
       {
-        message: "Ошибка валидации",
+        message: "Validation error",
         fieldErrors: parsed.error.flatten().fieldErrors,
       },
       { status: 400 }
@@ -168,36 +161,29 @@ export async function DELETE(
 ) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
-    return NextResponse.json({ message: "Не авторизован" }, { status: 401 })
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
   }
 
   const { channelId: rawChannelId, messageId: rawMessageId } = await context.params
   const channelId = parsePositiveInt(rawChannelId)
   const messageId = parsePositiveInt(rawMessageId)
   if (!channelId || !messageId) {
-    return NextResponse.json({ message: "Неверные идентификаторы" }, { status: 400 })
+    return NextResponse.json({ message: "Invalid identifiers" }, { status: 400 })
   }
 
   const membership = await getMembership(channelId, userId)
   if (!membership) {
-    return NextResponse.json({ message: "Канал не найден" }, { status: 404 })
-  }
-
-  if (membership.role === "MEMBER") {
-    return NextResponse.json(
-      { message: "Удалять сообщения могут только владелец и админы" },
-      { status: 403 }
-    )
+    return NextResponse.json({ message: "Channel not found" }, { status: 404 })
   }
 
   const existing = await getMessage(channelId, messageId)
   if (!existing) {
-    return NextResponse.json({ message: "Сообщение не найдено" }, { status: 404 })
+    return NextResponse.json({ message: "Message not found" }, { status: 404 })
   }
 
   if (existing.authorId !== userId) {
     return NextResponse.json(
-      { message: "Можно удалять только свои сообщения" },
+      { message: "You can only delete your own messages" },
       { status: 403 }
     )
   }

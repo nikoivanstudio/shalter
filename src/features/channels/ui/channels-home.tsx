@@ -268,10 +268,6 @@ export function ChannelsHome({
   }
 
   function openProfile(contactUserId: number) {
-    if (contactUserId === user.id) {
-      return
-    }
-
     setSelectedProfile(null)
     setIsProfileLoading(true)
 
@@ -1135,6 +1131,7 @@ export function ChannelsHome({
                   <ContactProfileCard
                     profile={selectedProfile}
                     isLoading={isProfileLoading}
+                    viewerUserId={user.id}
                     onClose={() => {
                       setSelectedProfile(null)
                       setIsProfileLoading(false)

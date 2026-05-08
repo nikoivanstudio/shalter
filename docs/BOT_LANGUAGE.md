@@ -1,254 +1,215 @@
-# Aster
+# Shalter Bot Script
 
-## 1. Базовая спецификация языка
+## Что это
 
-`Aster` — универсальный язык программирования общего назначения с философией Python:
-читаемость, явность, отступы для блоков, батарейки в комплекте и встроенная поддержка
-Telegram как части стандартной библиотеки.
+`Shalter Bot Script` — это Python-подобный язык сценариев для ботов внутри Shalter.
 
-Ключевые свойства:
+Он нужен для:
 
-- Turing-полный, подходит не только для ботов, но и для backend, CLI, автоматизации и data-processing
-- динамическая типизация по умолчанию
-- опциональный `strict`-режим для более жёсткой проверки аннотаций
-- нативные `async/await`
-- ООП, функциональные паттерны, итераторы, match/case, модули, исключения
-- встроенный пакетный менеджер и виртуальные окружения
+- описания приветствия;
+- задания ограничений и safety-правил;
+- обработки сообщений по ключевым словам;
+- обработки сообщений по регулярным выражениям;
+- обработки slash-команд;
+- передачи сложных диалогов человеку.
 
-Пример синтаксиса:
+Это не отдельный универсальный язык программирования уровня Python. Это компактный DSL, который выглядит как Python и поддерживается редактором, автодополнением и рантаймом Shalter.
 
-```aster
-module app.main
+## Базовый синтаксис
 
-strict on
+```python
+from shalter import ShalterBot
 
-class UserService:
-    let api_url: String
-
-    fn init(api_url: String):
-        self.api_url = api_url
-
-    async fn fetch_user(user_id: Int) -> Map[String, Any]:
-        response = await http.get(f"{self.api_url}/users/{user_id}")
-        return json.parse(response.text)
-
-fn main():
-    service = UserService("https://api.example.com")
-    print(service)
-```
-
-Асинхронная модель:
-
-- `async fn` создаёт корутину
-- `await` приостанавливает задачу без блокировки потока
-- рантайм использует встроенный event loop и structured concurrency
-- фоновые задачи запускаются через `spawn`, а группы задач через `task_group`
-
-Система типов:
-
-- базовые типы: `Int`, `Float`, `Bool`, `String`, `Bytes`, `Path`, `Date`, `Duration`
-- контейнеры: `List[T]`, `Map[K, V]`, `Set[T]`, `Option[T]`, `Result[T, E]`
-- аннотации необязательны, но рекомендуются для публичного API
-
-Управление памятью:
-
-- generational GC
-- zero-copy буферы для сетевых и файловых операций
-- безопасный FFI-слой для тяжёлых расширений
-
-Пакеты и окружения:
-
-```bash
-aster venv .venv
-aster pkg add redis
-aster pkg sync
-aster run app.ast
-```
-
-## 2. Стандартная библиотека общего назначения
-
-`Aster` — полноценный язык общего назначения. По умолчанию доступны модули:
-
-- `fs`, `path`, `env`, `process`
-- `json`, `yaml`, `toml`, `csv`
-- `http`, `websocket`, `dns`
-- `sqlite`, `sql`, `cache`, `state`
-- `time`, `math`, `regex`, `crypto`
-- `collections`, `iter`, `concurrency`, `sync`
-- `logger`, `metrics`, `trace`, `test`
-
-Пример:
-
-```aster
-from aster import fs, http, json
-
-async fn sync_feed():
-    response = await http.get("https://api.example.com/feed")
-    payload = json.parse(response.text)
-    await fs.write_text("feed.json", json.stringify(payload, indent=2))
-```
-
-## 3. Встроенная библиотека `telegram`
-
-Главная особенность `Aster` — стандартный модуль `telegram`, который из коробки покрывает
-весь Telegram Bot API.
-
-Архитектура:
-
-- `telegram.Bot` — низкоуровневый клиент всех методов Bot API
-- `telegram.Router` — декларативный роутинг и хендлеры
-- `telegram.FSM` — машина состояний
-- `telegram.filters` — встроенные фильтры
-- `telegram.run(...)` — запуск polling или webhook
-
-### Полный mapping Bot API
-
-Примеры методов:
-
-- `send_message`
-- `edit_message_text`
-- `send_photo`
-- `send_document`
-- `delete_message`
-- `answer_callback_query`
-- `answer_inline_query`
-- `set_webhook`
-- `get_updates`
-
-### Роутинг и хендлеры
-
-```aster
-from aster import telegram
-
-bot = telegram.Bot(token=env.secret("BOT_TOKEN"))
-router = telegram.Router(name="main")
-
-@router.command("start")
-async fn start(ctx: telegram.Context):
-    await ctx.reply("Привет!")
-
-@router.callback("buy")
-async fn buy(ctx: telegram.Context):
-    await ctx.answer("Открываю оплату")
-```
-
-### FSM
-
-```aster
-enum FormState:
-    waiting_name
-    waiting_email
-
-dialogs = telegram.FSM(storage=telegram.state.memory())
-
-@router.command("form")
-async fn form_start(ctx: telegram.Context):
-    await ctx.state.set(FormState.waiting_name)
-    await ctx.reply("Введите имя")
-```
-
-### Middleware и retry
-
-- `@router.middleware(stage="before")`
-- `telegram.rate_limit(per_user=20, per_minute=60)`
-- встроенные retry/backoff для сетевых ошибок
-- типизированные исключения Telegram API
-
-### Клавиатуры и форматирование
-
-- `telegram.inline_keyboard(...)`
-- `telegram.reply_keyboard(...)`
-- `telegram.markdown.escape(...)`
-- `telegram.html.bold(...)`
-
-### Long-polling и webhook
-
-```aster
-telegram.run(
-    bot=bot,
-    router=router,
-    mode="webhook",
-    host="0.0.0.0",
-    port=8443,
+bot = ShalterBot(
+    name="Support Bot",
+    niche="Support",
+    goal="Help the user clearly and quickly.",
+    tone="Calm and precise.",
 )
 ```
 
-## 4. Примеры кода
+Поддерживаются:
 
-### Пример 1: JSON + async HTTP + файлы
+- строки `"..."`;
+- многострочные блоки `"""..."""`;
+- raw-строки `r"..."`;
+- комментарии `# ...`;
+- именованные аргументы.
 
-```aster
-from aster import fs, http, json
+## Системные блоки
 
-async fn download_config():
-    response = await http.get("https://example.com/config.json")
-    data = json.parse(response.text)
-    await fs.write_text("config.json", json.stringify(data, indent=2))
+### Приветствие
+
+```python
+bot.greeting("""
+Hello! How can I help?
+""")
 ```
 
-### Пример 2: Telegram-бот
+### Ограничения
 
-```aster
-from aster import env, telegram
-
-bot = telegram.Bot(token=env.secret("BOT_TOKEN"))
-router = telegram.Router(name="shop")
-state = telegram.FSM(storage=telegram.state.memory())
-
-@router.command("start")
-async fn start(ctx: telegram.Context):
-    kb = telegram.inline_keyboard([
-        [telegram.button("Каталог", callback="catalog")],
-    ])
-    await ctx.reply("Добро пожаловать", reply_markup=kb)
-
-@router.callback("catalog")
-async fn catalog(ctx: telegram.Context):
-    await ctx.reply_photo("images/item.png", caption="Товар дня")
-
-@router.inline()
-async fn inline_search(ctx: telegram.InlineContext):
-    results = [
-        telegram.inline_article(
-            id="1",
-            title="Помощь",
-            text="Напишите вопрос, и бот поможет.",
-        )
-    ]
-    await ctx.answer(results)
+```python
+bot.guard("""
+Do not invent prices, deadlines, or legal guarantees.
+""")
 ```
 
-### Пример 3: middleware и graceful shutdown
+Алиас:
 
-```aster
-@router.middleware(stage="before")
-async fn log_request(ctx: telegram.Context, next):
-    logger.info("incoming update", update_id=ctx.update.id)
-    return await next()
+```python
+bot.safety("""
+Do not ask for unsafe personal data.
+""")
+```
 
-runtime = telegram.run(bot=bot, router=router, mode="polling")
+### Передача человеку
 
-runtime.on_shutdown(fn ():
-    logger.info("bot stopped")
+```python
+bot.handoff("""
+Escalate payment disputes and нестандартные cases to a human.
+""")
+```
+
+Алиас:
+
+```python
+bot.escalate("""
+Pass complex cases to a human.
+""")
+```
+
+### Ответ по умолчанию
+
+```python
+bot.default("""
+Tell me a bit more and I will help.
+""")
+```
+
+Алиас:
+
+```python
+bot.reply("""
+Tell me a bit more and I will help.
+""")
+```
+
+## Правила
+
+### Ключевые слова
+
+```python
+bot.rule_contains(["price", "cost"], """
+Pricing depends on the task.
+""")
+```
+
+Python-подобные алиасы:
+
+```python
+bot.on_text(["price", "cost"], """
+Pricing depends on the task.
+""")
+
+bot.hears(["price", "cost"], """
+Pricing depends on the task.
+""")
+```
+
+### Регулярные выражения
+
+```python
+bot.rule_regex(r"(bug|error)", """
+This looks like a technical issue.
+""", flags="i")
+```
+
+Алиасы:
+
+```python
+bot.on_regex(r"(bug|error)", """
+This looks like a technical issue.
+""", flags="i")
+
+bot.matches(r"(bug|error)", """
+This looks like a technical issue.
+""", flags="i")
+```
+
+### Команды
+
+```python
+bot.command("start", """
+Welcome to the bot.
+""")
+```
+
+Алиас:
+
+```python
+bot.on_command("help", """
+Ask a question and I will help.
+""")
+```
+
+## Полный пример
+
+```python
+from shalter import ShalterBot
+
+bot = ShalterBot(
+    name="Sales Assistant",
+    niche="Sales and support",
+    goal="Understand the request and guide the user to the next step.",
+    tone="Friendly, calm, and precise.",
 )
+
+bot.greeting("""
+Hello! I am the Shalter bot. Tell me what you need, and I will help.
+""")
+
+bot.guard("""
+Do not invent prices, deadlines, or legal promises without confirmation.
+""")
+
+bot.hears(["hello", "hi", "привет"], """
+Hello! I can help with product info, pricing, contacts, and next steps.
+""")
+
+bot.rule_contains(["price", "cost", "тариф"], """
+Pricing depends on the task. Describe what you need, and I will guide you.
+""")
+
+bot.matches(r"(bug|error|не работает)", """
+This looks like a technical issue. Please describe what broke and how to reproduce it.
+""", flags="i")
+
+bot.command("help", """
+Describe your task in one message, and I will suggest the next step.
+""")
+
+bot.handoff("""
+If the case is нестандартный, payment-related, or conflict-heavy, pass it to a human.
+""")
+
+bot.default("""
+Tell me a bit more, and I will help you move forward.
+""")
 ```
 
-## 5. Сравнение с Python + aiogram / telebot
+## Что реально поддерживается рантаймом
 
-- меньше внешних зависимостей
-- единый рантайм без отдельного выбора фреймворка
-- меньше glue-code между HTTP, FSM, webhook, retry и Bot API
-- ниже накладные расходы за счёт встроенного сетевого рантайма и байткода
-- проще деплой: `aster run`, `aster build`
+Сейчас рантайм понимает:
 
-Для Python-разработчика порог входа низкий: синтаксис намеренно близок к Python.
+- `from shalter import ShalterBot`
+- `bot = ShalterBot(...)`
+- `bot.greeting(...)`
+- `bot.guard(...)`, `bot.safety(...)`
+- `bot.handoff(...)`, `bot.escalate(...)`
+- `bot.default(...)`, `bot.reply(...)`
+- `bot.rule_contains(...)`, `bot.on_text(...)`, `bot.hears(...)`
+- `bot.rule_regex(...)`, `bot.on_regex(...)`, `bot.matches(...)`
+- `bot.command(...)`, `bot.on_command(...)`
+- `flags="i"` для regex-правил
 
-## 6. Технические детали реализации
-
-- исполнение: байткод + JIT для горячих участков
-- FFI: безопасные binding-модули к C/Rust
-- кроссплатформенность: Linux, macOS, Windows
-- сторонние пакеты подключаются через `aster pkg`
-
-Идея `Aster`: это сначала универсальный язык общего назначения, и только потом язык,
-в котором Telegram встроен в стандартную библиотеку на уровне платформы.
+Если нужен следующий шаг, можно расширить язык ещё сильнее в Python-сторону: `if/else`, переменные, функции-хелперы, шаблоны ответов и capture groups из regex.

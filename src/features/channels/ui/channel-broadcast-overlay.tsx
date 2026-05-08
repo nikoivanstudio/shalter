@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  EllipsisVerticalIcon,
   MicIcon,
   MicOffIcon,
   PhoneOffIcon,
@@ -13,6 +14,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { getReplacementCameraStream } from "@/shared/lib/media/camera"
+import type { MediaAttachment } from "@/shared/lib/media/constants"
+import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 import { UserAvatar } from "@/shared/ui/user-avatar"
 
 type BroadcastMediaMode = "audio" | "video"
@@ -63,6 +74,7 @@ type ChannelMessage = {
   channelId: number
   content: string
   createdAt: string
+  attachment?: MediaAttachment | MediaAttachment[] | null
   author: {
     id: number
     firstName: string
@@ -111,6 +123,10 @@ export function ChannelBroadcastOverlay({
   const [broadcastMessages, setBroadcastMessages] = useState<ChannelMessage[]>([])
   const [broadcastMessageText, setBroadcastMessageText] = useState("")
   const [isSendingMessage, setIsSendingMessage] = useState(false)
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null)
+  const [editingMessageText, setEditingMessageText] = useState("")
+  const [isEditingMessage, setIsEditingMessage] = useState(false)
+  const [isDeletingMessage, setIsDeletingMessage] = useState(false)
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -202,6 +218,10 @@ export function ChannelBroadcastOverlay({
       setCameraFacing("user")
       setBroadcastMessages([])
       setBroadcastMessageText("")
+      setEditingMessageId(null)
+      setEditingMessageText("")
+      setIsEditingMessage(false)
+      setIsDeletingMessage(false)
     },
     [destroyPeer]
   )
@@ -549,19 +569,14 @@ export function ChannelBroadcastOverlay({
         .catch(() => [])
       const currentTrack = currentStream.getVideoTracks()[0] ?? null
       const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
-      const currentDeviceIndex = videoDevices.findIndex(
-        (device) => device.deviceId && device.deviceId === currentDeviceId
-      )
-      const nextDevice =
+      const alternativeDeviceId =
         videoDevices.length > 1
-          ? videoDevices[
-              currentDeviceIndex >= 0 ? (currentDeviceIndex + 1) % videoDevices.length : 0
-            ] ?? null
+          ? videoDevices.find((device) => device.deviceId && device.deviceId !== currentDeviceId)
+              ?.deviceId ?? null
           : null
-      const replacementStream = await navigator.mediaDevices.getUserMedia({
-        video: nextDevice?.deviceId
-          ? { deviceId: { exact: nextDevice.deviceId } }
-          : { facingMode: nextFacing },
+      const replacementStream = await getReplacementCameraStream({
+        nextFacing,
+        currentDeviceId: alternativeDeviceId,
       })
       const replacementTrack = replacementStream.getVideoTracks()[0] ?? null
       if (!replacementTrack) {
@@ -582,6 +597,11 @@ export function ChannelBroadcastOverlay({
       }
 
       localStreamRef.current = new MediaStream([...audioTracks, replacementTrack])
+      for (const track of replacementStream.getTracks()) {
+        if (track.id !== replacementTrack.id) {
+          track.stop()
+        }
+      }
       syncLocalStreamToPeers(localStreamRef.current)
       setCameraFacing(nextFacing)
 
@@ -774,6 +794,92 @@ export function ChannelBroadcastOverlay({
       toast.error(error instanceof Error ? error.message : "Не удалось отправить сообщение в чат трансляции")
     } finally {
       setIsSendingMessage(false)
+    }
+  }
+
+  function beginEditingMessage(message: ChannelMessage) {
+    setEditingMessageId(message.id)
+    setEditingMessageText(message.content)
+  }
+
+  async function saveBroadcastMessage(messageId: number) {
+    const channelId = activeBroadcast?.channelId ?? null
+    const content = editingMessageText.trim()
+    if (!channelId || !content || isEditingMessage) {
+      return
+    }
+
+    setIsEditingMessage(true)
+
+    try {
+      const response = await fetch(`/api/channels/${channelId}/messages/${messageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      })
+      const data = (await response.json().catch(() => null)) as
+        | { message?: ChannelMessage; fieldErrors?: Record<string, string[]> }
+        | { message?: string }
+        | null
+
+      const updatedMessage =
+        data && "message" in data && data.message && typeof data.message !== "string"
+          ? data.message
+          : null
+      const validationMessage =
+        data && "fieldErrors" in data
+          ? Object.values(data.fieldErrors ?? {})
+              .flat()
+              .find((value): value is string => Boolean(value))
+          : null
+      const errorMessage =
+        data && "message" in data && typeof data.message === "string" ? data.message : null
+
+      if (!response.ok || !updatedMessage) {
+        throw new Error(errorMessage ?? validationMessage ?? "Не удалось обновить сообщение")
+      }
+
+      setBroadcastMessages((prev) =>
+        prev.map((message) => (message.id === messageId ? updatedMessage : message))
+      )
+      setEditingMessageId(null)
+      setEditingMessageText("")
+      toast.success("Комментарий обновлён")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось обновить сообщение")
+    } finally {
+      setIsEditingMessage(false)
+    }
+  }
+
+  async function deleteBroadcastMessage(messageId: number) {
+    const channelId = activeBroadcast?.channelId ?? null
+    if (!channelId || isDeletingMessage) {
+      return
+    }
+
+    setIsDeletingMessage(true)
+
+    try {
+      const response = await fetch(`/api/channels/${channelId}/messages/${messageId}`, {
+        method: "DELETE",
+      })
+      const data = (await response.json().catch(() => null)) as { message?: string } | null
+
+      if (!response.ok) {
+        throw new Error(data?.message ?? "Не удалось удалить сообщение")
+      }
+
+      setBroadcastMessages((prev) => prev.filter((message) => message.id !== messageId))
+      if (editingMessageId === messageId) {
+        setEditingMessageId(null)
+        setEditingMessageText("")
+      }
+      toast.success("Комментарий удалён")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить сообщение")
+    } finally {
+      setIsDeletingMessage(false)
     }
   }
 
@@ -992,27 +1098,95 @@ export function ChannelBroadcastOverlay({
                             key={message.id}
                             className="rounded-2xl border border-white/8 bg-white/4 px-3 py-2"
                           >
-                            <div className="flex items-center gap-2">
-                              <UserAvatar
-                                firstName={message.author.firstName}
-                                lastName={message.author.lastName}
-                                avatarTone={message.author.avatarTone}
-                                avatarUrl={message.author.avatarUrl}
-                                className="size-8 border border-white/10"
-                              />
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-medium text-white/90">
-                                  {`${message.author.firstName} ${message.author.lastName ?? ""}`.trim()}
-                                </p>
-                                <p className="text-[11px] text-white/50">
-                                  {new Date(message.createdAt).toLocaleTimeString("ru-RU", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </p>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <UserAvatar
+                                  firstName={message.author.firstName}
+                                  lastName={message.author.lastName}
+                                  avatarTone={message.author.avatarTone}
+                                  avatarUrl={message.author.avatarUrl}
+                                  className="size-8 border border-white/10"
+                                />
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-medium text-white/90">
+                                    {`${message.author.firstName} ${message.author.lastName ?? ""}`.trim()}
+                                  </p>
+                                  <p className="text-[11px] text-white/50">
+                                    {new Date(message.createdAt).toLocaleTimeString("ru-RU", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </p>
+                                </div>
                               </div>
+                              {message.author.id === currentUser.userId ? (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger
+                                    className="inline-flex size-8 items-center justify-center rounded-full border border-white/10 bg-black/20 text-white/70 hover:bg-white/10"
+                                    aria-label="Действия с комментарием"
+                                  >
+                                    <EllipsisVerticalIcon className="size-4" />
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-44">
+                                    {!message.attachment ? (
+                                      <DropdownMenuItem
+                                        disabled={isEditingMessage}
+                                        onClick={() => beginEditingMessage(message)}
+                                      >
+                                        Редактировать
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                    <DropdownMenuItem
+                                      variant="destructive"
+                                      disabled={isDeletingMessage}
+                                      onClick={() => void deleteBroadcastMessage(message.id)}
+                                    >
+                                      Удалить
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              ) : null}
                             </div>
-                            <p className="mt-2 break-words text-sm text-white/80">{message.content}</p>
+                            {editingMessageId === message.id ? (
+                              <div className="mt-2 space-y-2">
+                                <Input
+                                  value={editingMessageText}
+                                  onChange={(event) => setEditingMessageText(event.target.value)}
+                                  disabled={isEditingMessage}
+                                  className="border-white/10 bg-black/20 text-white"
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => void saveBroadcastMessage(message.id)}
+                                    disabled={isEditingMessage || !editingMessageText.trim()}
+                                  >
+                                    {isEditingMessage ? "Сохраняем..." : "Сохранить"}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingMessageId(null)
+                                      setEditingMessageText("")
+                                    }}
+                                  >
+                                    Отмена
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {message.content ? (
+                                  <p className="mt-2 break-words text-sm text-white/80">{message.content}</p>
+                                ) : null}
+                                <div className="mt-2">
+                                  <MessageAttachmentView attachment={message.attachment} compact />
+                                </div>
+                              </>
+                            )}
                           </div>
                         ))
                       ) : (

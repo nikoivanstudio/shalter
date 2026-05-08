@@ -13,243 +13,225 @@ export type LanguageDocSection = {
   code?: string
 }
 
-export const LANGUAGE_NAME = "Aster"
+export const LANGUAGE_NAME = "Shalter Bot Script"
 
 export const LANGUAGE_DOCS: LanguageDocSection[] = [
   {
     id: "spec",
-    title: "1. Базовая спецификация",
+    title: "1. Основа",
     summary:
-      "Aster — универсальный язык общего назначения с философией Python: читаемость, отступы, батарейки в комплекте и опциональная строгая типизация.",
+      "Shalter Bot Script — это Python-подобный язык сценариев для ботов. Он не притворяется отдельным общим языком программирования: это компактный DSL для правил, приветствия, fallback-ответов и эскалации.",
     bullets: [
-      "Синтаксис опирается на отступы, именованные аргументы, классы, интерфейсы, функции первого класса и pattern matching.",
-      "Асинхронность нативная: `async`, `await`, планировщик задач и structured concurrency встроены в рантайм.",
-      "Типизация динамическая по умолчанию, но `strict`-режим включает проверку аннотаций и контрактов на уровне компиляции.",
-      "Память управляется generational GC с аренами для короткоживущих объектов и zero-copy буферами для IO.",
-      "Пакетный менеджер `aster pkg` и окружения `aster venv` встроены в дистрибутив языка.",
+      "Синтаксис специально похож на Python: `from ... import ...`, вызовы методов, именованные аргументы, строки `\"...\"` и блоки `\"\"\"...\"\"\"`.",
+      "Точка входа всегда одна: `bot = ShalterBot(...)`.",
+      "Редактор и рантайм понимают комментарии `# ...`, обычные строки и raw-строки вида `r\"...\"`.",
+      "Каждый сценарий состоит из метаданных бота, системных блоков и набора правил обработки сообщений.",
     ],
     entries: [
       {
-        label: "fn",
-        signature: "fn parse(path: String) -> Json",
-        description: "Объявление функции с аннотациями и выводом типа там, где это безопасно.",
+        label: "import",
+        signature: "from shalter import ShalterBot",
+        description: "Подключает основной класс конструктора сценария.",
       },
       {
-        label: "class",
-        signature: "class Worker(Logger):",
-        description: "ООП с наследованием, протоколами и dataclass-подобными полями.",
+        label: "constructor",
+        signature: 'bot = ShalterBot(name=\"Support\", niche=\"Sales\", goal=\"Help\", tone=\"Calm\")',
+        description: "Создаёт бота и задаёт его имя, нишу, цель и тон общения.",
       },
       {
-        label: "async",
-        signature: "async fn fetch(url: String) -> Bytes",
-        description: "Нативные корутины без сторонних event-loop библиотек.",
+        label: "comment",
+        signature: "# pricing rules",
+        description: "Комментарии игнорируются парсером и нужны только для чтения сценария.",
       },
     ],
-    code: `module app.config
+    code: `from shalter import ShalterBot
 
-strict on
-
-class ReportService:
-    let base_url: String
-
-    fn init(base_url: String):
-        self.base_url = base_url
-
-    async fn build(day: Date) -> Map[String, Int]:
-        if day.is_weekend():
-            return {"requests": 0}
-
-        return {"requests": 42}`,
+bot = ShalterBot(
+    name="Support Bot",
+    niche="Product support",
+    goal="Help users quickly and clearly.",
+    tone="Calm and precise.",
+)`,
   },
   {
-    id: "stdlib",
-    title: "2. Стандартная библиотека",
+    id: "blocks",
+    title: "2. Системные блоки",
     summary:
-      "Aster — не DSL для ботов, а полноценный язык. Стандартная библиотека покрывает системное программирование, сеть, базы данных, конкурентность и обработку данных.",
+      "Системные блоки задают базовое поведение бота: приветствие, ограничения, эскалацию и fallback-ответ, если ни одно правило не подошло.",
     bullets: [
-      "Модули `fs`, `path`, `env`, `process`, `time`, `collections`, `json`, `yaml`, `regex`, `math`, `crypto` доступны из коробки.",
-      "Для сети встроены `http`, `websocket`, `rpc`, `dns`, `smtp`, `queue`, а для хранения — `sqlite`, `sql`, `cache`, `state`.",
-      "Многопоточность и фоновые задачи идут через `concurrency`, `actors`, `channels`, `sync`, `workers`.",
-      "Форматирование, логирование и observability закрывают `fmt`, `logger`, `metrics`, `trace`, `test`.",
+      "`bot.greeting(...)` задаёт первое сообщение.",
+      "`bot.guard(...)` или `bot.safety(...)` добавляет ограничения и важные правила поведения.",
+      "`bot.handoff(...)` или `bot.escalate(...)` описывает, когда надо передать диалог человеку.",
+      "`bot.default(...)` или `bot.reply(...)` задаёт ответ по умолчанию.",
     ],
     entries: [
       {
-        label: "http",
-        signature: "http.get(url, headers={})",
-        description: "Асинхронный HTTP-клиент с connection pooling и retry policies.",
+        label: "bot.greeting",
+        signature: 'bot.greeting("""Hello! How can I help?""")',
+        description: "Приветствие, которое пользователь видит при открытии бота.",
       },
       {
-        label: "sqlite",
-        signature: "sqlite.open(\"app.db\")",
-        description: "Встроенная работа с SQLite без внешнего драйвера.",
+        label: "bot.guard",
+        signature: 'bot.guard("""Do not invent prices or deadlines.""")',
+        description: "Ограничения и safety-правила, которые добавляются ко всем ответам.",
       },
       {
-        label: "fs",
-        signature: "fs.write_text(path, content)",
-        description: "Файловые операции с безопасными async-обёртками.",
+        label: "bot.default",
+        signature: 'bot.default("""Tell me a bit more and I will help.""")',
+        description: "Ответ, который используется, если ни одно правило не сработало.",
       },
     ],
-    code: `from aster import fs, http, json
+    code: `bot.greeting("""
+Hello! Describe the task and I will help.
+""")
 
-async fn mirror_config(url: String, file: Path):
-    response = await http.get(url)
-    payload = json.parse(response.text)
+bot.guard("""
+Do not invent prices, deadlines, or legal guarantees.
+""")
 
-    if payload["enabled"] == true:
-        await fs.write_text(file, json.stringify(payload, indent=2))`,
+bot.handoff("""
+Escalate payment disputes and нестандартные кейсы человеку.
+""")
+
+bot.default("""
+Tell me a bit more and I will suggest the next step.
+""")`,
   },
   {
-    id: "telegram",
-    title: "3. Встроенный модуль telegram",
+    id: "rules",
+    title: "3. Правила",
     summary:
-      "Главная суперсила Aster — стандартный модуль `telegram`, полностью покрывающий актуальный Telegram Bot API без установки сторонних пакетов.",
+      "Правила отвечают за маршрутизацию сообщений. В рантайме есть три базовые категории: поиск по ключевым словам, регулярные выражения и slash-команды.",
     bullets: [
-      "Каждый метод Bot API отображается 1:1 в `telegram.Bot`: `send_message`, `send_photo`, `edit_message_text`, `delete_message`, `answer_inline_query` и так далее.",
-      "Роутинг декларативный: `router.command`, `router.message`, `router.callback`, `router.inline`, `router.payment`, `router.webapp`.",
-      "FSM встроен в модуль и умеет хранить состояние в памяти, Redis-подобном `state` backend или SQL-хранилище.",
-      "Long-polling и webhook запускаются через единый `telegram.run(...)`, с graceful shutdown, автопереподключением и rate-limiting.",
+      "`bot.rule_contains(...)`, `bot.on_text(...)` и `bot.hears(...)` — это один и тот же тип правила по ключевым словам.",
+      "`bot.rule_regex(...)`, `bot.on_regex(...)` и `bot.matches(...)` — правила по регулярным выражениям.",
+      "`bot.command(...)` и `bot.on_command(...)` — правила для команд `/start`, `/help` и так далее.",
+      "Ответ правила хранится прямо во втором аргументе и обычно оформляется через `\"\"\"...\"\"\"`.",
     ],
     entries: [
       {
-        label: "telegram.Bot",
-        signature: "telegram.Bot(token: SecretString)",
-        description: "Низкоуровневый клиент со всеми методами Telegram Bot API.",
+        label: "bot.hears",
+        signature: 'bot.hears(["price", "cost"], """Pricing depends on the task.""")',
+        description: "Срабатывает, если сообщение содержит одно из ключевых слов.",
       },
       {
-        label: "telegram.Router",
-        signature: "telegram.Router(name=\"main\")",
-        description: "Декларативный роутер для команд, текста, callback query и inline-режима.",
+        label: "bot.matches",
+        signature: 'bot.matches(r"(payment|billing)", """I can help with billing.""", flags="i")',
+        description: "Срабатывает по регулярному выражению. `flags=\"i\"` включает ignore-case.",
       },
       {
-        label: "telegram.FSM",
-        signature: "telegram.FSM(storage=state.memory())",
-        description: "Машина состояний для многошаговых диалогов.",
-      },
-      {
-        label: "telegram.run",
-        signature: "telegram.run(bot, router, mode=\"webhook\")",
-        description: "Запуск polling/webhook с автонастройкой сервера и shutdown hooks.",
+        label: "bot.command",
+        signature: 'bot.command("start", """Welcome!""")',
+        description: "Обрабатывает slash-команду, например `/start`.",
       },
     ],
-    code: `from aster import telegram
+    code: `bot.hears(["price", "cost"], """
+Pricing depends on the task. Tell me what exactly you need.
+""")
 
-bot = telegram.Bot(token=env.secret("BOT_TOKEN"))
-router = telegram.Router(name="main")
-dialogs = telegram.FSM(storage=telegram.state.memory())
+bot.matches(r"(bug|error|не работает)", """
+This looks like a technical issue. Please describe the steps to reproduce it.
+""", flags="i")
 
-@router.command("start")
-async fn start(ctx: telegram.Context):
-    await ctx.reply("Привет! Я работаю на стандартной библиотеке telegram.")`,
+bot.command("help", """
+Describe the task, and I will route you to the right answer.
+""")`,
   },
   {
-    id: "runtime",
-    title: "4. Роутинг, FSM и middleware",
+    id: "aliases",
+    title: "4. Python-стиль",
     summary:
-      "Вокруг Telegram API строится полноценный runtime: цепочки middleware, фильтры, автоматические retry, лимиты и контекст выполнения.",
+      "В языке есть короткие и более Python-похожие алиасы. Это сделано, чтобы сценарии читались естественно для людей, которые привыкли к Python.",
     bullets: [
-      "Middleware бывают до роутинга, после роутинга и scoped — на конкретный router/group.",
-      "Фильтры компонуются через `all`, `any`, `not`, а также типизированные предикаты обновлений.",
-      "FSM-состояния описываются enum-классами и сериализуются в state storage автоматически.",
-      "Ошибки Telegram API попадают в типизированную иерархию исключений с политиками retry/backoff.",
+      "`bot.hears(...)` читается естественнее, чем `bot.rule_contains(...)`.",
+      "`bot.matches(...)` и `bot.on_regex(...)` удобнее, чем более техническое имя `bot.rule_regex(...)`.",
+      "`bot.reply(...)` можно использовать как короткий alias для `bot.default(...)`.",
+      "`bot.escalate(...)` можно использовать как alias для `bot.handoff(...)`.",
     ],
     entries: [
       {
-        label: "@router.middleware",
-        signature: "@router.middleware(stage=\"before\")",
-        description: "Подключение цепочки обработки контекста до исполнения handler.",
+        label: "keyword aliases",
+        signature: "bot.rule_contains == bot.on_text == bot.hears",
+        description: "Три имени для одного и того же keyword-правила.",
       },
       {
-        label: "ctx.state",
-        signature: "await ctx.state.set(Form.waiting_email)",
-        description: "Управление состояниями диалога и временными данными пользователя.",
+        label: "regex aliases",
+        signature: "bot.rule_regex == bot.on_regex == bot.matches",
+        description: "Три имени для одного и того же regex-правила.",
       },
       {
-        label: "telegram.filters",
-        signature: "telegram.filters.command(\"start\")",
-        description: "Набор встроенных фильтров для команд, текста, callback и чатов.",
+        label: "fallback/handoff aliases",
+        signature: "bot.reply == bot.default, bot.escalate == bot.handoff",
+        description: "Удобные псевдонимы для более читаемого стиля.",
       },
     ],
-    code: `enum CheckoutState:
-    waiting_email
-    waiting_confirm
+    code: `# These pairs are equivalent:
+bot.reply("""Fallback answer.""")
+bot.default("""Fallback answer.""")
 
-@router.message(text=True)
-async fn collect_email(ctx: telegram.Context):
-    if await ctx.state.is_(CheckoutState.waiting_email):
-        await ctx.state.data.set("email", ctx.message.text)
-        await ctx.state.set(CheckoutState.waiting_confirm)
-        await ctx.reply("Подтвердите заказ кнопкой ниже.")`,
+bot.escalate("""Pass complex cases to a human.""")
+bot.handoff("""Pass complex cases to a human.""")
+
+bot.hears(["manager"], """I can connect you to a human.""")
+bot.on_text(["manager"], """I can connect you to a human.""")`,
   },
   {
     id: "examples",
-    title: "5. Примеры кода",
+    title: "5. Полный пример",
     summary:
-      "Документация языка должна показывать не только Telegram, но и обычные прикладные задачи: HTTP, JSON, файлы, БД и конкурентность.",
+      "Ниже — рабочий пример сценария в том стиле, который реально поддерживается редактором, автодополнением и рантаймом Shalter.",
     bullets: [
-      "Пример общего назначения: JSON + async HTTP + запись результата в файл.",
-      "Пример Telegram-бота: команды, кнопки, callback query, FSM и отправка фото.",
-      "Пример production-обвязки: middleware, логирование, обработка ошибок, graceful shutdown.",
+      "Импортируем `ShalterBot`.",
+      "Создаём объект `bot`.",
+      "Задаём greeting, guard, handoff и default.",
+      "Добавляем keyword-, regex- и command-правила.",
     ],
     entries: [
       {
-        label: "Example 1",
-        signature: "async fn fetch_report()",
-        description: "Работа с HTTP, JSON и файловой системой.",
-      },
-      {
-        label: "Example 2",
-        signature: "@router.inline()",
-        description: "Inline mode, клавиатуры и media replies.",
-      },
-      {
-        label: "Example 3",
-        signature: "runtime.on_shutdown(...)",
-        description: "Очистка ресурсов и controlled shutdown.",
+        label: "working program",
+        signature: "ready-to-publish script",
+        description: "Такой сценарий можно вставить в редактор и сразу опубликовать.",
       },
     ],
-    code: `async fn sync_feed():
-    response = await http.get("https://api.example.com/feed")
-    items = json.parse(response.text)
-    await fs.write_text("feed.json", json.stringify(items, indent=2))
+    code: `from shalter import ShalterBot
 
-@router.callback("buy")
-async fn buy_now(ctx: telegram.Context):
-    await ctx.answer("Переходим к оплате")
-    await ctx.reply_photo("catalog/item.png", caption="Ваш товар")`,
-  },
-  {
-    id: "deploy",
-    title: "6. Реализация и деплой",
-    summary:
-      "Aster задуман как байткодный язык с JIT-оптимизацией горячих участков и быстрым сетевым рантаймом, чтобы Telegram был встроенной сильной стороной, а не внешним фреймворком.",
-    bullets: [
-      "Компиляция идёт в байткод Aster VM, затем горячие пути могут JIT-компилироваться в нативный код.",
-      "FFI позволяет подключать C/Rust-библиотеки через безопасные binding-модули.",
-      "Кроссплатформенность целится в Linux, macOS и Windows, плюс минимальный контейнерный runtime для серверов.",
-      "Деплой выглядит как `aster build` или `aster run bot.ast`, без отдельных зависимостей для Telegram-части.",
-    ],
-    entries: [
-      {
-        label: "aster pkg",
-        signature: "aster pkg add redis",
-        description: "Установка сторонних пакетов и привязка lockfile.",
-      },
-      {
-        label: "aster run",
-        signature: "aster run app.ast",
-        description: "Запуск приложения в dev/runtime режиме.",
-      },
-      {
-        label: "aster build",
-        signature: "aster build --target linux-x64",
-        description: "Сборка self-contained артефакта для деплоя.",
-      },
-    ],
-    code: `# build.aster
-target "linux-x64"
-entry "bot/main.ast"
-optimize "balanced"
-embed stdlib.telegram
-`,
+bot = ShalterBot(
+    name="Sales Assistant",
+    niche="Sales and support",
+    goal="Understand the request and move the user to the next step.",
+    tone="Friendly, calm, and precise.",
+)
+
+bot.greeting("""
+Hello! I am the Shalter bot. Tell me what you need, and I will help.
+""")
+
+bot.guard("""
+Do not invent prices, deadlines, or legal promises without confirmation.
+""")
+
+bot.hears(["hello", "hi", "привет"], """
+Hello! I can help with product info, pricing, contacts, and next steps.
+""")
+
+bot.rule_contains(["price", "cost", "тариф"], """
+Pricing depends on the task. Describe what you need, and I will guide you.
+""")
+
+bot.matches(r"(bug|error|не работает)", """
+This looks like a technical issue. Please describe what broke and how to reproduce it.
+""", flags="i")
+
+bot.command("help", """
+Describe your task in one message, and I will suggest the next step.
+""")
+
+bot.handoff("""
+If the case is нестандартный, payment-related, or conflict-heavy, pass it to a human.
+""")
+
+bot.default("""
+Tell me a bit more, and I will help you move forward.
+""")`,
   },
 ]

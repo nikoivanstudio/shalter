@@ -34,13 +34,7 @@ export type ViewedContactProfile = {
 }
 
 export async function getViewedContactProfile(viewerUserId: number, contactUserId: number) {
-  if (contactUserId === viewerUserId) {
-    return {
-      ok: false as const,
-      status: 400,
-      message: "Откройте свой профиль в настройках",
-    }
-  }
+  const isSelfProfile = contactUserId === viewerUserId
 
   const [requester, user, blacklistEntry, isViewerInContacts] = await Promise.all([
     prisma.user.findUnique({
@@ -120,7 +114,7 @@ export async function getViewedContactProfile(viewerUserId: number, contactUserI
     }
   }
 
-  const isPrivilegedViewer = hasAdministrativeAccess(requester?.role)
+  const isPrivilegedViewer = isSelfProfile || hasAdministrativeAccess(requester?.role)
   const canViewByPrivacy =
     isPrivilegedViewer || user.profileVisibility === "everyone" || Boolean(isViewerInContacts)
 

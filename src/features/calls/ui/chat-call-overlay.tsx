@@ -18,6 +18,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { getReplacementCameraStream } from "@/shared/lib/media/camera"
 import { UserAvatar } from "@/shared/ui/user-avatar"
 
 type CallMediaMode = "audio" | "video"
@@ -244,7 +245,6 @@ export function ChatCallOverlay({
   contacts,
   dialogs,
   selectedDialogId,
-  initialAutoStartCall = null,
   autoAnswerIncoming = false,
   startRequest = null,
 }: {
@@ -256,7 +256,6 @@ export function ChatCallOverlay({
     users: CallUser[]
   }>
   selectedDialogId: number | null
-  initialAutoStartCall?: CallMediaMode | null
   autoAnswerIncoming?: boolean
   startRequest?: { media: CallMediaMode; nonce: number } | null
 }) {
@@ -283,7 +282,6 @@ export function ChatCallOverlay({
   const iceServersRequestRef = useRef<Promise<IceServerConfig[]> | null>(null)
   const activeCallRef = useRef<CallSnapshot | null>(null)
   const incomingCallRef = useRef<CallSnapshot | null>(null)
-  const autoStartDoneRef = useRef(false)
   const autoAnswerHandledRef = useRef(false)
   const lastHandledStartRequestNonceRef = useRef<number | null>(null)
   const startCallEffect = useEffectEvent((media: CallMediaMode) => {
@@ -409,10 +407,6 @@ export function ChatCallOverlay({
   }, [stopIncomingTone])
 
   useEffect(() => {
-    autoStartDoneRef.current = false
-  }, [initialAutoStartCall, selectedDialogId])
-
-  useEffect(() => {
     autoAnswerHandledRef.current = false
   }, [autoAnswerIncoming, selectedDialogId])
 
@@ -423,22 +417,6 @@ export function ChatCallOverlay({
       setIsInvitingParticipants(false)
     }
   }, [activeCall])
-
-  useEffect(() => {
-    if (
-      autoStartDoneRef.current ||
-      !initialAutoStartCall ||
-      !selectedDialogId ||
-      activeCall ||
-      incomingCall ||
-      isConnecting
-    ) {
-      return
-    }
-
-    autoStartDoneRef.current = true
-    startCallEffect(initialAutoStartCall)
-  }, [activeCall, incomingCall, initialAutoStartCall, isConnecting, selectedDialogId])
 
   useEffect(() => {
     if (
@@ -900,21 +878,14 @@ export function ChatCallOverlay({
         .catch(() => [])
       const currentTrack = currentStream.getVideoTracks()[0] ?? null
       const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
-      const currentDeviceIndex = videoDevices.findIndex(
-        (device) => device.deviceId && device.deviceId === currentDeviceId
-      )
-      const nextDevice =
+      const alternativeDeviceId =
         videoDevices.length > 1
-          ? videoDevices[
-              currentDeviceIndex >= 0
-                ? (currentDeviceIndex + 1) % videoDevices.length
-                : 0
-            ] ?? null
+          ? videoDevices.find((device) => device.deviceId && device.deviceId !== currentDeviceId)
+              ?.deviceId ?? null
           : null
-      const replacementStream = await navigator.mediaDevices.getUserMedia({
-        video: nextDevice?.deviceId
-          ? { deviceId: { exact: nextDevice.deviceId } }
-          : { facingMode: nextFacing },
+      const replacementStream = await getReplacementCameraStream({
+        nextFacing,
+        currentDeviceId: alternativeDeviceId,
       })
 
       const replacementTrack = replacementStream.getVideoTracks()[0] ?? null
@@ -937,6 +908,11 @@ export function ChatCallOverlay({
       }
 
       localStreamRef.current = new MediaStream([...audioTracks, replacementTrack])
+      for (const track of replacementStream.getTracks()) {
+        if (track.id !== replacementTrack.id) {
+          track.stop()
+        }
+      }
       syncLocalStreamToPeers(localStreamRef.current)
       setCameraFacing(nextFacing)
       forceLocalStreamRender((value) => value + 1)

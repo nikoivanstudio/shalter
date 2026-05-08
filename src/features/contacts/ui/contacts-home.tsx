@@ -93,6 +93,39 @@ export function ContactsHome({
   const canManageRoles = canAssignManagedRole(user.role)
 
   useEffect(() => {
+    if (openContactMenuId === null) {
+      return
+    }
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target
+      if (!(target instanceof HTMLElement)) {
+        return
+      }
+
+      if (target.closest("[data-contact-actions-menu='true']")) {
+        return
+      }
+
+      setOpenContactMenuId(null)
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenContactMenuId(null)
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("keydown", handleEscape)
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("keydown", handleEscape)
+    }
+  }, [openContactMenuId])
+
+  useEffect(() => {
     const searchValue = deferredQuery.trim()
     if (!searchValue) {
       return
@@ -173,7 +206,6 @@ export function ContactsHome({
         return
       }
 
-      setOpenContactMenuId(null)
       setContacts((prev) => prev.filter((item) => item.id !== contactUserId))
       setSearchResults((prev) =>
         prev.map((item) =>
@@ -198,7 +230,6 @@ export function ContactsHome({
         return
       }
 
-      setOpenContactMenuId(null)
       const blockedUser = data.blockedUser as ContactUser
       setBlacklist((prev) => {
         if (prev.some((item) => item.id === blockedUser.id)) {
@@ -282,7 +313,6 @@ export function ContactsHome({
       }
 
       applyRoleUpdate(data.user as ContactUser)
-      setOpenContactMenuId(null)
       setRoleUpdateUserId(null)
       toast.success(tr("Статус блокировки обновлён"))
     })
@@ -314,7 +344,6 @@ export function ContactsHome({
       }
 
       applyRoleUpdate(data.user as ContactUser)
-      setOpenContactMenuId(null)
       setRoleUpdateUserId(null)
       toast.success(tr("Роль обновлена"))
     })
@@ -381,7 +410,10 @@ export function ContactsHome({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button variant="outline" onClick={() => openProfile(user.id)}>
+                {tr("РњРѕР№ РїСЂРѕС„РёР»СЊ")}
+              </Button>
               <LanguageToggle />
               <ThemeToggle />
               <LogoutButton />
@@ -414,6 +446,7 @@ export function ContactsHome({
             <ContactProfileCard
               profile={selectedProfile}
               isLoading={isProfileLoading}
+              viewerUserId={user.id}
               onClose={() => {
                 setSelectedProfile(null)
                 setIsProfileLoading(false)
@@ -643,7 +676,7 @@ export function ContactsHome({
                     >
                       {tr("Профиль")}
                     </Button>
-                    <div className="relative">
+                    <div className="relative" data-contact-actions-menu="true">
                       <button
                         type="button"
                         className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
@@ -658,11 +691,48 @@ export function ContactsHome({
                         <EllipsisVerticalIcon className="size-4" />
                       </button>
                       {openContactMenuId === contact.id && (
-                        <div className="absolute right-0 top-11 z-20 min-w-44 rounded-2xl border border-border bg-popover/96 p-1.5 shadow-xl backdrop-blur-xl">
+                        <div className="absolute right-0 top-11 z-20 min-w-52 rounded-2xl border border-border bg-popover/96 p-1.5 shadow-xl backdrop-blur-xl">
                           <button
                             type="button"
                             className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={() => removeContact(contact.id)}
+                            onClick={() => {
+                              setOpenContactMenuId(null)
+                              openProfile(contact.id)
+                            }}
+                            disabled={isPending}
+                          >
+                            {tr("РџСЂРѕС„РёР»СЊ")}
+                          </button>
+                          <button
+                            type="button"
+                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => {
+                              setOpenContactMenuId(null)
+                              openChatWithCall(contact.id, "audio")
+                            }}
+                            disabled={isPending}
+                          >
+                            {tr("РђСѓРґРёРѕР·РІРѕРЅРѕРє")}
+                          </button>
+                          <button
+                            type="button"
+                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => {
+                              setOpenContactMenuId(null)
+                              openChatWithCall(contact.id, "video")
+                            }}
+                            disabled={isPending}
+                          >
+                            {tr("Р’РёРґРµРѕР·РІРѕРЅРѕРє")}
+                          </button>
+                          <div className="my-1 h-px bg-border/70" />
+                          <button
+                            type="button"
+                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => {
+                              setOpenContactMenuId(null)
+                              removeContact(contact.id)
+                            }}
                             disabled={isPending}
                           >
                             {tr("Удалить контакт")}
@@ -670,11 +740,14 @@ export function ContactsHome({
                           <button
                             type="button"
                             className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={() =>
-                              blacklist.some((item) => item.id === contact.id)
-                                ? removeFromBlacklist(contact.id)
-                                : addToBlacklist(contact.id)
-                            }
+                            onClick={() => {
+                              setOpenContactMenuId(null)
+                              if (blacklist.some((item) => item.id === contact.id)) {
+                                removeFromBlacklist(contact.id)
+                              } else {
+                                addToBlacklist(contact.id)
+                              }
+                            }}
                             disabled={isPending}
                           >
                             {blacklist.some((item) => item.id === contact.id)
@@ -692,7 +765,10 @@ export function ContactsHome({
                                   key={roleOption.role}
                                   type="button"
                                   className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                                  onClick={() => updateUserRole(contact.id, roleOption.role)}
+                                  onClick={() => {
+                                    setOpenContactMenuId(null)
+                                    updateUserRole(contact.id, roleOption.role)
+                                  }}
                                   disabled={isPending || roleUpdateUserId === contact.id}
                                 >
                                   {roleUpdateUserId === contact.id
@@ -703,9 +779,10 @@ export function ContactsHome({
                               <button
                                 type="button"
                                 className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
-                                onClick={() =>
+                                onClick={() => {
+                                  setOpenContactMenuId(null)
                                   updateUserBlockedState(contact.id, !contact.isBlocked)
-                                }
+                                }}
                                 disabled={isPending || roleUpdateUserId === contact.id}
                               >
                                 {roleUpdateUserId === contact.id

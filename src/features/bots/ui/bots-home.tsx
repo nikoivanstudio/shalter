@@ -259,7 +259,7 @@ export function BotsHome({
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4">
         <Card className="border-border/70">
           <CardHeader>
-            <CardTitle>{LANGUAGE_NAME} Language Studio</CardTitle>
+            <CardTitle>{LANGUAGE_NAME} Studio</CardTitle>
             <CardDescription>
               {user.firstName}, справа от редактора теперь находится полная документация нового
               универсального языка. Telegram рассматривается как суперсила стандартной библиотеки,
@@ -392,10 +392,10 @@ export function BotsHome({
                         <code>async fn fetch()</code>
                       </p>
                       <p>
-                        <code>from aster import http, fs, json</code>
+                        <code>from shalter import ShalterBot</code>
                       </p>
                       <p>
-                        <code>from aster import telegram</code>
+                        <code>bot = ShalterBot(...)</code>
                       </p>
                       <p>
                         <code>router.command(&quot;start&quot;)</code>, <code>ctx.reply(...)</code>
