@@ -292,7 +292,7 @@ export function ChannelsHome({
   }
 
   function openChatWithCall(contactId: number, media: "audio" | "video") {
-    router.push(`/chats?contactId=${contactId}&startCall=${media}`)
+    location.assign(`/chats?contactId=${contactId}&startCall=${media}`)
   }
 
   function createChannel() {

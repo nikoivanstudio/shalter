@@ -123,10 +123,6 @@ async function clearUserAccountData(userId: number) {
   return true
 }
 
-function generateRecoveryCode() {
-  return String(Math.floor(100000 + Math.random() * 900000))
-}
-
 export async function registerUser(input: {
   email: string
   password: string
@@ -322,62 +318,10 @@ export async function loginUser(input: {
   }
 }
 
-export async function requestRecoveryCode(input: { phone: string }) {
-  const phone = input.phone.trim()
-  const user = await prisma.user.findUnique({
-    where: { phone },
-    select: {
-      id: true,
-      email: true,
-      phone: true,
-    },
-  })
-
-  if (!user) {
-    return { ok: true as const }
-  }
-
-  const code = generateRecoveryCode()
-  const expirationTime = Date.now() + 10 * 60 * 1000
-
-  await prisma.$transaction(async (tx) => {
-    await tx.otp.deleteMany({
-      where: { phone },
-    })
-
-    await tx.otp.create({
-      data: {
-        email: user.email,
-        phone,
-        code: Number(code),
-        expiredAt: expirationTime,
-      },
-    })
-  })
-
-  return { ok: true as const }
-}
-
 export async function recoverUserAccount(input: {
   phone: string
-  code: string
 }): Promise<AuthResult> {
   const phone = input.phone.trim()
-  const otp = await prisma.otp.findFirst({
-    where: {
-      phone,
-      code: Number(input.code),
-    },
-    select: {
-      id: true,
-      expiredAt: true,
-    },
-  })
-
-  if (!otp || otp.expiredAt < Date.now()) {
-    return { ok: false, status: 401, message: "Неверный или просроченный код" }
-  }
-
   const user = await prisma.user.findUnique({
     where: { phone },
     select: {
@@ -387,19 +331,12 @@ export async function recoverUserAccount(input: {
   })
 
   if (!user) {
-    await prisma.otp.deleteMany({
-      where: { phone },
-    })
-    return { ok: false, status: 404, message: "Аккаунт не найден" }
+    return { ok: false, status: 404, message: "?????????????? ???? ????????????" }
   }
-
-  await prisma.otp.deleteMany({
-    where: { phone },
-  })
 
   const cleared = await clearUserAccountData(user.id)
   if (!cleared) {
-    return { ok: false, status: 404, message: "Аккаунт не найден" }
+    return { ok: false, status: 404, message: "?????????????? ???? ????????????" }
   }
 
   return {

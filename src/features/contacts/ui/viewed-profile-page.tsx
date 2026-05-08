@@ -86,7 +86,7 @@ export function ViewedProfilePage({ profile }: { profile: ViewedContactProfile }
                   <div className="flex flex-wrap gap-2">
                     <StatPill label="Подарков" value={String(profile.gifts.length)} />
                     <StatPill
-                      label="Партнёрские звёзды"
+                      label="Партнерские звезды"
                       value={String(profile.partnerStarsEarned)}
                     />
                   </div>
@@ -110,7 +110,9 @@ export function ViewedProfilePage({ profile }: { profile: ViewedContactProfile }
                   Пользователь скрыл подарки в настройках приватности.
                 </p>
               ) : profile.gifts.length === 0 ? (
-                <p className="mt-4 text-sm text-muted-foreground">Пока нет полученных подарков.</p>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Пока нет полученных подарков.
+                </p>
               ) : (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {profile.gifts.map((gift) => {
@@ -169,7 +171,7 @@ export function ViewedProfilePage({ profile }: { profile: ViewedContactProfile }
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => router.push(`/chats?contactId=${profile.id}&startCall=audio`)}
+                  onClick={() => location.assign(`/chats?contactId=${profile.id}&startCall=audio`)}
                 >
                   <PhoneCallIcon className="size-4" />
                   Аудиозвонок
@@ -177,7 +179,7 @@ export function ViewedProfilePage({ profile }: { profile: ViewedContactProfile }
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => router.push(`/chats?contactId=${profile.id}&startCall=video`)}
+                  onClick={() => location.assign(`/chats?contactId=${profile.id}&startCall=video`)}
                 >
                   <VideoIcon className="size-4" />
                   Видеозвонок

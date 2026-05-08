@@ -20,11 +20,6 @@ export const recoveryPhoneSchema = z.object({
   phone: phoneSchema,
 })
 
-export const recoveryCodeSchema = z.object({
-  phone: phoneSchema,
-  code: z.string().trim().regex(/^\d{6}$/, "Введите код из 6 цифр"),
-})
-
 export const registerSchema = z
   .object({
     email: z.email("Укажите корректный email"),
@@ -57,4 +52,3 @@ export const registerSchema = z
 export type LoginInput = z.infer<typeof loginSchema>
 export type RegisterInput = z.infer<typeof registerSchema>
 export type RecoveryPhoneInput = z.infer<typeof recoveryPhoneSchema>
-export type RecoveryCodeInput = z.infer<typeof recoveryCodeSchema>

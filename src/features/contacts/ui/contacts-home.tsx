@@ -212,7 +212,7 @@ export function ContactsHome({
           item.id === contactUserId ? { ...item, isAlreadyContact: false } : item
         )
       )
-      toast.success(tr("Контакт удалён"))
+      toast.success(tr("Контакт удален"))
     })
   }
 
@@ -226,7 +226,7 @@ export function ContactsHome({
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось добавить пользователя в чёрный список"))
+        toast.error(tr(data?.message ?? "Не удалось добавить пользователя в черный список"))
         return
       }
 
@@ -246,7 +246,7 @@ export function ContactsHome({
             : item
         )
       )
-      toast.success(tr("Пользователь добавлен в чёрный список"))
+      toast.success(tr("Пользователь добавлен в черный список"))
     })
   }
 
@@ -260,7 +260,7 @@ export function ContactsHome({
 
       const data = await response.json().catch(() => null)
       if (!response.ok) {
-        toast.error(tr(data?.message ?? "Не удалось удалить пользователя из чёрного списка"))
+        toast.error(tr(data?.message ?? "Не удалось удалить пользователя из черного списка"))
         return
       }
 
@@ -270,7 +270,7 @@ export function ContactsHome({
           item.id === blockedUserId ? { ...item, isBlacklisted: false } : item
         )
       )
-      toast.success(tr("Пользователь удалён из чёрного списка"))
+      toast.success(tr("Пользователь удален из черного списка"))
     })
   }
 
@@ -314,7 +314,7 @@ export function ContactsHome({
 
       applyRoleUpdate(data.user as ContactUser)
       setRoleUpdateUserId(null)
-      toast.success(tr("Статус блокировки обновлён"))
+      toast.success(tr("Статус блокировки обновлен"))
     })
   }
 
@@ -374,7 +374,7 @@ export function ContactsHome({
   }
 
   function openChatWithCall(contactId: number, media: "audio" | "video") {
-    router.push(`/chats?contactId=${contactId}&startCall=${media}`)
+    location.assign(`/chats?contactId=${contactId}&startCall=${media}`)
   }
 
   return (
@@ -412,7 +412,7 @@ export function ContactsHome({
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button variant="outline" onClick={() => openProfile(user.id)}>
-                {tr("РњРѕР№ РїСЂРѕС„РёР»СЊ")}
+                {tr("Мой профиль")}
               </Button>
               <LanguageToggle />
               <ThemeToggle />
@@ -425,23 +425,24 @@ export function ContactsHome({
           <CardHeader className="border-b border-border/55 pb-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-2xl font-semibold tracking-tight">{tr("Контакты")}</CardTitle>
+                <CardTitle className="text-2xl font-semibold tracking-tight">
+                  {tr("Контакты")}
+                </CardTitle>
                 <CardDescription>
                   {tr("Поиск пользователей по имени или телефону и добавление в свои контакты.")}
                 </CardDescription>
-                {canManageRoles && (
+                {canManageRoles ? (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {tr(
-                      "Администратор может назначать базовый, премиум и developer-статус пользователям."
-                    )}
+                    {tr("Администратор может назначать базовый, premium и developer-статус пользователям.")}
                   </p>
-                )}
+                ) : null}
               </div>
               <Button variant="outline" onClick={() => router.push("/blacklist")}>
-                {tr("Открыть чёрный список")}
+                {tr("Открыть черный список")}
               </Button>
             </div>
           </CardHeader>
+
           <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden pt-6">
             <ContactProfileCard
               profile={selectedProfile}
@@ -458,37 +459,37 @@ export function ContactsHome({
 
             <div className="rounded-[1.5rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.8))] p-3 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.78),rgba(15,23,42,0.72))]">
               <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {tr("РџРѕРёСЃРє")}
+                {tr("Поиск")}
               </p>
-            <Input
-              value={query}
-              onChange={(e) => {
-                const nextQuery = e.target.value
-                setQuery(nextQuery)
+              <Input
+                value={query}
+                onChange={(event) => {
+                  const nextQuery = event.target.value
+                  setQuery(nextQuery)
 
-                if (!nextQuery.trim()) {
-                  setSearchResults([])
-                  setLastCompletedQuery("")
-                }
-              }}
-              className="border-white/55 bg-background/80 shadow-sm dark:border-white/10"
-              placeholder={tr("Введите имя или телефон")}
-            />
+                  if (!nextQuery.trim()) {
+                    setSearchResults([])
+                    setLastCompletedQuery("")
+                  }
+                }}
+                className="border-white/55 bg-background/80 shadow-sm dark:border-white/10"
+                placeholder={tr("Введите имя или телефон")}
+              />
             </div>
 
-            {query.trim().length > 0 && (
+            {query.trim().length > 0 ? (
               <div className="min-h-0 space-y-2">
-                {isSearching && (
+                {isSearching ? (
                   <p className="text-sm text-muted-foreground">{tr("Ищем пользователей...")}</p>
-                )}
+                ) : null}
 
-                {!isSearching && searchResults.length === 0 && (
+                {!isSearching && searchResults.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     {tr("По вашему запросу ничего не найдено.")}
                   </p>
-                )}
+                ) : null}
 
-                {!isSearching && (
+                {!isSearching ? (
                   <div className="max-h-[32dvh] space-y-2 overflow-y-auto pr-1">
                     {searchResults.map((item) => (
                       <div
@@ -505,23 +506,24 @@ export function ContactsHome({
                           />
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate font-medium">
-                              {item.firstName} {item.lastName}
+                              <p className="truncate font-medium">
+                                {item.firstName} {item.lastName}
+                              </p>
+                              <CountryFlagBadge phone={item.phone} />
+                              <AccountStatusBadge
+                                role={item.role}
+                                email={item.email}
+                                firstName={item.firstName}
+                                lastName={item.lastName}
+                                isBlocked={item.isBlocked}
+                              />
+                            </div>
+                            <p className="truncate text-sm text-muted-foreground">
+                              {item.phone} · {item.email}
                             </p>
-                            <CountryFlagBadge phone={item.phone} />
-                            <AccountStatusBadge
-                              role={item.role}
-                              email={item.email}
-                              firstName={item.firstName}
-                              lastName={item.lastName}
-                              isBlocked={item.isBlocked}
-                            />
-                          </div>
-                          <p className="truncate text-sm text-muted-foreground">
-                            {item.phone} · {item.email}
-                          </p>
                           </div>
                         </div>
+
                         <div className="flex flex-wrap gap-2">
                           <Button
                             variant="outline"
@@ -565,7 +567,8 @@ export function ContactsHome({
                             {item.isBlacklisted ? tr("Убрать из ЧС") : tr("В ЧС")}
                           </Button>
                         </div>
-                        {canManageRoles && item.id !== user.id && (
+
+                        {canManageRoles && item.id !== user.id ? (
                           <div className="w-full rounded-[1.15rem] border border-white/45 bg-card/76 p-2.5 dark:border-white/8">
                             <p className="mb-2 text-xs font-medium text-muted-foreground">
                               {tr("Управление ролями")}
@@ -600,211 +603,217 @@ export function ContactsHome({
                               </Button>
                             </div>
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     ))}
                   </div>
-                )}
+                ) : null}
               </div>
-            )}
+            ) : null}
 
             <div className="flex min-h-0 flex-1 flex-col space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground">{tr("Мои контакты")}</h3>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                {contacts.length === 0 && (
+                {contacts.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{tr("Контактов пока нет.")}</p>
-                )}
-                {contacts.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className="flex items-center justify-between gap-3 rounded-[1.45rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3.5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/20 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))]"
-                  >
-                    <button
-                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                      onClick={() => router.push(`/chats?contactId=${contact.id}`)}
+                ) : null}
+
+                {contacts.map((contact) => {
+                  const isBlacklisted = blacklist.some((item) => item.id === contact.id)
+
+                  return (
+                    <div
+                      key={contact.id}
+                      className="flex items-center justify-between gap-3 rounded-[1.45rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3.5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/20 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))]"
                     >
-                      <UserAvatar
-                        firstName={contact.firstName}
-                        lastName={contact.lastName}
-                        avatarTone={contact.avatarTone}
-                        avatarUrl={contact.avatarUrl}
-                        className="size-11 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">
-                          {contact.firstName} {contact.lastName}
-                        </p>
-                        <CountryFlagBadge phone={contact.phone} />
-                        <AccountStatusBadge
-                          role={contact.role}
-                          email={contact.email}
+                      <button
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                        onClick={() => router.push(`/chats?contactId=${contact.id}`)}
+                      >
+                        <UserAvatar
                           firstName={contact.firstName}
                           lastName={contact.lastName}
-                          isBlocked={contact.isBlocked}
+                          avatarTone={contact.avatarTone}
+                          avatarUrl={contact.avatarUrl}
+                          className="size-11 shrink-0"
                         />
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {contact.phone} · {contact.email}
-                      </p>
-                      </div>
-                    </button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openChatWithCall(contact.id, "audio")}
-                      disabled={isPending}
-                    >
-                      <PhoneCallIcon className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openChatWithCall(contact.id, "video")}
-                      disabled={isPending}
-                    >
-                      <VideoIcon className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openProfile(contact.id)}
-                      disabled={isPending}
-                    >
-                      {tr("Профиль")}
-                    </Button>
-                    <div className="relative" data-contact-actions-menu="true">
-                      <button
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">
+                              {contact.firstName} {contact.lastName}
+                            </p>
+                            <CountryFlagBadge phone={contact.phone} />
+                            <AccountStatusBadge
+                              role={contact.role}
+                              email={contact.email}
+                              firstName={contact.firstName}
+                              lastName={contact.lastName}
+                              isBlocked={contact.isBlocked}
+                            />
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {contact.phone} · {contact.email}
+                          </p>
+                        </div>
+                      </button>
+
+                      <Button
                         type="button"
-                        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-                        aria-label={tr("Действия с контактом")}
-                        onClick={() =>
-                          setOpenContactMenuId((prev) =>
-                            prev === contact.id ? null : contact.id
-                          )
-                        }
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openChatWithCall(contact.id, "audio")}
                         disabled={isPending}
                       >
-                        <EllipsisVerticalIcon className="size-4" />
-                      </button>
-                      {openContactMenuId === contact.id && (
-                        <div className="absolute right-0 top-11 z-20 min-w-52 rounded-2xl border border-border bg-popover/96 p-1.5 shadow-xl backdrop-blur-xl">
-                          <button
-                            type="button"
-                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={() => {
-                              setOpenContactMenuId(null)
-                              openProfile(contact.id)
-                            }}
-                            disabled={isPending}
-                          >
-                            {tr("РџСЂРѕС„РёР»СЊ")}
-                          </button>
-                          <button
-                            type="button"
-                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={() => {
-                              setOpenContactMenuId(null)
-                              openChatWithCall(contact.id, "audio")
-                            }}
-                            disabled={isPending}
-                          >
-                            {tr("РђСѓРґРёРѕР·РІРѕРЅРѕРє")}
-                          </button>
-                          <button
-                            type="button"
-                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={() => {
-                              setOpenContactMenuId(null)
-                              openChatWithCall(contact.id, "video")
-                            }}
-                            disabled={isPending}
-                          >
-                            {tr("Р’РёРґРµРѕР·РІРѕРЅРѕРє")}
-                          </button>
-                          <div className="my-1 h-px bg-border/70" />
-                          <button
-                            type="button"
-                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={() => {
-                              setOpenContactMenuId(null)
-                              removeContact(contact.id)
-                            }}
-                            disabled={isPending}
-                          >
-                            {tr("Удалить контакт")}
-                          </button>
-                          <button
-                            type="button"
-                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                            onClick={() => {
-                              setOpenContactMenuId(null)
-                              if (blacklist.some((item) => item.id === contact.id)) {
-                                removeFromBlacklist(contact.id)
-                              } else {
-                                addToBlacklist(contact.id)
-                              }
-                            }}
-                            disabled={isPending}
-                          >
-                            {blacklist.some((item) => item.id === contact.id)
-                              ? tr("Убрать из ЧС")
-                              : tr("Добавить в ЧС")}
-                          </button>
-                          {canManageRoles && contact.id !== user.id && (
-                            <>
-                              <div className="my-1 h-px bg-border/70" />
-                              <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                                {tr("Роли пользователей")}
-                              </p>
-                              {managedRoleButtons.map((roleOption) => (
+                        <PhoneCallIcon className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openChatWithCall(contact.id, "video")}
+                        disabled={isPending}
+                      >
+                        <VideoIcon className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openProfile(contact.id)}
+                        disabled={isPending}
+                      >
+                        {tr("Профиль")}
+                      </Button>
+
+                      <div className="relative" data-contact-actions-menu="true">
+                        <button
+                          type="button"
+                          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                          aria-label={tr("Действия с контактом")}
+                          onClick={() =>
+                            setOpenContactMenuId((prev) => (prev === contact.id ? null : contact.id))
+                          }
+                          disabled={isPending}
+                        >
+                          <EllipsisVerticalIcon className="size-4" />
+                        </button>
+
+                        {openContactMenuId === contact.id ? (
+                          <div className="absolute right-0 top-11 z-20 min-w-52 rounded-2xl border border-border bg-popover/96 p-1.5 shadow-xl backdrop-blur-xl">
+                            <button
+                              type="button"
+                              className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => {
+                                setOpenContactMenuId(null)
+                                openProfile(contact.id)
+                              }}
+                              disabled={isPending}
+                            >
+                              {tr("Профиль")}
+                            </button>
+                            <button
+                              type="button"
+                              className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => {
+                                setOpenContactMenuId(null)
+                                openChatWithCall(contact.id, "audio")
+                              }}
+                              disabled={isPending}
+                            >
+                              {tr("Аудиозвонок")}
+                            </button>
+                            <button
+                              type="button"
+                              className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => {
+                                setOpenContactMenuId(null)
+                                openChatWithCall(contact.id, "video")
+                              }}
+                              disabled={isPending}
+                            >
+                              {tr("Видеозвонок")}
+                            </button>
+                            <div className="my-1 h-px bg-border/70" />
+                            <button
+                              type="button"
+                              className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => {
+                                setOpenContactMenuId(null)
+                                removeContact(contact.id)
+                              }}
+                              disabled={isPending}
+                            >
+                              {tr("Удалить контакт")}
+                            </button>
+                            <button
+                              type="button"
+                              className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => {
+                                setOpenContactMenuId(null)
+                                if (isBlacklisted) {
+                                  removeFromBlacklist(contact.id)
+                                } else {
+                                  addToBlacklist(contact.id)
+                                }
+                              }}
+                              disabled={isPending}
+                            >
+                              {isBlacklisted ? tr("Убрать из ЧС") : tr("Добавить в ЧС")}
+                            </button>
+
+                            {canManageRoles && contact.id !== user.id ? (
+                              <>
+                                <div className="my-1 h-px bg-border/70" />
+                                <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                                  {tr("Роли пользователей")}
+                                </p>
+                                {managedRoleButtons.map((roleOption) => (
+                                  <button
+                                    key={roleOption.role}
+                                    type="button"
+                                    className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                                    onClick={() => {
+                                      setOpenContactMenuId(null)
+                                      updateUserRole(contact.id, roleOption.role)
+                                    }}
+                                    disabled={isPending || roleUpdateUserId === contact.id}
+                                  >
+                                    {roleUpdateUserId === contact.id
+                                      ? tr("Обновляем...")
+                                      : tr(roleOption.labelKey)}
+                                  </button>
+                                ))}
                                 <button
-                                  key={roleOption.role}
                                   type="button"
-                                  className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
                                   onClick={() => {
                                     setOpenContactMenuId(null)
-                                    updateUserRole(contact.id, roleOption.role)
+                                    updateUserBlockedState(contact.id, !contact.isBlocked)
                                   }}
                                   disabled={isPending || roleUpdateUserId === contact.id}
                                 >
                                   {roleUpdateUserId === contact.id
                                     ? tr("Обновляем...")
-                                    : tr(roleOption.labelKey)}
+                                    : tr(
+                                        contact.isBlocked
+                                          ? "Разблокировать аккаунт"
+                                          : "Заблокировать аккаунт"
+                                      )}
                                 </button>
-                              ))}
-                              <button
-                                type="button"
-                                className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
-                                onClick={() => {
-                                  setOpenContactMenuId(null)
-                                  updateUserBlockedState(contact.id, !contact.isBlocked)
-                                }}
-                                disabled={isPending || roleUpdateUserId === contact.id}
-                              >
-                                {roleUpdateUserId === contact.id
-                                  ? tr("Обновляем...")
-                                  : tr(
-                                      contact.isBlocked
-                                        ? "Разблокировать аккаунт"
-                                        : "Заблокировать аккаунт"
-                                    )}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
+                              </>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
       <BottomNav active="contacts" showServerTab={hasAdministrativeAccess(user.role)} />
     </main>
   )

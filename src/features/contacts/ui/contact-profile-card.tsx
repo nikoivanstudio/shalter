@@ -104,7 +104,7 @@ export function ContactProfileCard({
               <div className="flex flex-wrap gap-2">
                 <BadgeStat label="Подарков" value={String(profile.gifts.length)} />
                 <BadgeStat
-                  label="Партнёрские звёзды"
+                  label="Партнерские звезды"
                   value={String(profile.partnerStarsEarned)}
                 />
               </div>
