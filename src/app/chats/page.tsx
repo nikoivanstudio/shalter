@@ -19,6 +19,7 @@ export default async function ChatsPage({
     botId?: string
     startCall?: string
     answerCall?: string
+    callId?: string
   }>
 }) {
   const user = await getCurrentUser()
@@ -39,6 +40,8 @@ export default async function ChatsPage({
   const requestedStartCall =
     params.startCall === "audio" || params.startCall === "video" ? params.startCall : null
   const requestedAnswerCall = params.answerCall === "1"
+  const requestedAnswerCallId =
+    typeof params.callId === "string" && params.callId.trim().length > 0 ? params.callId.trim() : null
 
   const contacts = await prisma.contact.findMany({
     where: { ownerId: user.id },
@@ -273,6 +276,7 @@ export default async function ChatsPage({
         }
         initialCallMode={requestedStartCall}
         initialAnswerIncoming={requestedAnswerCall}
+        initialAnswerCallId={requestedAnswerCallId}
         contacts={contacts.map((item) => item.contactUser)}
         channels={channels}
         bots={bots.map((bot) => ({

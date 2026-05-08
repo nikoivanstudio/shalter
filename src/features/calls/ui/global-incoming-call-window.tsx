@@ -154,7 +154,9 @@ export function GlobalIncomingCallWindow() {
       return
     }
 
-    location.assign(`/chats?dialogId=${incomingCall.dialogId}&answerCall=1`)
+    location.assign(
+      `/chats?dialogId=${incomingCall.dialogId}&answerCall=1&callId=${encodeURIComponent(incomingCall.id)}`
+    )
   }
 
   if (!incomingCall || pathname === "/chats") {

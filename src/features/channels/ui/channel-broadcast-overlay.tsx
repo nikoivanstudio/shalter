@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { getReplacementCameraStream } from "@/shared/lib/media/camera"
+import { switchCameraInMediaStream } from "@/shared/lib/media/camera"
 import type { MediaAttachment } from "@/shared/lib/media/constants"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 import { UserAvatar } from "@/shared/ui/user-avatar"
@@ -563,47 +563,14 @@ export function ChannelBroadcastOverlay({
     const nextFacing = cameraFacing === "user" ? "environment" : "user"
 
     try {
-      const videoDevices = await navigator.mediaDevices
-        .enumerateDevices()
-        .then((devices) => devices.filter((device) => device.kind === "videoinput"))
-        .catch(() => [])
-      const currentTrack = currentStream.getVideoTracks()[0] ?? null
-      const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
-      const alternativeDeviceId =
-        videoDevices.length > 1
-          ? videoDevices.find((device) => device.deviceId && device.deviceId !== currentDeviceId)
-              ?.deviceId ?? null
-          : null
-      const replacementStream = await getReplacementCameraStream({
+      const nextMedia = await switchCameraInMediaStream({
+        currentStream,
         nextFacing,
-        currentDeviceId: alternativeDeviceId,
+        enabled: !isCameraDisabled,
       })
-      const replacementTrack = replacementStream.getVideoTracks()[0] ?? null
-      if (!replacementTrack) {
-        throw new Error("camera")
-      }
-
-      const previousTrack = currentStream.getVideoTracks()[0] ?? null
-      const audioTracks = currentStream.getAudioTracks()
-
-      if (previousTrack) {
-        currentStream.removeTrack(previousTrack)
-        previousTrack.stop()
-      }
-
-      currentStream.addTrack(replacementTrack)
-      if (isCameraDisabled) {
-        replacementTrack.enabled = false
-      }
-
-      localStreamRef.current = new MediaStream([...audioTracks, replacementTrack])
-      for (const track of replacementStream.getTracks()) {
-        if (track.id !== replacementTrack.id) {
-          track.stop()
-        }
-      }
+      localStreamRef.current = nextMedia.stream
       syncLocalStreamToPeers(localStreamRef.current)
-      setCameraFacing(nextFacing)
+      setCameraFacing(nextMedia.facing)
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = localStreamRef.current

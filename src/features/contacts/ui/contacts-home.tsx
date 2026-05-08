@@ -377,6 +377,8 @@ export function ContactsHome({
     location.assign(`/chats?contactId=${contactId}&startCall=${media}`)
   }
 
+  const searchActive = query.trim().length > 0
+
   return (
     <main className="relative h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.1),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.88))] px-4 py-5 dark:bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.08),transparent_22%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.92))] sm:px-6">
       <div className="pointer-events-none absolute left-[-5rem] top-20 size-44 rounded-full bg-sky-400/10 blur-3xl" />
@@ -457,10 +459,43 @@ export function ContactsHome({
               onStartVideoCall={(contactId) => openChatWithCall(contactId, "video")}
             />
 
-            <div className="rounded-[1.35rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.8))] p-3 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.78),rgba(15,23,42,0.72))] sm:rounded-[1.5rem]">
-              <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <StatChip label="Контакты" value={String(contacts.length)} tone="sky" />
+              <StatChip label="ЧС" value={String(blacklist.length)} tone="rose" />
+              <StatChip
+                label="Поиск"
+                value={searchActive ? (isSearching ? "..." : String(searchResults.length)) : "0"}
+                tone="emerald"
+              />
+            </div>
+
+            <div className="rounded-[1.4rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.84))] p-3.5 shadow-[0_24px_55px_-38px_rgba(15,23,42,0.42)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.84),rgba(15,23,42,0.78))] sm:rounded-[1.6rem]">
+              <p className="hidden">
                 {tr("Поиск")}
               </p>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                    Поиск
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Ищите людей по имени, телефону или email.
+                  </p>
+                </div>
+                {searchActive ? (
+                  <button
+                    type="button"
+                    className="rounded-full border border-border/60 bg-background/70 px-3 py-1 text-xs text-muted-foreground transition hover:bg-background"
+                    onClick={() => {
+                      setQuery("")
+                      setSearchResults([])
+                      setLastCompletedQuery("")
+                    }}
+                  >
+                    Сбросить
+                  </button>
+                ) : null}
+              </div>
               <Input
                 value={query}
                 onChange={(event) => {
@@ -472,12 +507,12 @@ export function ContactsHome({
                     setLastCompletedQuery("")
                   }
                 }}
-                className="border-white/55 bg-background/80 shadow-sm dark:border-white/10"
+                className="h-11 border-white/55 bg-background/85 shadow-sm dark:border-white/10"
                 placeholder={tr("Введите имя или телефон")}
               />
             </div>
 
-            {query.trim().length > 0 ? (
+            {searchActive ? (
               <div className="min-h-0 space-y-2">
                 {isSearching ? (
                   <p className="text-sm text-muted-foreground">{tr("Ищем пользователей...")}</p>
@@ -494,7 +529,7 @@ export function ContactsHome({
                     {searchResults.map((item) => (
                       <div
                         key={item.id}
-                        className="flex flex-col gap-3 rounded-[1.45rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3.5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.35)] transition-transform duration-200 hover:-translate-y-0.5 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))] sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-3 rounded-[1.45rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.86))] p-3.5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_-38px_rgba(14,165,233,0.38)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.84),rgba(15,23,42,0.8))] sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="flex min-w-0 items-start gap-3">
                           <UserAvatar
@@ -572,7 +607,7 @@ export function ContactsHome({
                         </div>
 
                         {canManageRoles && item.id !== user.id ? (
-                          <div className="w-full rounded-[1.15rem] border border-white/45 bg-card/76 p-2.5 dark:border-white/8">
+                          <div className="w-full rounded-[1.15rem] border border-white/45 bg-card/76 p-2.5 shadow-inner dark:border-white/8">
                             <p className="mb-2 text-xs font-medium text-muted-foreground">
                               {tr("Управление ролями")}
                             </p>
@@ -614,7 +649,7 @@ export function ContactsHome({
               </div>
             ) : null}
 
-            <div className="flex min-h-0 flex-1 flex-col space-y-2">
+            <div className="flex min-h-0 flex-1 flex-col space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">{tr("Мои контакты")}</h3>
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                 {contacts.length === 0 ? (
@@ -627,7 +662,7 @@ export function ContactsHome({
                   return (
                     <div
                       key={contact.id}
-                      className="rounded-[1.25rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/20 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))] sm:rounded-[1.45rem] sm:p-3.5"
+                      className="rounded-[1.3rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.86))] p-3 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_64px_-40px_rgba(59,130,246,0.34)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.84),rgba(15,23,42,0.8))] sm:rounded-[1.5rem] sm:p-3.5"
                     >
                       <button
                         className="flex w-full min-w-0 items-start gap-3 text-left"
@@ -664,7 +699,7 @@ export function ContactsHome({
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="mt-3 flex-1 sm:mt-0 sm:flex-none"
+                        className="mt-3 flex-1 border-sky-200/60 bg-sky-50/80 text-sky-700 hover:bg-sky-100 dark:border-sky-400/20 dark:bg-sky-500/10 dark:text-sky-200 sm:mt-0 sm:flex-none"
                         onClick={() => openChatWithCall(contact.id, "audio")}
                         disabled={isPending}
                       >
@@ -674,7 +709,7 @@ export function ContactsHome({
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="mt-3 flex-1 sm:mt-0 sm:flex-none"
+                        className="mt-3 flex-1 border-emerald-200/60 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-200 sm:mt-0 sm:flex-none"
                         onClick={() => openChatWithCall(contact.id, "video")}
                         disabled={isPending}
                       >
@@ -684,7 +719,7 @@ export function ContactsHome({
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="mt-3 hidden sm:inline-flex"
+                        className="mt-3 border-white/60 bg-white/80 shadow-sm hover:bg-white dark:border-white/10 dark:bg-white/5 sm:inline-flex"
                         onClick={() => openProfile(contact.id)}
                         disabled={isPending}
                       >
@@ -694,7 +729,7 @@ export function ContactsHome({
                       <div className="relative mt-3 sm:mt-0" data-contact-actions-menu="true">
                         <button
                           type="button"
-                          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground shadow-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
                           aria-label={tr("Действия с контактом")}
                           onClick={() =>
                             setOpenContactMenuId((prev) => (prev === contact.id ? null : contact.id))
@@ -822,5 +857,31 @@ export function ContactsHome({
 
       <BottomNav active="contacts" showServerTab={hasAdministrativeAccess(user.role)} />
     </main>
+  )
+}
+
+function StatChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: "sky" | "rose" | "emerald"
+}) {
+  const toneClass =
+    tone === "rose"
+      ? "from-rose-500/10 to-rose-400/5 text-rose-700 dark:text-rose-200"
+      : tone === "emerald"
+        ? "from-emerald-500/10 to-emerald-400/5 text-emerald-700 dark:text-emerald-200"
+        : "from-sky-500/10 to-sky-400/5 text-sky-700 dark:text-sky-200"
+
+  return (
+    <div
+      className={`rounded-[1.25rem] border border-white/55 bg-linear-to-br ${toneClass} p-3 shadow-[0_18px_40px_-34px_rgba(15,23,42,0.28)] dark:border-white/10`}
+    >
+      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
   )
 }

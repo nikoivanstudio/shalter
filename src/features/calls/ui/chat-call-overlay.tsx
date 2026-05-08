@@ -14,11 +14,11 @@ import {
   Volume1Icon,
   Volume2Icon,
 } from "lucide-react"
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
+import { type ReactNode, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { getReplacementCameraStream } from "@/shared/lib/media/camera"
+import { switchCameraInMediaStream } from "@/shared/lib/media/camera"
 import { UserAvatar } from "@/shared/ui/user-avatar"
 
 type CallMediaMode = "audio" | "video"
@@ -75,6 +75,7 @@ type PeerState = {
   remoteUser: CallUser
   polite: boolean
   makingOffer: boolean
+  negotiationQueued: boolean
   ignoreOffer: boolean
   isSettingRemoteAnswerPending: boolean
   pendingCandidates: RTCIceCandidateInit[]
@@ -94,6 +95,10 @@ const VOLUME_LEVELS: Record<VolumePreset, number> = {
 function getDisplayName(user: CallUser) {
   const fullName = `${user.firstName} ${user.lastName ?? ""}`.trim()
   return fullName || user.email
+}
+
+function matchesRequestedCall(call: CallSnapshot, requestedCallId: string | null) {
+  return !requestedCallId || call.id === requestedCallId
 }
 
 function isVideoStream(stream: MediaStream | null) {
@@ -132,6 +137,43 @@ function VolumeLabel({
       {preset === "loud" ? <Volume2Icon className="size-4" /> : <Volume1Icon className="size-4" />}
       {labels[preset]}
     </Button>
+  )
+}
+
+function CallControlButton({
+  icon,
+  label,
+  onClick,
+  disabled = false,
+  active = false,
+  tone = "default",
+}: {
+  icon: ReactNode
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  active?: boolean
+  tone?: "default" | "danger" | "success"
+}) {
+  const toneClass =
+    tone === "danger"
+      ? "bg-rose-500 text-white shadow-[0_18px_36px_-18px_rgba(244,63,94,0.85)] hover:bg-rose-400"
+      : tone === "success"
+        ? "bg-emerald-500 text-white shadow-[0_18px_36px_-18px_rgba(16,185,129,0.85)] hover:bg-emerald-400"
+        : active
+          ? "bg-white text-slate-950 shadow-[0_18px_36px_-18px_rgba(255,255,255,0.75)] hover:bg-white/90"
+          : "bg-white/8 text-white hover:bg-white/14"
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex min-w-[5.25rem] flex-col items-center gap-2 rounded-[1.4rem] px-3 py-3 text-center transition disabled:cursor-not-allowed disabled:opacity-55 ${toneClass}`.trim()}
+    >
+      <span className="flex size-11 items-center justify-center rounded-full bg-black/10">{icon}</span>
+      <span className="text-[11px] font-medium leading-none">{label}</span>
+    </button>
   )
 }
 
@@ -211,6 +253,7 @@ export function ChatCallOverlay({
   dialogs,
   selectedDialogId,
   autoAnswerIncoming = false,
+  autoAnswerCallId = null,
   startRequest = null,
 }: {
   currentUser: CallUser
@@ -222,6 +265,7 @@ export function ChatCallOverlay({
   }>
   selectedDialogId: number | null
   autoAnswerIncoming?: boolean
+  autoAnswerCallId?: string | null
   startRequest?: { media: CallMediaMode; nonce: number } | null
 }) {
   const [activeCall, setActiveCall] = useState<CallSnapshot | null>(null)
@@ -436,6 +480,42 @@ export function ChatCallOverlay({
     })
   }
 
+  const requestPeerNegotiation = useCallback(async (remoteUserId: number, state: PeerState) => {
+    if (state.negotiationQueued) {
+      return
+    }
+
+    state.negotiationQueued = true
+    queueMicrotask(() => {
+      void (async () => {
+        state.negotiationQueued = false
+
+        const currentCall = activeCallRef.current
+        if (!currentCall || state.makingOffer || state.pc.signalingState !== "stable") {
+          return
+        }
+
+        try {
+          state.makingOffer = true
+          await state.pc.setLocalDescription()
+
+          if (!state.pc.localDescription || !activeCallRef.current) {
+            return
+          }
+
+          await sendSignal(activeCallRef.current.id, remoteUserId, {
+            type: state.pc.localDescription.type === "answer" ? "answer" : "offer",
+            payload: state.pc.localDescription.toJSON(),
+          })
+        } catch {
+          // Let the next negotiation cycle recover automatically.
+        } finally {
+          state.makingOffer = false
+        }
+      })()
+    })
+  }, [])
+
   const ensurePeerState = useCallback(
     (call: CallSnapshot, remoteUserId: number) => {
       const existing = peerStatesRef.current.get(remoteUserId)
@@ -452,13 +532,12 @@ export function ChatCallOverlay({
         iceServers: iceServersRef.current,
       })
 
-      addLocalTracksToPeer(pc, localStreamRef.current)
-
       const state: PeerState = {
         pc,
         remoteUser,
         polite: currentUser.userId > remoteUserId,
         makingOffer: false,
+        negotiationQueued: false,
         ignoreOffer: false,
         isSettingRemoteAnswerPending: false,
         pendingCandidates: [],
@@ -480,28 +559,8 @@ export function ChatCallOverlay({
         })
       }
 
-      pc.onnegotiationneeded = async () => {
-        if (!activeCallRef.current) {
-          return
-        }
-
-        try {
-          state.makingOffer = true
-          await pc.setLocalDescription()
-
-          if (!pc.localDescription || !activeCallRef.current) {
-            return
-          }
-
-          await sendSignal(activeCallRef.current.id, remoteUserId, {
-            type: pc.localDescription.type === "answer" ? "answer" : "offer",
-            payload: pc.localDescription.toJSON(),
-          })
-        } catch {
-          // Let the next negotiation cycle recover automatically.
-        } finally {
-          state.makingOffer = false
-        }
+      pc.onnegotiationneeded = () => {
+        void requestPeerNegotiation(remoteUserId, state)
       }
 
       pc.onconnectionstatechange = () => {
@@ -510,10 +569,21 @@ export function ChatCallOverlay({
         }
       }
 
+      addLocalTracksToPeer(pc, localStreamRef.current)
       peerStatesRef.current.set(remoteUserId, state)
+      if (localStreamRef.current) {
+        void requestPeerNegotiation(remoteUserId, state)
+      }
       return state
     },
-    [addLocalTracksToPeer, currentUser.userId, destroyPeer, getRemoteUser, updateRemoteStream]
+    [
+      addLocalTracksToPeer,
+      currentUser.userId,
+      destroyPeer,
+      getRemoteUser,
+      requestPeerNegotiation,
+      updateRemoteStream,
+    ]
   )
 
   const flushPendingCandidates = useCallback(async (state: PeerState) => {
@@ -551,9 +621,19 @@ export function ChatCallOverlay({
         const state = ensurePeerState(call, remoteUserId)
         state.remoteUser = getRemoteUser(call, remoteUserId) ?? state.remoteUser
         addLocalTracksToPeer(state.pc, localStreamRef.current)
+        if (localStreamRef.current) {
+          void requestPeerNegotiation(remoteUserId, state)
+        }
       }
     },
-    [addLocalTracksToPeer, currentUser.userId, destroyPeer, ensurePeerState, getRemoteUser]
+    [
+      addLocalTracksToPeer,
+      currentUser.userId,
+      destroyPeer,
+      ensurePeerState,
+      getRemoteUser,
+      requestPeerNegotiation,
+    ]
   )
 
   const handleSignal = useCallback(
@@ -817,50 +897,15 @@ export function ChatCallOverlay({
     const nextFacing = cameraFacing === "user" ? "environment" : "user"
 
     try {
-      const videoDevices = await navigator.mediaDevices
-        .enumerateDevices()
-        .then((devices) => devices.filter((device) => device.kind === "videoinput"))
-        .catch(() => [])
-
-      const currentTrack = currentStream.getVideoTracks()[0] ?? null
-      const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
-      const alternativeDeviceId =
-        videoDevices.length > 1
-          ? videoDevices.find((device) => device.deviceId && device.deviceId !== currentDeviceId)
-              ?.deviceId ?? null
-          : null
-
-      const replacementStream = await getReplacementCameraStream({
+      const nextMedia = await switchCameraInMediaStream({
+        currentStream,
         nextFacing,
-        currentDeviceId: alternativeDeviceId,
+        enabled: !isCameraDisabled,
       })
 
-      const replacementTrack = replacementStream.getVideoTracks()[0] ?? null
-      if (!replacementTrack) {
-        throw new Error("camera")
-      }
-
-      const previousTrack = currentStream.getVideoTracks()[0] ?? null
-      const audioTracks = currentStream.getAudioTracks()
-
-      if (previousTrack) {
-        currentStream.removeTrack(previousTrack)
-        previousTrack.stop()
-      }
-
-      currentStream.addTrack(replacementTrack)
-      replacementTrack.enabled = !isCameraDisabled
-
-      localStreamRef.current = new MediaStream([...audioTracks, replacementTrack])
-
-      for (const track of replacementStream.getTracks()) {
-        if (track.id !== replacementTrack.id) {
-          track.stop()
-        }
-      }
-
+      localStreamRef.current = nextMedia.stream
       syncLocalStreamToPeers(localStreamRef.current)
-      setCameraFacing(nextFacing)
+      setCameraFacing(nextMedia.facing)
       forceLocalStreamRender((value) => value + 1)
     } catch {
       toast.error("Не удалось переключить камеру")
@@ -940,7 +985,7 @@ export function ChatCallOverlay({
 
   useEffect(() => {
     autoAnswerHandledRef.current = false
-  }, [autoAnswerIncoming, selectedDialogId])
+  }, [autoAnswerCallId, autoAnswerIncoming, selectedDialogId])
 
   useEffect(() => {
     if (!activeCall) {
@@ -974,6 +1019,7 @@ export function ChatCallOverlay({
       !autoAnswerIncoming ||
       autoAnswerHandledRef.current ||
       !incomingCall ||
+      !matchesRequestedCall(incomingCall, autoAnswerCallId) ||
       activeCall ||
       isConnecting
     ) {
@@ -982,7 +1028,7 @@ export function ChatCallOverlay({
 
     autoAnswerHandledRef.current = true
     autoAnswerEffect(incomingCall)
-  }, [activeCall, autoAnswerEffect, autoAnswerIncoming, incomingCall, isConnecting])
+  }, [activeCall, autoAnswerCallId, autoAnswerEffect, autoAnswerIncoming, incomingCall, isConnecting])
 
   useEffect(() => {
     const eventSource = new EventSource("/api/calls/events")
@@ -997,11 +1043,15 @@ export function ChatCallOverlay({
       }
 
       if (payload.type === "call.snapshot") {
-        const current = payload.calls.find(
+        const availableCalls = payload.calls.filter(
           (call) =>
             call.participants.some((participant) => participant.userId === currentUser.userId) ||
             call.invitedUsers.some((user) => user.userId === currentUser.userId)
         )
+        const current =
+          availableCalls.find((call) => matchesRequestedCall(call, autoAnswerCallId)) ??
+          availableCalls[0] ??
+          null
 
         if (!current) {
           if (activeCallRef.current || incomingCallRef.current) {
@@ -1095,7 +1145,7 @@ export function ChatCallOverlay({
     return () => {
       eventSource.close()
     }
-  }, [cleanupCall, currentUser.userId, handleSignal, syncPeersWithCall])
+  }, [autoAnswerCallId, cleanupCall, currentUser.userId, handleSignal, syncPeersWithCall])
 
   useEffect(() => {
     const handlePageHide = () => {
@@ -1139,6 +1189,27 @@ export function ChatCallOverlay({
 
     return contacts.filter((contact) => !excludedUserIds.has(contact.userId))
   }, [activeCall, contacts])
+
+  const isVideoCall = activeCall?.media === "video" || incomingCall?.media === "video"
+  const callKindLabel = isVideoCall ? "Видеозвонок" : "Голосовой звонок"
+  const callTitle = activeCall
+    ? remoteTiles[0]?.user
+      ? getDisplayName(remoteTiles[0].user)
+      : activeDialog?.title ?? "Звонок в чате"
+    : getDisplayName(incomingCaller)
+  const callStatus = activeCall
+    ? remoteTiles.length > 0
+      ? `В звонке: ${activeCall.participants.length}`
+      : activeCall.invitedUsers.length > 0
+        ? "Соединяем участников..."
+        : "Ожидаем подключения"
+    : incomingCall
+      ? `${incomingCall.media === "video" ? "Видеозвонок" : "Звонок"} от ${getDisplayName(incomingCaller)}`
+      : ""
+  const primaryRemoteUser =
+    remoteTiles[0]?.user ??
+    activeCall?.participants.find((participant) => participant.userId !== currentUser.userId) ??
+    incomingCaller
 
   return (
     <>

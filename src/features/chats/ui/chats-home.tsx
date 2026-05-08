@@ -50,7 +50,7 @@ import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
 import type { MediaAttachment, MediaKind } from "@/shared/lib/media/constants"
 import { BotAvatar } from "@/shared/ui/bot-avatar"
 import { CountryFlagBadge } from "@/shared/ui/country-flag-badge"
-import { getReplacementCameraStream } from "@/shared/lib/media/camera"
+import { switchCameraInMediaStream } from "@/shared/lib/media/camera"
 import { MessageAttachmentView } from "@/shared/ui/message-attachment-view"
 import { UserAvatar } from "@/shared/ui/user-avatar"
 
@@ -129,6 +129,7 @@ export type ChatsHomeProps = {
   initialBotId?: number | null
   initialCallMode?: "audio" | "video" | null
   initialAnswerIncoming?: boolean
+  initialAnswerCallId?: string | null
 }
 
 type ComposerAttachment = {
@@ -360,6 +361,7 @@ export function ChatsHome({
   initialBotId = null,
   initialCallMode = null,
   initialAnswerIncoming = false,
+  initialAnswerCallId = null,
 }: ChatsHomeProps) {
   const { tr } = useI18n()
   const hasInitialBot =
@@ -738,46 +740,21 @@ export function ChatsHome({
     const nextFacing = recordingCameraFacing === "user" ? "environment" : "user"
 
     try {
-      const videoDevices = await navigator.mediaDevices
-        .enumerateDevices()
-        .then((devices) => devices.filter((device) => device.kind === "videoinput"))
-        .catch(() => [])
       const currentStream = recordingStreamRef.current
-      const currentTrack = currentStream.getVideoTracks()[0] ?? null
-      const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
-      const alternativeDeviceId =
-        videoDevices.length > 1
-          ? videoDevices.find((device) => device.deviceId && device.deviceId !== currentDeviceId)
-              ?.deviceId ?? null
-          : null
-      const nextStream = await getReplacementCameraStream({
+      const nextMedia = await switchCameraInMediaStream({
+        currentStream,
         nextFacing,
-        currentDeviceId: alternativeDeviceId,
         width: 480,
         height: 480,
+        preserveAudio: true,
+        enabled: true,
       })
 
-      const nextTrack = nextStream.getVideoTracks()[0] ?? null
-      if (!nextTrack) {
-        throw new Error("camera")
-      }
-
-      const previousTrack = currentStream.getVideoTracks()[0] ?? null
-      if (previousTrack) {
-        currentStream.removeTrack(previousTrack)
-        previousTrack.stop()
-      }
-
-      currentStream.addTrack(nextTrack)
-      for (const track of nextStream.getTracks()) {
-        if (track.id !== nextTrack.id) {
-          track.stop()
-        }
-      }
-      setRecordingCameraFacing(nextFacing)
+      recordingStreamRef.current = nextMedia.stream
+      setRecordingCameraFacing(nextMedia.facing)
 
       if (recordingPreviewRef.current) {
-        recordingPreviewRef.current.srcObject = currentStream
+        recordingPreviewRef.current.srcObject = recordingStreamRef.current
         void recordingPreviewRef.current.play().catch(() => null)
       }
     } catch {
@@ -2753,6 +2730,7 @@ export function ChatsHome({
         }))}
         selectedDialogId={activeDialogId}
         autoAnswerIncoming={initialAnswerIncoming}
+        autoAnswerCallId={initialAnswerCallId}
         startRequest={callStartRequest}
         dialogs={dialogs.map((dialog) => ({
           id: dialog.id,
