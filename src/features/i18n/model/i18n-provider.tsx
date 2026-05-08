@@ -9,11 +9,13 @@ import {
   type ReactNode,
 } from "react"
 
-type Language = "ru" | "en"
+type ResolvedLanguage = "ru" | "en"
+type LanguagePreference = "system" | ResolvedLanguage
 
 type I18nContextValue = {
-  language: Language
-  setLanguage: (language: Language) => void
+  language: ResolvedLanguage
+  languagePreference: LanguagePreference
+  setLanguage: (language: LanguagePreference) => void
   tr: (text: string) => string
 }
 
@@ -232,34 +234,48 @@ const EN_TRANSLATIONS: Record<string, string> = {
 
 const defaultContextValue: I18nContextValue = {
   language: "ru",
+  languagePreference: "system",
   setLanguage: () => undefined,
   tr: (text) => text,
 }
 
 const I18nContext = createContext<I18nContextValue>(defaultContextValue)
 
+function getSystemLanguage(): ResolvedLanguage {
+  if (typeof window === "undefined") {
+    return "ru"
+  }
+
+  return navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en"
+}
+
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(() => {
+  const [languagePreference, setLanguagePreference] = useState<LanguagePreference>(() => {
     if (typeof window === "undefined") {
-      return "ru"
+      return "system"
     }
 
     const storedLanguage = localStorage.getItem(STORAGE_KEY)
-    return storedLanguage === "en" ? "en" : "ru"
+    return storedLanguage === "ru" || storedLanguage === "en" || storedLanguage === "system"
+      ? storedLanguage
+      : "system"
   })
+
+  const language = languagePreference === "system" ? getSystemLanguage() : languagePreference
 
   useEffect(() => {
     document.documentElement.lang = language
   }, [language])
 
-  const setLanguage = (nextLanguage: Language) => {
+  const setLanguage = (nextLanguage: LanguagePreference) => {
     localStorage.setItem(STORAGE_KEY, nextLanguage)
-    setLanguageState(nextLanguage)
+    setLanguagePreference(nextLanguage)
   }
 
   const value = useMemo<I18nContextValue>(
     () => ({
       language,
+      languagePreference,
       setLanguage,
       tr: (text: string) => {
         if (language === "ru") {
@@ -269,7 +285,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         return EN_TRANSLATIONS[text] ?? text
       },
     }),
-    [language]
+    [language, languagePreference]
   )
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>

@@ -381,20 +381,20 @@ export function ContactsHome({
     <main className="relative h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.1),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.88))] px-4 py-5 dark:bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.08),transparent_22%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.92))] sm:px-6">
       <div className="pointer-events-none absolute left-[-5rem] top-20 size-44 rounded-full bg-sky-400/10 blur-3xl" />
       <div className="pointer-events-none absolute right-[-4rem] top-52 size-40 rounded-full bg-emerald-400/10 blur-3xl" />
-      <div className="relative mx-auto flex h-full w-full max-w-4xl flex-col gap-5 pb-28">
-        <header className="rounded-[2rem] border border-white/55 bg-card/82 px-5 py-4 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.5)] backdrop-blur-2xl dark:border-white/10">
-          <div className="flex items-center justify-between gap-3">
+      <div className="relative mx-auto flex h-full w-full max-w-4xl flex-col gap-4 pb-28 sm:gap-5">
+        <header className="rounded-[1.7rem] border border-white/55 bg-card/82 px-4 py-4 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.5)] backdrop-blur-2xl dark:border-white/10 sm:rounded-[2rem] sm:px-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <UserAvatar
                 firstName={user.firstName}
                 lastName={user.lastName}
                 avatarTone={user.avatarTone}
                 avatarUrl={user.avatarUrl}
-                className="size-14"
+                className="size-12 sm:size-14"
               />
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-lg font-semibold">
+                  <p className="truncate text-base font-semibold sm:text-lg">
                     {user.firstName} {user.lastName}
                   </p>
                   <CountryFlagBadge phone={user.phone} />
@@ -410,8 +410,8 @@ export function ContactsHome({
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="outline" onClick={() => openProfile(user.id)}>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+              <Button variant="outline" className="col-span-2 sm:col-span-1" onClick={() => openProfile(user.id)}>
                 {tr("Мой профиль")}
               </Button>
               <LanguageToggle />
@@ -422,10 +422,10 @@ export function ContactsHome({
         </header>
 
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-white/50 bg-card/84 shadow-[0_28px_80px_-40px_rgba(15,23,42,0.5)] backdrop-blur-xl dark:border-white/10">
-          <CardHeader className="border-b border-border/55 pb-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <CardHeader className="border-b border-border/55 px-4 pb-5 sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <CardTitle className="text-2xl font-semibold tracking-tight">
+                <CardTitle className="text-xl font-semibold tracking-tight sm:text-2xl">
                   {tr("Контакты")}
                 </CardTitle>
                 <CardDescription>
@@ -437,13 +437,13 @@ export function ContactsHome({
                   </p>
                 ) : null}
               </div>
-              <Button variant="outline" onClick={() => router.push("/blacklist")}>
+              <Button variant="outline" className="w-full sm:w-auto" onClick={() => router.push("/blacklist")}>
                 {tr("Открыть черный список")}
               </Button>
             </div>
           </CardHeader>
 
-          <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden pt-6">
+          <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden px-4 pt-5 sm:px-6 sm:pt-6">
             <ContactProfileCard
               profile={selectedProfile}
               isLoading={isProfileLoading}
@@ -457,7 +457,7 @@ export function ContactsHome({
               onStartVideoCall={(contactId) => openChatWithCall(contactId, "video")}
             />
 
-            <div className="rounded-[1.5rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.8))] p-3 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.78),rgba(15,23,42,0.72))]">
+            <div className="rounded-[1.35rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.8))] p-3 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.78),rgba(15,23,42,0.72))] sm:rounded-[1.5rem]">
               <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {tr("Поиск")}
               </p>
@@ -518,17 +518,18 @@ export function ContactsHome({
                                 isBlocked={item.isBlocked}
                               />
                             </div>
-                            <p className="truncate text-sm text-muted-foreground">
+                            <p className="truncate text-xs text-muted-foreground sm:text-sm">
                               {item.phone} · {item.email}
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                           <Button
                             variant="outline"
                             disabled={isPending}
                             onClick={() => openProfile(item.id)}
+                            className="col-span-2 sm:col-span-1"
                           >
                             {tr("Профиль")}
                           </Button>
@@ -552,6 +553,7 @@ export function ContactsHome({
                             variant={item.isAlreadyContact ? "secondary" : "default"}
                             disabled={item.isAlreadyContact || isPending}
                             onClick={() => addContact(item.id)}
+                            className="min-w-0"
                           >
                             {item.isAlreadyContact ? tr("Добавлен") : tr("Добавить")}
                           </Button>
@@ -563,6 +565,7 @@ export function ContactsHome({
                                 ? removeFromBlacklist(item.id)
                                 : addToBlacklist(item.id)
                             }
+                            className="min-w-0"
                           >
                             {item.isBlacklisted ? tr("Убрать из ЧС") : tr("В ЧС")}
                           </Button>
@@ -624,10 +627,10 @@ export function ContactsHome({
                   return (
                     <div
                       key={contact.id}
-                      className="flex items-center justify-between gap-3 rounded-[1.45rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3.5 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/20 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))]"
+                      className="rounded-[1.25rem] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.82))] p-3 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/20 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.8),rgba(15,23,42,0.76))] sm:rounded-[1.45rem] sm:p-3.5"
                     >
                       <button
-                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                        className="flex w-full min-w-0 items-start gap-3 text-left"
                         onClick={() => router.push(`/chats?contactId=${contact.id}`)}
                       >
                         <UserAvatar
@@ -651,7 +654,7 @@ export function ContactsHome({
                               isBlocked={contact.isBlocked}
                             />
                           </div>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-xs text-muted-foreground sm:text-sm">
                             {contact.phone} · {contact.email}
                           </p>
                         </div>
@@ -661,6 +664,7 @@ export function ContactsHome({
                         type="button"
                         size="sm"
                         variant="outline"
+                        className="mt-3 flex-1 sm:mt-0 sm:flex-none"
                         onClick={() => openChatWithCall(contact.id, "audio")}
                         disabled={isPending}
                       >
@@ -670,6 +674,7 @@ export function ContactsHome({
                         type="button"
                         size="sm"
                         variant="outline"
+                        className="mt-3 flex-1 sm:mt-0 sm:flex-none"
                         onClick={() => openChatWithCall(contact.id, "video")}
                         disabled={isPending}
                       >
@@ -679,13 +684,14 @@ export function ContactsHome({
                         type="button"
                         size="sm"
                         variant="outline"
+                        className="mt-3 hidden sm:inline-flex"
                         onClick={() => openProfile(contact.id)}
                         disabled={isPending}
                       >
                         {tr("Профиль")}
                       </Button>
 
-                      <div className="relative" data-contact-actions-menu="true">
+                      <div className="relative mt-3 sm:mt-0" data-contact-actions-menu="true">
                         <button
                           type="button"
                           className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"

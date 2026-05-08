@@ -7,7 +7,18 @@ import {
   useState,
   useTransition,
 } from "react"
-import { CameraIcon, GemIcon, HandCoinsIcon, RocketIcon, StarIcon, XIcon } from "lucide-react"
+import {
+  BellIcon,
+  CameraIcon,
+  GemIcon,
+  HandCoinsIcon,
+  LockIcon,
+  PaletteIcon,
+  RocketIcon,
+  ShieldIcon,
+  StarIcon,
+  XIcon,
+} from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
@@ -21,6 +32,7 @@ import { LogoutButton } from "@/features/auth/ui/logout-button"
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 import { LanguageToggle } from "@/features/i18n/ui/language-toggle"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
+import { PushToggle } from "@/features/notifications/ui/push-toggle"
 import { EMBLEM_TONE_OPTIONS } from "@/features/profile/lib/emblem"
 import {
   type ChangePasswordInput,
@@ -183,6 +195,10 @@ export function ProfileHome({
   const canReviewPayments = canAssignManagedRole(user.role)
   const partnerLink = `https://shalter.ru/auth?ref=${user.id}`
   const selectedGift = giftCatalog.find((gift) => gift.key === giftKey) ?? giftCatalog[0]
+
+  function scrollToSection(sectionId: string) {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
 
   useEffect(() => {
     return () => {
@@ -623,12 +639,39 @@ export function ProfileHome({
 
               <StatPill label="Бонус за приглашение" value={String(PARTNER_REWARD_STARS)} />
             </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <SettingsShortcutCard
+                icon={<ShieldIcon className="size-4" />}
+                title="Профиль и приватность"
+                description="Имя, username, видимость и данные профиля."
+                onClick={() => scrollToSection("profile-settings")}
+              />
+              <SettingsShortcutCard
+                icon={<PaletteIcon className="size-4" />}
+                title="Язык и оформление"
+                description="Системный язык, тема приложения и внешний вид."
+                onClick={() => scrollToSection("appearance-settings")}
+              />
+              <SettingsShortcutCard
+                icon={<BellIcon className="size-4" />}
+                title="Уведомления"
+                description="Push-уведомления и быстрый доступ к их включению."
+                onClick={() => scrollToSection("notification-settings")}
+              />
+              <SettingsShortcutCard
+                icon={<LockIcon className="size-4" />}
+                title="Безопасность"
+                description="Пароль, вход и удаление аккаунта."
+                onClick={() => scrollToSection("security-settings")}
+              />
+            </div>
           </CardContent>
         </Card>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)]">
           <div className="space-y-5">
-            <Card>
+            <Card id="profile-settings">
               <CardHeader>
                 <CardTitle>{tr("Настройки профиля")}</CardTitle>
                 <CardDescription>
@@ -904,6 +947,48 @@ export function ProfileHome({
           </div>
 
           <div className="space-y-5">
+            <Card id="appearance-settings">
+              <CardHeader>
+                <CardTitle>Язык и оформление</CardTitle>
+                <CardDescription>
+                  Быстрые настройки, как в мессенджере: язык приложения, тема и внешний вид.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <SettingsControlRow
+                  icon={<PaletteIcon className="size-4" />}
+                  title="Язык приложения"
+                  description="Поддерживается системный режим, русский и English."
+                  action={<LanguageToggle />}
+                />
+                <SettingsControlRow
+                  icon={<GemIcon className="size-4" />}
+                  title="Тема"
+                  description="Светлая, тёмная или системная тема интерфейса."
+                  action={<ThemeToggle />}
+                />
+              </CardContent>
+            </Card>
+
+            <Card id="notification-settings">
+              <CardHeader>
+                <CardTitle>Уведомления</CardTitle>
+                <CardDescription>
+                  Управление push-уведомлениями и быстрый доступ к включению на этом устройстве.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <SettingsControlRow
+                  icon={<BellIcon className="size-4" />}
+                  title="Push-уведомления"
+                  description="Новые сообщения и события приложения будут приходить в браузер."
+                  action={<PushToggle />}
+                />
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Партнёрская программа</CardTitle>
@@ -1044,7 +1129,7 @@ export function ProfileHome({
 
             {false ? (
               <>
-            <Card>
+            <Card id="security-settings">
               <CardHeader>
                 <CardTitle>Покупка premium и звёзд</CardTitle>
                 <CardDescription>
@@ -1278,6 +1363,59 @@ function StatPill({ label, value }: { label: string; value: string }) {
     <div className="rounded-[1.25rem] border border-border/70 bg-background/75 px-4 py-3">
       <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
       <p className="mt-1 text-lg font-semibold">{value}</p>
+    </div>
+  )
+}
+
+function SettingsShortcutCard({
+  icon,
+  title,
+  description,
+  onClick,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-[1.35rem] border border-border/70 bg-background/75 p-4 text-left transition hover:bg-muted/55"
+    >
+      <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        {icon}
+      </span>
+      <p className="mt-3 font-medium">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+    </button>
+  )
+}
+
+function SettingsControlRow({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  action: ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[1.25rem] border border-border/70 bg-background/70 p-4">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            {icon}
+          </span>
+          <p className="font-medium">{title}</p>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="shrink-0">{action}</div>
     </div>
   )
 }
