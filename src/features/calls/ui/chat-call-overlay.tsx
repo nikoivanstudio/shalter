@@ -70,6 +70,16 @@ type RemoteStreamEntry = {
 
 type IceServerConfig = NonNullable<RTCConfiguration["iceServers"]>[number]
 
+type PeerState = {
+  pc: RTCPeerConnection
+  remoteUser: CallUser
+  polite: boolean
+  makingOffer: boolean
+  ignoreOffer: boolean
+  isSettingRemoteAnswerPending: boolean
+  pendingCandidates: RTCIceCandidateInit[]
+}
+
 const DEFAULT_ICE_SERVERS: IceServerConfig[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
@@ -80,15 +90,6 @@ const VOLUME_LEVELS: Record<VolumePreset, number> = {
   normal: 0.8,
   loud: 1,
 }
-
-// Legacy no-op stubs kept only because old invite helpers are still embedded in VideoTile.
-const selectedInviteUserIds: number[] = []
-const isInvitingParticipants = false
-const activeCallRef = { current: null as CallSnapshot | null }
-const setSelectedInviteUserIds = (_value: number[] | ((prev: number[]) => number[])) => {}
-const setIsInvitingParticipants = (_value: boolean) => {}
-const setActiveCall = (_value: CallSnapshot | null) => {}
-const setIsInvitePanelOpen = (_value: boolean) => {}
 
 function getDisplayName(user: CallUser) {
   const fullName = `${user.firstName} ${user.lastName ?? ""}`.trim()
@@ -107,7 +108,7 @@ async function playMediaElement(element: HTMLMediaElement | null) {
   try {
     await element.play()
   } catch {
-    // Ignore autoplay failures until the user interacts with the page.
+    // Ignore autoplay restrictions until the user interacts with the page.
   }
 }
 
@@ -150,42 +151,6 @@ function VideoTile({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const hasVideo = isVideoStream(stream)
-
-  async function inviteParticipantsToCall() {
-    const currentCall = activeCallRef.current
-    if (!currentCall || selectedInviteUserIds.length === 0 || isInvitingParticipants) {
-      return
-    }
-
-    setIsInvitingParticipants(true)
-
-    try {
-      const response = await fetch(`/api/calls/${currentCall.id}/participants`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ participantIds: selectedInviteUserIds }),
-      })
-      const data = (await response.json().catch(() => null)) as
-        | { call?: CallSnapshot; message?: string }
-        | null
-
-      if (!response.ok || !data?.call) {
-        throw new Error(data?.message ?? "Не удалось пригласить участников в звонок")
-      }
-
-      setActiveCall(data.call)
-      activeCallRef.current = data.call
-      setIsInvitePanelOpen(false)
-      setSelectedInviteUserIds([])
-      toast.success("Участники приглашены в звонок")
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Не удалось пригласить участников в звонок"
-      )
-    } finally {
-      setIsInvitingParticipants(false)
-    }
-  }
 
   useEffect(() => {
     if (videoRef.current) {
@@ -276,12 +241,11 @@ export function ChatCallOverlay({
   const localStreamRef = useRef<MediaStream | null>(null)
   const incomingToneIntervalRef = useRef<number | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
-  const peerConnectionsRef = useRef(new Map<number, RTCPeerConnection>())
-  const pendingIceCandidatesRef = useRef(new Map<number, RTCIceCandidateInit[]>())
   const iceServersRef = useRef<IceServerConfig[]>(DEFAULT_ICE_SERVERS)
   const iceServersRequestRef = useRef<Promise<IceServerConfig[]> | null>(null)
   const activeCallRef = useRef<CallSnapshot | null>(null)
   const incomingCallRef = useRef<CallSnapshot | null>(null)
+  const peerStatesRef = useRef(new Map<number, PeerState>())
   const autoAnswerHandledRef = useRef(false)
   const lastHandledStartRequestNonceRef = useRef<number | null>(null)
   const startCallEffect = useEffectEvent((media: CallMediaMode) => {
@@ -307,36 +271,6 @@ export function ChatCallOverlay({
   useEffect(() => {
     iceServersRef.current = iceServers
   }, [iceServers])
-
-  const ensureIceServersLoaded = useCallback(async () => {
-    if (iceServersRequestRef.current) {
-      return iceServersRequestRef.current
-    }
-
-    iceServersRequestRef.current = fetch("/api/calls/ice")
-      .then(async (response) => {
-        if (!response.ok) {
-          return DEFAULT_ICE_SERVERS
-        }
-
-        const data = (await response.json().catch(() => null)) as
-          | { iceServers?: IceServerConfig[] }
-          | null
-        const nextIceServers =
-          Array.isArray(data?.iceServers) && data.iceServers.length > 0
-            ? data.iceServers
-            : DEFAULT_ICE_SERVERS
-        setIceServers(nextIceServers)
-        return nextIceServers
-      })
-      .catch(() => DEFAULT_ICE_SERVERS)
-
-    return iceServersRequestRef.current
-  }, [])
-
-  useEffect(() => {
-    void ensureIceServersLoaded()
-  }, [ensureIceServersLoaded])
 
   const stopIncomingTone = useCallback(() => {
     if (incomingToneIntervalRef.current !== null) {
@@ -382,84 +316,33 @@ export function ChatCallOverlay({
     }
   }, [])
 
-  useEffect(() => {
-    if (!incomingCall || incomingCall.createdByUserId === currentUser.userId) {
-      stopIncomingTone()
-      return
+  const ensureIceServersLoaded = useCallback(async () => {
+    if (iceServersRequestRef.current) {
+      return iceServersRequestRef.current
     }
 
-    playIncomingTone()
-    incomingToneIntervalRef.current = window.setInterval(() => {
-      playIncomingTone()
-    }, 1800)
+    iceServersRequestRef.current = fetch("/api/calls/ice")
+      .then(async (response) => {
+        if (!response.ok) {
+          return DEFAULT_ICE_SERVERS
+        }
 
-    return () => {
-      stopIncomingTone()
-    }
-  }, [currentUser.userId, incomingCall, playIncomingTone, stopIncomingTone])
+        const data = (await response.json().catch(() => null)) as
+          | { iceServers?: IceServerConfig[] }
+          | null
 
-  useEffect(() => {
-    return () => {
-      stopIncomingTone()
-      void audioContextRef.current?.close().catch(() => null)
-      audioContextRef.current = null
-    }
-  }, [stopIncomingTone])
+        const nextIceServers =
+          Array.isArray(data?.iceServers) && data.iceServers.length > 0
+            ? data.iceServers
+            : DEFAULT_ICE_SERVERS
 
-  useEffect(() => {
-    autoAnswerHandledRef.current = false
-  }, [autoAnswerIncoming, selectedDialogId])
+        setIceServers(nextIceServers)
+        return nextIceServers
+      })
+      .catch(() => DEFAULT_ICE_SERVERS)
 
-  useEffect(() => {
-    if (!activeCall) {
-      setIsInvitePanelOpen(false)
-      setSelectedInviteUserIds([])
-      setIsInvitingParticipants(false)
-    }
-  }, [activeCall])
-
-  useEffect(() => {
-    if (
-      !startRequest ||
-      lastHandledStartRequestNonceRef.current === startRequest.nonce ||
-      !selectedDialogId ||
-      activeCall ||
-      incomingCall ||
-      isConnecting
-    ) {
-      return
-    }
-
-    lastHandledStartRequestNonceRef.current = startRequest.nonce
-    startCallEffect(startRequest.media)
-  }, [activeCall, incomingCall, isConnecting, selectedDialogId, startRequest])
-
-  useEffect(() => {
-    if (
-      !autoAnswerIncoming ||
-      autoAnswerHandledRef.current ||
-      !incomingCall ||
-      activeCall ||
-      isConnecting
-    ) {
-      return
-    }
-
-    autoAnswerHandledRef.current = true
-    autoAnswerEffect(incomingCall)
-  }, [activeCall, autoAnswerIncoming, incomingCall, isConnecting])
-
-  const getRemoteUser = useCallback(
-    (call: CallSnapshot, userId: number) => {
-      return (
-        call.participants.find((participant) => participant.userId === userId) ??
-        call.invitedUsers.find((participant) => participant.userId === userId) ??
-        dialogs.flatMap((dialog) => dialog.users).find((user) => user.userId === userId) ??
-        null
-      )
-    },
-    [dialogs]
-  )
+    return iceServersRequestRef.current
+  }, [])
 
   const removeRemoteStream = useCallback((userId: number) => {
     setRemoteStreams((prev) => {
@@ -473,41 +356,70 @@ export function ChatCallOverlay({
     })
   }, [])
 
+  const getRemoteUser = useCallback(
+    (call: CallSnapshot, userId: number) => {
+      return (
+        call.participants.find((participant) => participant.userId === userId) ??
+        call.invitedUsers.find((participant) => participant.userId === userId) ??
+        dialogs.flatMap((dialog) => dialog.users).find((user) => user.userId === userId) ??
+        null
+      )
+    },
+    [dialogs]
+  )
+
+  const addLocalTracksToPeer = useCallback((pc: RTCPeerConnection, stream: MediaStream | null) => {
+    if (!stream) {
+      return
+    }
+
+    for (const track of stream.getTracks()) {
+      const sender = pc.getSenders().find((item) => item.track?.kind === track.kind) ?? null
+      if (!sender) {
+        pc.addTrack(track, stream)
+      }
+    }
+  }, [])
+
+  const syncLocalStreamToPeers = useCallback(
+    (stream: MediaStream | null) => {
+      for (const { pc } of peerStatesRef.current.values()) {
+        addLocalTracksToPeer(pc, stream)
+
+        const audioTrack = stream?.getAudioTracks()[0] ?? null
+        const videoTrack = stream?.getVideoTracks()[0] ?? null
+        const audioSender = pc.getSenders().find((sender) => sender.track?.kind === "audio") ?? null
+        const videoSender = pc.getSenders().find((sender) => sender.track?.kind === "video") ?? null
+
+        if (audioSender) {
+          void audioSender.replaceTrack(audioTrack)
+        }
+
+        if (videoSender) {
+          void videoSender.replaceTrack(videoTrack)
+        }
+      }
+    },
+    [addLocalTracksToPeer]
+  )
+
   const destroyPeer = useCallback(
     (remoteUserId: number) => {
-      const peer = peerConnectionsRef.current.get(remoteUserId)
-      if (!peer) {
+      const state = peerStatesRef.current.get(remoteUserId)
+      if (!state) {
         return
       }
 
-      peer.close()
-      peerConnectionsRef.current.delete(remoteUserId)
-      pendingIceCandidatesRef.current.delete(remoteUserId)
+      state.pc.ontrack = null
+      state.pc.onicecandidate = null
+      state.pc.onnegotiationneeded = null
+      state.pc.onconnectionstatechange = null
+      state.pc.close()
+      peerStatesRef.current.delete(remoteUserId)
       removeRemoteStream(remoteUserId)
     },
     [removeRemoteStream]
   )
-
-  const updateRemoteTrack = useCallback((user: CallUser, track: MediaStreamTrack) => {
-    setRemoteStreams((prev) => {
-      const existing = prev[user.userId]
-      const stream = existing?.stream ?? new MediaStream()
-      const sameKindTracks = stream.getTracks().filter((item) => item.kind === track.kind)
-      for (const existingTrack of sameKindTracks) {
-        if (existingTrack.id !== track.id) {
-          stream.removeTrack(existingTrack)
-        }
-      }
-      if (!stream.getTracks().some((item) => item.id === track.id)) {
-        stream.addTrack(track)
-      }
-
-      return {
-        ...prev,
-        [user.userId]: { user, stream },
-      }
-    })
-  }, [])
 
   const updateRemoteStream = useCallback((user: CallUser, stream: MediaStream) => {
     setRemoteStreams((prev) => ({
@@ -515,51 +427,6 @@ export function ChatCallOverlay({
       [user.userId]: { user, stream },
     }))
   }, [])
-
-  const syncLocalStreamToPeers = useCallback((stream: MediaStream | null) => {
-    for (const peer of peerConnectionsRef.current.values()) {
-      const audioTrack = stream?.getAudioTracks()[0] ?? null
-      const videoTrack = stream?.getVideoTracks()[0] ?? null
-      const audioSender =
-        peer.getSenders().find((sender) => sender.track?.kind === "audio") ?? null
-      const videoSender =
-        peer.getSenders().find((sender) => sender.track?.kind === "video") ?? null
-
-      if (audioSender) {
-        void audioSender.replaceTrack(audioTrack)
-      } else if (audioTrack && stream) {
-        peer.addTrack(audioTrack, stream)
-      }
-
-      if (videoSender) {
-        void videoSender.replaceTrack(videoTrack)
-      } else if (videoTrack && stream) {
-        peer.addTrack(videoTrack, stream)
-      }
-    }
-  }, [])
-
-  const createOffersForMissingParticipants = useCallback(
-    async (call: CallSnapshot) => {
-      const remoteParticipants = call.participants.filter(
-        (participant) => participant.userId !== currentUser.userId
-      )
-
-      for (const participant of remoteParticipants) {
-        // Deterministic offer ownership prevents both peers from creating offers at once.
-        if (currentUser.userId > participant.userId) {
-          continue
-        }
-
-        if (peerConnectionsRef.current.has(participant.userId)) {
-          continue
-        }
-
-        await createOfferForRemote(call, participant.userId)
-      }
-    },
-    [createOfferForRemote, currentUser.userId]
-  )
 
   async function sendSignal(callId: string, toUserId: number, signal: CallSignalPayload) {
     await fetch(`/api/calls/${callId}/signal`, {
@@ -569,26 +436,9 @@ export function ChatCallOverlay({
     })
   }
 
-  const flushPendingIceCandidates = useCallback(async (remoteUserId: number) => {
-    const peer = peerConnectionsRef.current.get(remoteUserId)
-    const candidates = pendingIceCandidatesRef.current.get(remoteUserId)
-    if (!peer || !peer.remoteDescription || !candidates?.length) {
-      return
-    }
-
-    pendingIceCandidatesRef.current.delete(remoteUserId)
-    for (const candidate of candidates) {
-      try {
-        await peer.addIceCandidate(candidate)
-      } catch {
-        // Ignore invalid or stale ICE candidates.
-      }
-    }
-  }, [])
-
-  const ensurePeerConnection = useCallback(
+  const ensurePeerState = useCallback(
     (call: CallSnapshot, remoteUserId: number) => {
-      const existing = peerConnectionsRef.current.get(remoteUserId)
+      const existing = peerStatesRef.current.get(remoteUserId)
       if (existing) {
         return existing
       }
@@ -598,16 +448,28 @@ export function ChatCallOverlay({
         throw new Error("Не удалось определить собеседника для звонка")
       }
 
-      const peer = new RTCPeerConnection({
+      const pc = new RTCPeerConnection({
         iceServers: iceServersRef.current,
       })
-      peerConnectionsRef.current.set(remoteUserId, peer)
 
-      for (const track of localStreamRef.current?.getTracks() ?? []) {
-        peer.addTrack(track, localStreamRef.current as MediaStream)
+      addLocalTracksToPeer(pc, localStreamRef.current)
+
+      const state: PeerState = {
+        pc,
+        remoteUser,
+        polite: currentUser.userId > remoteUserId,
+        makingOffer: false,
+        ignoreOffer: false,
+        isSettingRemoteAnswerPending: false,
+        pendingCandidates: [],
       }
 
-      peer.onicecandidate = (event) => {
+      pc.ontrack = (event) => {
+        const remoteStream = event.streams[0] ?? new MediaStream([event.track])
+        updateRemoteStream(remoteUser, remoteStream)
+      }
+
+      pc.onicecandidate = (event) => {
         if (!event.candidate || !activeCallRef.current) {
           return
         }
@@ -618,36 +480,81 @@ export function ChatCallOverlay({
         })
       }
 
-      peer.ontrack = (event) => {
-        const remoteStream = event.streams[0] ?? null
-        if (remoteStream) {
-          updateRemoteStream(remoteUser, remoteStream)
+      pc.onnegotiationneeded = async () => {
+        if (!activeCallRef.current) {
           return
         }
 
-        updateRemoteTrack(remoteUser, event.track)
+        try {
+          state.makingOffer = true
+          await pc.setLocalDescription()
+
+          if (!pc.localDescription || !activeCallRef.current) {
+            return
+          }
+
+          await sendSignal(activeCallRef.current.id, remoteUserId, {
+            type: pc.localDescription.type === "answer" ? "answer" : "offer",
+            payload: pc.localDescription.toJSON(),
+          })
+        } catch {
+          // Let the next negotiation cycle recover automatically.
+        } finally {
+          state.makingOffer = false
+        }
       }
 
-      peer.onconnectionstatechange = () => {
-        if (peer.connectionState === "failed" || peer.connectionState === "closed") {
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "failed" || pc.connectionState === "closed") {
           destroyPeer(remoteUserId)
         }
       }
 
-      return peer
+      peerStatesRef.current.set(remoteUserId, state)
+      return state
     },
-    [destroyPeer, getRemoteUser, updateRemoteStream, updateRemoteTrack]
+    [addLocalTracksToPeer, currentUser.userId, destroyPeer, getRemoteUser, updateRemoteStream]
   )
 
-  async function createOfferForRemote(call: CallSnapshot, remoteUserId: number) {
-    const peer = ensurePeerConnection(call, remoteUserId)
-    const offer = await peer.createOffer()
-    await peer.setLocalDescription(offer)
-    await sendSignal(call.id, remoteUserId, {
-      type: "offer",
-      payload: offer,
-    })
-  }
+  const flushPendingCandidates = useCallback(async (state: PeerState) => {
+    if (!state.pc.remoteDescription || state.pendingCandidates.length === 0) {
+      return
+    }
+
+    const pending = [...state.pendingCandidates]
+    state.pendingCandidates = []
+
+    for (const candidate of pending) {
+      try {
+        await state.pc.addIceCandidate(candidate)
+      } catch {
+        // Ignore stale ICE candidates.
+      }
+    }
+  }, [])
+
+  const syncPeersWithCall = useCallback(
+    (call: CallSnapshot) => {
+      const activeRemoteUserIds = new Set(
+        call.participants
+          .map((participant) => participant.userId)
+          .filter((userId) => userId !== currentUser.userId)
+      )
+
+      for (const remoteUserId of peerStatesRef.current.keys()) {
+        if (!activeRemoteUserIds.has(remoteUserId)) {
+          destroyPeer(remoteUserId)
+        }
+      }
+
+      for (const remoteUserId of activeRemoteUserIds) {
+        const state = ensurePeerState(call, remoteUserId)
+        state.remoteUser = getRemoteUser(call, remoteUserId) ?? state.remoteUser
+        addLocalTracksToPeer(state.pc, localStreamRef.current)
+      }
+    },
+    [addLocalTracksToPeer, currentUser.userId, destroyPeer, ensurePeerState, getRemoteUser]
+  )
 
   const handleSignal = useCallback(
     async (fromUserId: number, signal: CallSignalPayload) => {
@@ -656,127 +563,147 @@ export function ChatCallOverlay({
         return
       }
 
-      const peer = ensurePeerConnection(call, fromUserId)
-
-      if (signal.type === "offer") {
-        await peer.setRemoteDescription(signal.payload as RTCSessionDescriptionInit)
-        await flushPendingIceCandidates(fromUserId)
-        const answer = await peer.createAnswer()
-        await peer.setLocalDescription(answer)
-        await sendSignal(call.id, fromUserId, {
-          type: "answer",
-          payload: answer,
-        })
-        return
-      }
-
-      if (signal.type === "answer") {
-        await peer.setRemoteDescription(signal.payload as RTCSessionDescriptionInit)
-        await flushPendingIceCandidates(fromUserId)
-        return
-      }
+      const state = ensurePeerState(call, fromUserId)
+      const { pc } = state
 
       if (signal.type === "ice-candidate" && signal.payload) {
         const candidate = signal.payload as RTCIceCandidateInit
-        if (!peer.remoteDescription) {
-          const pending = pendingIceCandidatesRef.current.get(fromUserId) ?? []
-          pending.push(candidate)
-          pendingIceCandidatesRef.current.set(fromUserId, pending)
+
+        if (!pc.remoteDescription) {
+          state.pendingCandidates.push(candidate)
           return
         }
 
         try {
-          await peer.addIceCandidate(candidate)
+          await pc.addIceCandidate(candidate)
         } catch {
-          // Ignore invalid or stale ICE candidates.
+          // Ignore stale ICE candidates.
         }
+        return
+      }
+
+      const description = signal.payload as RTCSessionDescriptionInit
+      const readyForOffer =
+        !state.makingOffer &&
+        (pc.signalingState === "stable" || state.isSettingRemoteAnswerPending)
+      const offerCollision = signal.type === "offer" && !readyForOffer
+
+      state.ignoreOffer = !state.polite && offerCollision
+      if (state.ignoreOffer) {
+        return
+      }
+
+      state.isSettingRemoteAnswerPending = signal.type === "answer"
+
+      try {
+        await pc.setRemoteDescription(description)
+        state.isSettingRemoteAnswerPending = false
+        await flushPendingCandidates(state)
+
+        if (signal.type === "offer") {
+          await pc.setLocalDescription()
+          if (!pc.localDescription || !activeCallRef.current) {
+            return
+          }
+
+          await sendSignal(activeCallRef.current.id, fromUserId, {
+            type: "answer",
+            payload: pc.localDescription.toJSON(),
+          })
+        }
+      } catch {
+        state.isSettingRemoteAnswerPending = false
       }
     },
-    [ensurePeerConnection, flushPendingIceCandidates]
+    [ensurePeerState, flushPendingCandidates]
   )
 
-  async function ensureLocalStream(media: CallMediaMode) {
-    const existingStream = localStreamRef.current
-    const needsVideoUpgrade = media === "video" && !existingStream?.getVideoTracks().length
+  const cleanupCall = useCallback(
+    async (announceLeave = true) => {
+      const currentCall = activeCallRef.current
+      stopIncomingTone()
 
-    if (existingStream && !needsVideoUpgrade) {
-      for (const track of existingStream.getAudioTracks()) {
-        track.enabled = true
+      if (announceLeave && currentCall) {
+        await fetch(`/api/calls/${currentCall.id}/leave`, { method: "POST" }).catch(() => null)
       }
-      for (const track of existingStream.getVideoTracks()) {
-        track.enabled = media === "video"
+
+      for (const remoteUserId of [...peerStatesRef.current.keys()]) {
+        destroyPeer(remoteUserId)
       }
-      syncLocalStreamToPeers(existingStream)
-      setIsMicrophoneMuted(false)
-      setIsCameraDisabled(media !== "video")
-      forceLocalStreamRender((value) => value + 1)
-      return existingStream
-    }
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video:
-        media === "video"
-          ? {
-              facingMode: cameraFacing,
-            }
-          : false,
-    })
-
-    if (existingStream) {
-      for (const track of existingStream.getTracks()) {
+      for (const track of localStreamRef.current?.getTracks() ?? []) {
         track.stop()
       }
-    }
 
-    localStreamRef.current = stream
-    syncLocalStreamToPeers(stream)
-    setIsMicrophoneMuted(false)
-    setIsCameraDisabled(media !== "video")
-    forceLocalStreamRender((value) => value + 1)
-    return stream
-  }
+      localStreamRef.current = null
+      forceLocalStreamRender((value) => value + 1)
+      setRemoteStreams({})
+      setActiveCall(null)
+      setIncomingCall(null)
+      activeCallRef.current = null
+      incomingCallRef.current = null
+      setIsConnecting(false)
+      setCameraFacing("user")
+      setIsMicrophoneMuted(false)
+      setIsCameraDisabled(false)
+      setVolumePreset("normal")
+      setIsInvitePanelOpen(false)
+      setSelectedInviteUserIds([])
+      setIsInvitingParticipants(false)
+    },
+    [destroyPeer, stopIncomingTone]
+  )
 
-  const cleanupCall = useCallback(async (announceLeave = true) => {
-    const currentCall = activeCallRef.current
-    stopIncomingTone()
+  const ensureLocalStream = useCallback(
+    async (media: CallMediaMode) => {
+      const existingStream = localStreamRef.current
+      const needsVideoUpgrade = media === "video" && !existingStream?.getVideoTracks().length
 
-    if (announceLeave && currentCall) {
-      await fetch(`/api/calls/${currentCall.id}/leave`, { method: "POST" }).catch(() => null)
-    }
+      if (existingStream && !needsVideoUpgrade) {
+        for (const track of existingStream.getAudioTracks()) {
+          track.enabled = !isMicrophoneMuted
+        }
 
-    for (const peer of peerConnectionsRef.current.values()) {
-      peer.close()
-    }
-    peerConnectionsRef.current.clear()
-    pendingIceCandidatesRef.current.clear()
+        for (const track of existingStream.getVideoTracks()) {
+          track.enabled = media === "video" && !isCameraDisabled
+        }
 
-    for (const track of localStreamRef.current?.getTracks() ?? []) {
-      track.stop()
-    }
-    localStreamRef.current = null
-    forceLocalStreamRender((value) => value + 1)
-    setRemoteStreams({})
-    setActiveCall(null)
-    setIncomingCall(null)
-    activeCallRef.current = null
-    incomingCallRef.current = null
-    setIsConnecting(false)
-    setCameraFacing("user")
-    setIsMicrophoneMuted(false)
-    setIsCameraDisabled(false)
-    setVolumePreset("normal")
-  }, [stopIncomingTone])
+        syncLocalStreamToPeers(existingStream)
+        forceLocalStreamRender((value) => value + 1)
+        return existingStream
+      }
 
-  async function rejectIncomingCall(call: CallSnapshot | null) {
-    if (!call) {
-      return
-    }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video:
+          media === "video"
+            ? {
+                facingMode: cameraFacing,
+              }
+            : false,
+      })
 
-    stopIncomingTone()
-    await fetch(`/api/calls/${call.id}/reject`, { method: "POST" }).catch(() => null)
-    setIncomingCall(null)
-  }
+      if (existingStream) {
+        for (const track of existingStream.getTracks()) {
+          track.stop()
+        }
+      }
+
+      for (const track of stream.getAudioTracks()) {
+        track.enabled = !isMicrophoneMuted
+      }
+
+      for (const track of stream.getVideoTracks()) {
+        track.enabled = media === "video" && !isCameraDisabled
+      }
+
+      localStreamRef.current = stream
+      syncLocalStreamToPeers(stream)
+      forceLocalStreamRender((value) => value + 1)
+      return stream
+    },
+    [cameraFacing, isCameraDisabled, isMicrophoneMuted, syncLocalStreamToPeers]
+  )
 
   async function joinCall(call: CallSnapshot) {
     setIsConnecting(true)
@@ -797,8 +724,7 @@ export function ChatCallOverlay({
       incomingCallRef.current = null
       setActiveCall(data.call)
       activeCallRef.current = data.call
-
-      await createOffersForMissingParticipants(data.call)
+      syncPeersWithCall(data.call)
     } catch (error) {
       await cleanupCall(false)
       toast.error(error instanceof Error ? error.message : "Не удалось начать звонок")
@@ -817,6 +743,8 @@ export function ChatCallOverlay({
 
     try {
       await ensureIceServersLoaded()
+      await ensureLocalStream(media)
+
       const response = await fetch("/api/calls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -835,6 +763,17 @@ export function ChatCallOverlay({
     }
   }
 
+  async function rejectIncomingCall(call: CallSnapshot | null) {
+    if (!call) {
+      return
+    }
+
+    stopIncomingTone()
+    await fetch(`/api/calls/${call.id}/reject`, { method: "POST" }).catch(() => null)
+    setIncomingCall(null)
+    incomingCallRef.current = null
+  }
+
   async function endCurrentCall() {
     const currentCall = activeCallRef.current
     if (!currentCall) {
@@ -848,24 +787,30 @@ export function ChatCallOverlay({
   function toggleMicrophone() {
     const nextMuted = !isMicrophoneMuted
     setIsMicrophoneMuted(nextMuted)
+
     for (const track of localStreamRef.current?.getAudioTracks() ?? []) {
       track.enabled = !nextMuted
     }
+
     syncLocalStreamToPeers(localStreamRef.current)
+    forceLocalStreamRender((value) => value + 1)
   }
 
   function toggleCamera() {
     const nextDisabled = !isCameraDisabled
     setIsCameraDisabled(nextDisabled)
+
     for (const track of localStreamRef.current?.getVideoTracks() ?? []) {
       track.enabled = !nextDisabled
     }
+
     syncLocalStreamToPeers(localStreamRef.current)
+    forceLocalStreamRender((value) => value + 1)
   }
 
   async function switchCamera() {
     const currentStream = localStreamRef.current
-    if (!currentStream || !(activeCallRef.current?.media === "video")) {
+    if (!currentStream || activeCallRef.current?.media !== "video") {
       return
     }
 
@@ -876,6 +821,7 @@ export function ChatCallOverlay({
         .enumerateDevices()
         .then((devices) => devices.filter((device) => device.kind === "videoinput"))
         .catch(() => [])
+
       const currentTrack = currentStream.getVideoTracks()[0] ?? null
       const currentDeviceId = currentTrack?.getSettings().deviceId ?? null
       const alternativeDeviceId =
@@ -883,6 +829,7 @@ export function ChatCallOverlay({
           ? videoDevices.find((device) => device.deviceId && device.deviceId !== currentDeviceId)
               ?.deviceId ?? null
           : null
+
       const replacementStream = await getReplacementCameraStream({
         nextFacing,
         currentDeviceId: alternativeDeviceId,
@@ -902,17 +849,16 @@ export function ChatCallOverlay({
       }
 
       currentStream.addTrack(replacementTrack)
-
-      if (isCameraDisabled) {
-        replacementTrack.enabled = false
-      }
+      replacementTrack.enabled = !isCameraDisabled
 
       localStreamRef.current = new MediaStream([...audioTracks, replacementTrack])
+
       for (const track of replacementStream.getTracks()) {
         if (track.id !== replacementTrack.id) {
           track.stop()
         }
       }
+
       syncLocalStreamToPeers(localStreamRef.current)
       setCameraFacing(nextFacing)
       forceLocalStreamRender((value) => value + 1)
@@ -920,160 +866,6 @@ export function ChatCallOverlay({
       toast.error("Не удалось переключить камеру")
     }
   }
-
-  useEffect(() => {
-    const eventSource = new EventSource("/api/calls/events")
-
-    const onEvent = (event: MessageEvent<string>) => {
-      const payload = JSON.parse(event.data) as CallEvent
-
-      if (payload.type === "call.snapshot") {
-        const current = payload.calls.find(
-          (call) =>
-            call.participants.some((participant) => participant.userId === currentUser.userId) ||
-            call.invitedUsers.some((user) => user.userId === currentUser.userId)
-        )
-
-        if (!current) {
-          if (activeCallRef.current || incomingCallRef.current) {
-            void cleanupCall(false)
-          }
-          return
-        }
-
-        const joined = current.participants.some(
-          (participant) => participant.userId === currentUser.userId
-        )
-        setActiveCall(joined ? current : null)
-        setIncomingCall(joined ? null : current)
-        if (joined) {
-          void createOffersForMissingParticipants(current)
-        }
-        return
-      }
-
-      if (payload.type === "call.invited") {
-        if (payload.call.createdByUserId !== currentUser.userId) {
-          setIncomingCall(payload.call)
-          toast.message(`Входящий ${payload.call.media === "video" ? "видеозвонок" : "звонок"}`)
-        }
-        return
-      }
-
-      if (payload.type === "call.updated") {
-        const isMember = payload.call.participants.some(
-          (participant) => participant.userId === currentUser.userId
-        )
-        const isInvited = payload.call.invitedUsers.some(
-          (participant) => participant.userId === currentUser.userId
-        )
-
-        if (!isMember && !isInvited) {
-          if (activeCallRef.current?.id === payload.call.id) {
-            void cleanupCall(false)
-          }
-          if (incomingCallRef.current?.id === payload.call.id) {
-            setIncomingCall(null)
-          }
-          return
-        }
-
-        setActiveCall((prev) => (prev?.id === payload.call.id || isMember ? payload.call : prev))
-        setIncomingCall((prev) =>
-          isMember ? null : prev?.id === payload.call.id || isInvited ? payload.call : prev
-        )
-        if (isMember) {
-          void createOffersForMissingParticipants(payload.call)
-        }
-        return
-      }
-
-      if (payload.type === "call.ended") {
-        if (activeCallRef.current?.id === payload.callId || incomingCallRef.current?.id === payload.callId) {
-          toast.message("Звонок завершён")
-          void cleanupCall(false)
-        }
-        return
-      }
-
-      if (payload.type === "call.signal") {
-        if (activeCallRef.current?.id !== payload.callId) {
-          return
-        }
-        void handleSignal(payload.fromUserId, payload.signal)
-      }
-    }
-
-    eventSource.addEventListener("call.snapshot", onEvent as EventListener)
-    eventSource.addEventListener("call.invited", onEvent as EventListener)
-    eventSource.addEventListener("call.updated", onEvent as EventListener)
-    eventSource.addEventListener("call.ended", onEvent as EventListener)
-    eventSource.addEventListener("call.signal", onEvent as EventListener)
-
-    return () => {
-      eventSource.close()
-    }
-  }, [cleanupCall, createOffersForMissingParticipants, currentUser.userId, handleSignal])
-
-  useEffect(() => {
-    if (!activeCall) {
-      return
-    }
-
-    const activeRemoteUserIds = new Set(
-      activeCall.participants
-        .map((participant) => participant.userId)
-        .filter((userId) => userId !== currentUser.userId)
-    )
-
-    for (const remoteUserId of peerConnectionsRef.current.keys()) {
-      if (!activeRemoteUserIds.has(remoteUserId)) {
-        destroyPeer(remoteUserId)
-      }
-    }
-  }, [activeCall, currentUser.userId, destroyPeer])
-
-  useEffect(() => {
-    const handlePageHide = () => {
-      const currentCall = activeCallRef.current
-      if (!currentCall) {
-        return
-      }
-
-      void fetch(`/api/calls/${currentCall.id}/leave`, {
-        method: "POST",
-        keepalive: true,
-      }).catch(() => null)
-    }
-
-    window.addEventListener("pagehide", handlePageHide)
-    return () => {
-      window.removeEventListener("pagehide", handlePageHide)
-    }
-  }, [])
-
-  const remoteTiles = Object.values(remoteStreams)
-  const localUser = currentUser
-  const showOverlay = Boolean(activeCall || incomingCall)
-  const canToggleCamera = activeCall?.media === "video"
-  const canSwitchCamera = canToggleCamera
-  const remoteVolume = VOLUME_LEVELS[volumePreset]
-  const incomingCaller =
-    incomingCall?.participants.find((user) => user.userId !== currentUser.userId) ??
-    incomingCall?.invitedUsers.find((user) => user.userId !== currentUser.userId) ??
-    currentUser
-  const inviteCandidates = useMemo(() => {
-    if (!activeCall) {
-      return []
-    }
-
-    const excludedUserIds = new Set([
-      ...activeCall.participants.map((participant) => participant.userId),
-      ...activeCall.invitedUsers.map((participant) => participant.userId),
-    ])
-
-    return contacts.filter((contact) => !excludedUserIds.has(contact.userId))
-  }, [activeCall, contacts])
 
   function toggleInviteUser(userId: number) {
     setSelectedInviteUserIds((prev) =>
@@ -1117,6 +909,237 @@ export function ChatCallOverlay({
     }
   }
 
+  useEffect(() => {
+    void ensureIceServersLoaded()
+  }, [ensureIceServersLoaded])
+
+  useEffect(() => {
+    if (!incomingCall || incomingCall.createdByUserId === currentUser.userId) {
+      stopIncomingTone()
+      return
+    }
+
+    playIncomingTone()
+    incomingToneIntervalRef.current = window.setInterval(() => {
+      playIncomingTone()
+    }, 1800)
+
+    return () => {
+      stopIncomingTone()
+    }
+  }, [currentUser.userId, incomingCall, playIncomingTone, stopIncomingTone])
+
+  useEffect(() => {
+    return () => {
+      stopIncomingTone()
+      void audioContextRef.current?.close().catch(() => null)
+      audioContextRef.current = null
+      void cleanupCall(false)
+    }
+  }, [cleanupCall, stopIncomingTone])
+
+  useEffect(() => {
+    autoAnswerHandledRef.current = false
+  }, [autoAnswerIncoming, selectedDialogId])
+
+  useEffect(() => {
+    if (!activeCall) {
+      setIsInvitePanelOpen(false)
+      setSelectedInviteUserIds([])
+      setIsInvitingParticipants(false)
+      return
+    }
+
+    syncPeersWithCall(activeCall)
+  }, [activeCall, syncPeersWithCall])
+
+  useEffect(() => {
+    if (
+      !startRequest ||
+      lastHandledStartRequestNonceRef.current === startRequest.nonce ||
+      !selectedDialogId ||
+      activeCall ||
+      incomingCall ||
+      isConnecting
+    ) {
+      return
+    }
+
+    lastHandledStartRequestNonceRef.current = startRequest.nonce
+    startCallEffect(startRequest.media)
+  }, [activeCall, incomingCall, isConnecting, selectedDialogId, startRequest, startCallEffect])
+
+  useEffect(() => {
+    if (
+      !autoAnswerIncoming ||
+      autoAnswerHandledRef.current ||
+      !incomingCall ||
+      activeCall ||
+      isConnecting
+    ) {
+      return
+    }
+
+    autoAnswerHandledRef.current = true
+    autoAnswerEffect(incomingCall)
+  }, [activeCall, autoAnswerEffect, autoAnswerIncoming, incomingCall, isConnecting])
+
+  useEffect(() => {
+    const eventSource = new EventSource("/api/calls/events")
+
+    const onEvent = (event: MessageEvent<string>) => {
+      let payload: CallEvent
+
+      try {
+        payload = JSON.parse(event.data) as CallEvent
+      } catch {
+        return
+      }
+
+      if (payload.type === "call.snapshot") {
+        const current = payload.calls.find(
+          (call) =>
+            call.participants.some((participant) => participant.userId === currentUser.userId) ||
+            call.invitedUsers.some((user) => user.userId === currentUser.userId)
+        )
+
+        if (!current) {
+          if (activeCallRef.current || incomingCallRef.current) {
+            void cleanupCall(false)
+          }
+          return
+        }
+
+        const joined = current.participants.some(
+          (participant) => participant.userId === currentUser.userId
+        )
+
+        setActiveCall(joined ? current : null)
+        activeCallRef.current = joined ? current : null
+        setIncomingCall(joined ? null : current)
+        incomingCallRef.current = joined ? null : current
+
+        if (joined) {
+          syncPeersWithCall(current)
+        }
+        return
+      }
+
+      if (payload.type === "call.invited") {
+        if (payload.call.createdByUserId !== currentUser.userId) {
+          setIncomingCall(payload.call)
+          incomingCallRef.current = payload.call
+          toast.message(`Входящий ${payload.call.media === "video" ? "видеозвонок" : "звонок"}`)
+        }
+        return
+      }
+
+      if (payload.type === "call.updated") {
+        const isMember = payload.call.participants.some(
+          (participant) => participant.userId === currentUser.userId
+        )
+        const isInvited = payload.call.invitedUsers.some(
+          (participant) => participant.userId === currentUser.userId
+        )
+
+        if (!isMember && !isInvited) {
+          if (activeCallRef.current?.id === payload.call.id) {
+            void cleanupCall(false)
+          }
+          if (incomingCallRef.current?.id === payload.call.id) {
+            setIncomingCall(null)
+            incomingCallRef.current = null
+          }
+          return
+        }
+
+        if (isMember) {
+          setActiveCall(payload.call)
+          activeCallRef.current = payload.call
+          setIncomingCall(null)
+          incomingCallRef.current = null
+          syncPeersWithCall(payload.call)
+        } else {
+          setIncomingCall(payload.call)
+          incomingCallRef.current = payload.call
+        }
+        return
+      }
+
+      if (payload.type === "call.ended") {
+        if (
+          activeCallRef.current?.id === payload.callId ||
+          incomingCallRef.current?.id === payload.callId
+        ) {
+          toast.message("Звонок завершен")
+          void cleanupCall(false)
+        }
+        return
+      }
+
+      if (payload.type === "call.signal") {
+        if (activeCallRef.current?.id !== payload.callId) {
+          return
+        }
+
+        void handleSignal(payload.fromUserId, payload.signal)
+      }
+    }
+
+    eventSource.addEventListener("call.snapshot", onEvent as EventListener)
+    eventSource.addEventListener("call.invited", onEvent as EventListener)
+    eventSource.addEventListener("call.updated", onEvent as EventListener)
+    eventSource.addEventListener("call.ended", onEvent as EventListener)
+    eventSource.addEventListener("call.signal", onEvent as EventListener)
+
+    return () => {
+      eventSource.close()
+    }
+  }, [cleanupCall, currentUser.userId, handleSignal, syncPeersWithCall])
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      const currentCall = activeCallRef.current
+      if (!currentCall) {
+        return
+      }
+
+      void fetch(`/api/calls/${currentCall.id}/leave`, {
+        method: "POST",
+        keepalive: true,
+      }).catch(() => null)
+    }
+
+    window.addEventListener("pagehide", handlePageHide)
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide)
+    }
+  }, [])
+
+  const remoteTiles = Object.values(remoteStreams)
+  const localUser = currentUser
+  const showOverlay = Boolean(activeCall || incomingCall)
+  const canToggleCamera = activeCall?.media === "video"
+  const canSwitchCamera = canToggleCamera
+  const remoteVolume = VOLUME_LEVELS[volumePreset]
+  const incomingCaller =
+    incomingCall?.participants.find((user) => user.userId !== currentUser.userId) ??
+    incomingCall?.invitedUsers.find((user) => user.userId !== currentUser.userId) ??
+    currentUser
+
+  const inviteCandidates = useMemo(() => {
+    if (!activeCall) {
+      return []
+    }
+
+    const excludedUserIds = new Set([
+      ...activeCall.participants.map((participant) => participant.userId),
+      ...activeCall.invitedUsers.map((participant) => participant.userId),
+    ])
+
+    return contacts.filter((contact) => !excludedUserIds.has(contact.userId))
+  }, [activeCall, contacts])
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -1124,7 +1147,7 @@ export function ChatCallOverlay({
           size="sm"
           variant="outline"
           disabled={!selectedDialogId || isConnecting || Boolean(activeCall)}
-          onClick={() => startCall("audio")}
+          onClick={() => void startCall("audio")}
         >
           <PhoneCallIcon className="size-4" />
           Аудио
@@ -1133,7 +1156,7 @@ export function ChatCallOverlay({
           size="sm"
           variant="outline"
           disabled={!selectedDialogId || isConnecting || Boolean(activeCall)}
-          onClick={() => startCall("video")}
+          onClick={() => void startCall("video")}
         >
           <VideoIcon className="size-4" />
           Видео
@@ -1220,7 +1243,7 @@ export function ChatCallOverlay({
                       Сменить камеру
                     </Button>
                   ) : null}
-                  <Button type="button" variant="destructive" onClick={endCurrentCall}>
+                  <Button type="button" variant="destructive" onClick={() => void endCurrentCall()}>
                     <PhoneOffIcon className="size-4" />
                     Завершить
                   </Button>
@@ -1230,7 +1253,7 @@ export function ChatCallOverlay({
                   <Button
                     type="button"
                     disabled={isConnecting || !incomingCall}
-                    onClick={() => incomingCall && joinCall(incomingCall)}
+                    onClick={() => incomingCall && void joinCall(incomingCall)}
                   >
                     <PhoneIcon className="size-4" />
                     Ответить
@@ -1261,7 +1284,7 @@ export function ChatCallOverlay({
                     ))
                   ) : (
                     <div className="flex min-h-48 items-center justify-center rounded-[1.6rem] border border-dashed border-white/15 bg-white/3 p-8 text-center text-white/70">
-                      Ждём, пока кто-нибудь подключится к звонку.
+                      Ждем, пока кто-нибудь подключится к звонку.
                     </div>
                   )}
                 </div>
@@ -1330,6 +1353,7 @@ export function ChatCallOverlay({
                         )}
                       </div>
                     ) : null}
+
                     <p className="text-sm font-medium text-white/80">Участники</p>
                     <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                       {activeCall.participants.map((participant) => (
@@ -1356,6 +1380,7 @@ export function ChatCallOverlay({
                           </div>
                         </div>
                       ))}
+
                       {activeCall.invitedUsers.map((participant) => (
                         <div
                           key={participant.userId}

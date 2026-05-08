@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-import { subscribeToCalls, getUserCallSnapshots, type CallServerEvent } from "@/features/calls/lib/call-store"
+import {
+  getCallEventsSince,
+  getCurrentCallEventCursor,
+  getUserCallSnapshots,
+  type CallServerEvent,
+} from "@/features/calls/lib/call-store"
 import { getAuthorizedUserIdFromRequest } from "@/shared/lib/auth/request-user"
 
 export const runtime = "nodejs"
@@ -21,6 +26,9 @@ export async function GET(request: NextRequest) {
     start(controller) {
       let closed = false
       let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+      let pollTimer: ReturnType<typeof setInterval> | null = null
+      let lastSequence = 0
+      let isPolling = false
 
       const send = (value: string) => {
         if (closed) {
@@ -29,19 +37,18 @@ export async function GET(request: NextRequest) {
         controller.enqueue(encoder.encode(value))
       }
 
-      const unsubscribe = subscribeToCalls(userId, (event) => {
-        send(toSseEvent(event))
-      })
-
       const stop = () => {
         if (closed) {
           return
         }
         closed = true
-        unsubscribe()
         if (heartbeatTimer) {
           clearInterval(heartbeatTimer)
           heartbeatTimer = null
+        }
+        if (pollTimer) {
+          clearInterval(pollTimer)
+          pollTimer = null
         }
         try {
           controller.close()
@@ -51,19 +58,57 @@ export async function GET(request: NextRequest) {
         request.signal.removeEventListener("abort", stop)
       }
 
-      send("retry: 15000\n\n")
-      send(
-        toSseEvent({
-          type: "call.snapshot",
-          calls: getUserCallSnapshots(userId),
-        })
-      )
+      const poll = async () => {
+        if (closed || isPolling) {
+          return
+        }
 
-      heartbeatTimer = setInterval(() => {
-        send(": ping\n\n")
-      }, 15000)
+        isPolling = true
+
+        try {
+          const events = await getCallEventsSince(userId, lastSequence)
+          for (const entry of events) {
+            lastSequence = entry.sequence
+            send(toSseEvent(entry.event))
+          }
+        } catch {
+          stop()
+          return
+        } finally {
+          isPolling = false
+        }
+      }
 
       request.signal.addEventListener("abort", stop)
+
+      void (async () => {
+        try {
+          lastSequence = await getCurrentCallEventCursor(userId)
+          const calls = await getUserCallSnapshots(userId)
+
+          if (closed) {
+            return
+          }
+
+          send("retry: 15000\n\n")
+          send(
+            toSseEvent({
+              type: "call.snapshot",
+              calls,
+            })
+          )
+
+          heartbeatTimer = setInterval(() => {
+            send(": ping\n\n")
+          }, 15000)
+
+          pollTimer = setInterval(() => {
+            void poll()
+          }, 700)
+        } catch {
+          stop()
+        }
+      })()
     },
   })
 

@@ -7,7 +7,7 @@ const globalForPrisma = globalThis as unknown as {
   pgPool?: Pool
 }
 
-function getPool() {
+export function getPgPool() {
   if (globalForPrisma.pgPool) {
     return globalForPrisma.pgPool
   }
@@ -22,7 +22,7 @@ function getPool() {
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    adapter: new PrismaPg(getPool()),
+    adapter: new PrismaPg(getPgPool()),
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   })
 

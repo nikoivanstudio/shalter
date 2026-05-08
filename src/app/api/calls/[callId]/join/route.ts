@@ -16,7 +16,7 @@ export async function POST(
   }
 
   const { callId } = await context.params
-  const call = joinCall(callId, auth.user)
+  const call = await joinCall(callId, auth.user)
   if (!call) {
     return NextResponse.json({ message: "Звонок не найден" }, { status: 404 })
   }

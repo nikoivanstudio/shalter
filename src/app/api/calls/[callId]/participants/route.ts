@@ -19,7 +19,7 @@ export async function POST(
   }
 
   const { callId } = await context.params
-  const call = getCallRecord(callId)
+  const call = await getCallRecord(callId)
   if (!call) {
     return NextResponse.json({ message: "Звонок не найден" }, { status: 404 })
   }
@@ -102,7 +102,7 @@ export async function POST(
     return NextResponse.json({ message: "Не все пользователи найдены" }, { status: 404 })
   }
 
-  const snapshot = inviteUsersToCall(
+  const snapshot = await inviteUsersToCall(
     callId,
     users.map((user) => ({
       userId: user.id,

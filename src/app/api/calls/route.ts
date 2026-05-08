@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
   }
 
-  const call = createCall({
+  const call = await createCall({
     dialogId,
     media,
     createdBy: auth.user,

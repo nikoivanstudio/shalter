@@ -16,12 +16,12 @@ export async function POST(
   }
 
   const { callId } = await context.params
-  const call = getCallRecord(callId)
+  const call = await getCallRecord(callId)
   if (!call || !call.usersById.has(auth.userId)) {
     return NextResponse.json({ message: "Звонок не найден" }, { status: 404 })
   }
 
-  const ok = rejectCall(callId, auth.userId)
+  const ok = await rejectCall(callId, auth.userId)
   if (!ok) {
     return NextResponse.json({ message: "Не удалось отклонить звонок" }, { status: 400 })
   }

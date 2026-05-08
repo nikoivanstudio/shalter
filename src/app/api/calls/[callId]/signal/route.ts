@@ -30,12 +30,12 @@ export async function POST(
     return NextResponse.json({ message: "Некорректный сигнал звонка" }, { status: 400 })
   }
 
-  const call = getCallRecord(callId)
+  const call = await getCallRecord(callId)
   if (!call || !call.usersById.has(auth.userId)) {
     return NextResponse.json({ message: "Звонок не найден" }, { status: 404 })
   }
 
-  const ok = sendCallSignal({
+  const ok = await sendCallSignal({
     callId,
     fromUserId: auth.userId,
     toUserId,

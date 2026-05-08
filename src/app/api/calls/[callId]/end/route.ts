@@ -16,11 +16,11 @@ export async function POST(
   }
 
   const { callId } = await context.params
-  const call = getCallRecord(callId)
+  const call = await getCallRecord(callId)
   if (!call || !call.usersById.has(auth.userId)) {
     return NextResponse.json({ message: "Звонок не найден" }, { status: 404 })
   }
 
-  endCall(callId)
+  await endCall(callId)
   return NextResponse.json({ ok: true }, { status: 200 })
 }
