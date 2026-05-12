@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" fill="none">
+  <rect width="800" height="480" rx="40" fill="url(#bg)"/>
+  <circle cx="620" cy="120" r="120" fill="#22D3EE" opacity=".18"/>
+  <path d="M164 346c106-70 225-108 356-112 49-1 92 4 128 13-90 17-173 50-248 100-86 57-164 78-236 63Z" fill="#38BDF8" opacity=".16"/>
+  <rect x="256" y="92" width="288" height="288" rx="72" fill="#0F172A" stroke="rgba(255,255,255,.14)"/>
+  <path d="M401 146h82c16 0 26 18 17 32L414 314c-7 11-23 11-30 0L298 178c-9-14 1-32 17-32h86Z" fill="#22D3EE"/>
+  <path d="M400 186 455 186 400 276 345 186H400Z" fill="#E0F2FE"/>
+  <circle cx="400" cy="236" r="126" stroke="#67E8F9" stroke-opacity=".25" stroke-width="4"/>
+  <text x="400" y="430" fill="#F8FAFC" font-family="Arial, sans-serif" font-size="34" text-anchor="middle">TON Comet</text>
+  <defs>
+    <linearGradient id="bg" x1="42" y1="16" x2="742" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#082F49"/>
+      <stop offset=".5" stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#164E63"/>
+    </linearGradient>
+  </defs>
+</svg>

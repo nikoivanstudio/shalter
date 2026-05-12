@@ -5,6 +5,27 @@ export const PARTNER_REWARD_PREMIUM_DAYS = 5
 
 export const giftCatalog = [
   {
+    key: "bitcoin-vault",
+    name: "Bitcoin Vault",
+    cost: 210,
+    description: "Crypto gift paid with stars for rare moments, bold support, and digital flex.",
+    imageUrl: "/gifts/bitcoin-vault.svg",
+  },
+  {
+    key: "ethereum-orbit",
+    name: "Ethereum Orbit",
+    cost: 160,
+    description: "A smart crypto reward for architecture, product thinking, and deep technical work.",
+    imageUrl: "/gifts/ethereum-orbit.svg",
+  },
+  {
+    key: "ton-comet",
+    name: "TON Comet",
+    cost: 95,
+    description: "Fast and light crypto-themed reward for launches, chats, and quick wins.",
+    imageUrl: "/gifts/ton-comet.svg",
+  },
+  {
     key: "coffee",
     name: "Кофе-бонус",
     cost: 15,
@@ -77,6 +98,12 @@ export const giftCatalog = [
 ] as const
 
 export type GiftKey = (typeof giftCatalog)[number]["key"]
+
+export const cryptoGiftKeys = ["bitcoin-vault", "ethereum-orbit", "ton-comet"] as const
+
+export const cryptoGiftCatalog = giftCatalog.filter((gift) =>
+  (cryptoGiftKeys as readonly string[]).includes(gift.key)
+)
 
 export function getGiftByKey(key: string) {
   return giftCatalog.find((gift) => gift.key === key) ?? null

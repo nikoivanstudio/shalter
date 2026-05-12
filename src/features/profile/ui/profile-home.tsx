@@ -1020,6 +1020,27 @@ export function ProfileHome({
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle>Crypto rewards</CardTitle>
+                <CardDescription>
+                  Separate page for crypto-themed gifts that are paid with stars.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="rounded-2xl border border-border/70 bg-muted/35 p-4 text-sm">
+                  <p className="font-medium">BTC, ETH, TON</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Open the dedicated page to send crypto gifts without digging through profile settings.
+                  </p>
+                </div>
+                <Button type="button" onClick={() => router.push("/rewards")}>
+                  <GemIcon className="size-4" />
+                  Open crypto page
+                </Button>
+              </CardContent>
+            </Card>
+
             <PromoCard
               title="Подарок за звёзды"
               badge={isAdminWithInfiniteStars ? "∞ баланс" : `${starsBalance} звёзд`}

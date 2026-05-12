@@ -380,10 +380,10 @@ export function ContactsHome({
   const searchActive = query.trim().length > 0
 
   return (
-    <main className="relative h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.1),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.88))] px-4 py-5 dark:bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.08),transparent_22%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.92))] sm:px-6">
+    <main className="relative min-h-dvh overflow-x-hidden overflow-y-auto bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.1),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.88))] px-4 py-5 dark:bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.08),transparent_22%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(15,23,42,0.92))] sm:px-6">
       <div className="pointer-events-none absolute left-[-5rem] top-20 size-44 rounded-full bg-sky-400/10 blur-3xl" />
       <div className="pointer-events-none absolute right-[-4rem] top-52 size-40 rounded-full bg-emerald-400/10 blur-3xl" />
-      <div className="relative mx-auto flex h-full w-full max-w-4xl flex-col gap-4 pb-28 sm:gap-5">
+      <div className="relative mx-auto flex min-h-[calc(100dvh-2.5rem)] w-full max-w-5xl flex-col gap-4 pb-28 sm:gap-5">
         <header className="rounded-[1.7rem] border border-white/55 bg-card/82 px-4 py-4 shadow-[0_24px_70px_-36px_rgba(15,23,42,0.5)] backdrop-blur-2xl dark:border-white/10 sm:rounded-[2rem] sm:px-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -445,7 +445,7 @@ export function ContactsHome({
             </div>
           </CardHeader>
 
-          <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden px-4 pt-5 sm:px-6 sm:pt-6">
+          <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-visible px-4 pt-5 sm:px-6 sm:pt-6">
             <ContactProfileCard
               profile={selectedProfile}
               isLoading={isProfileLoading}
@@ -525,7 +525,7 @@ export function ContactsHome({
                 ) : null}
 
                 {!isSearching ? (
-                  <div className="max-h-[32dvh] space-y-2 overflow-y-auto pr-1">
+                  <div className="max-h-[34dvh] space-y-2 overflow-y-auto pr-1 sm:max-h-[36dvh]">
                     {searchResults.map((item) => (
                       <div
                         key={item.id}
@@ -649,9 +649,17 @@ export function ContactsHome({
               </div>
             ) : null}
 
-            <div className="flex min-h-0 flex-1 flex-col space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">{tr("Мои контакты")}</h3>
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.45rem] border border-white/45 bg-white/46 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] dark:border-white/10 dark:bg-white/[0.03] sm:p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Contacts</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">Quick access to profile, chat, and calls.</p>
+                </div>
+                <div className="rounded-full border border-white/55 bg-white/70 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm dark:border-white/10 dark:bg-white/5">
+                  {contacts.length}
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
                 {contacts.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{tr("Контактов пока нет.")}</p>
                 ) : null}
@@ -662,10 +670,10 @@ export function ContactsHome({
                   return (
                     <div
                       key={contact.id}
-                      className="rounded-[1.3rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.86))] p-3 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_64px_-40px_rgba(59,130,246,0.34)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.84),rgba(15,23,42,0.8))] sm:rounded-[1.5rem] sm:p-3.5"
+                      className="flex flex-col gap-3 rounded-[1.3rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.86))] p-3 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.32)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_64px_-40px_rgba(59,130,246,0.34)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(30,41,59,0.84),rgba(15,23,42,0.8))] sm:flex-row sm:items-center sm:justify-between sm:rounded-[1.5rem] sm:p-3.5"
                     >
                       <button
-                        className="flex w-full min-w-0 items-start gap-3 text-left"
+                        className="flex w-full min-w-0 flex-1 items-start gap-3 text-left"
                         onClick={() => router.push(`/chats?contactId=${contact.id}`)}
                       >
                         <UserAvatar
@@ -689,7 +697,7 @@ export function ContactsHome({
                               isBlocked={contact.isBlocked}
                             />
                           </div>
-                          <p className="text-xs text-muted-foreground sm:text-sm">
+                          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
                             {contact.phone} · {contact.email}
                           </p>
                         </div>
@@ -699,7 +707,7 @@ export function ContactsHome({
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="mt-3 flex-1 border-sky-200/60 bg-sky-50/80 text-sky-700 hover:bg-sky-100 dark:border-sky-400/20 dark:bg-sky-500/10 dark:text-sky-200 sm:mt-0 sm:flex-none"
+                        className="flex-1 border-sky-200/60 bg-sky-50/80 text-sky-700 hover:bg-sky-100 dark:border-sky-400/20 dark:bg-sky-500/10 dark:text-sky-200 sm:flex-none"
                         onClick={() => openChatWithCall(contact.id, "audio")}
                         disabled={isPending}
                       >
@@ -709,7 +717,7 @@ export function ContactsHome({
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="mt-3 flex-1 border-emerald-200/60 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-200 sm:mt-0 sm:flex-none"
+                        className="flex-1 border-emerald-200/60 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-200 sm:flex-none"
                         onClick={() => openChatWithCall(contact.id, "video")}
                         disabled={isPending}
                       >
@@ -719,14 +727,14 @@ export function ContactsHome({
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="mt-3 border-white/60 bg-white/80 shadow-sm hover:bg-white dark:border-white/10 dark:bg-white/5 sm:inline-flex"
+                        className="border-white/60 bg-white/80 shadow-sm hover:bg-white dark:border-white/10 dark:bg-white/5 sm:inline-flex"
                         onClick={() => openProfile(contact.id)}
                         disabled={isPending}
                       >
                         {tr("Профиль")}
                       </Button>
 
-                      <div className="relative mt-3 sm:mt-0" data-contact-actions-menu="true">
+                      <div className="relative self-start sm:self-auto" data-contact-actions-menu="true">
                         <button
                           type="button"
                         className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/90 text-muted-foreground shadow-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
