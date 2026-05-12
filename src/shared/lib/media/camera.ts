@@ -7,6 +7,7 @@ type CameraSwitchOptions = {
   height?: number
   preserveAudio?: boolean
   enabled?: boolean
+  stopCurrentTrack?: boolean
 }
 
 type ReplacementCameraStreamParams = {
@@ -178,7 +179,9 @@ export async function switchCameraInMediaStream(
 
   if (currentTrack) {
     options.currentStream.removeTrack(currentTrack)
-    currentTrack.stop()
+    if (options.stopCurrentTrack !== false) {
+      currentTrack.stop()
+    }
   }
 
   options.currentStream.addTrack(replacementTrack)

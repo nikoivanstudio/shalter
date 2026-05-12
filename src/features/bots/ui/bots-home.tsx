@@ -128,7 +128,7 @@ export function BotsHome({
 }: BotsHomeProps) {
   const [username, setUsername] = useState("")
   const [audience, setAudience] = useState<PublishedBot["audience"]>("client")
-  const [script, setScript] = useState(starterScript)
+  const [script, setScript] = useState(LANGUAGE_DOCS[LANGUAGE_DOCS.length - 1]?.code ?? starterScript)
   const [items, setItems] = useState<PublishedBot[]>(publishedBots)
   const [selectedBotId, setSelectedBotId] = useState<number | null>(
     initialSelectedBotId && publishedBots.some((bot) => bot.id === initialSelectedBotId)
@@ -317,8 +317,8 @@ export function BotsHome({
                   <div className="rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
                     <p className="font-medium">Концепция языка</p>
                     <p className="mt-2 text-muted-foreground">
-                      {LANGUAGE_NAME} проектируется как универсальный язык уровня Python: читаемый,
-                      асинхронный, с батарейками в комплекте и встроенным модулем `telegram`.
+                      {LANGUAGE_NAME} теперь выглядит как компактный C#-подобный DSL: знакомый по
+                      `new ShalterBot(...)`, именованным аргументам через `:` и методам в PascalCase.
                     </p>
                   </div>
 
@@ -388,20 +388,16 @@ export function BotsHome({
                     <p className="font-medium">Шпаргалка концепта</p>
                     <div className="mt-2 space-y-1 text-muted-foreground">
                       <p>
-                        <code>fn main()</code>, <code>class Service</code>,{" "}
-                        <code>async fn fetch()</code>
+                        <code>using Shalter;</code>, <code>var bot = new ShalterBot(...);</code>
                       </p>
                       <p>
-                        <code>from shalter import ShalterBot</code>
+                        <code>bot.Greeting(...);</code>, <code>bot.Guard(...);</code>
                       </p>
                       <p>
-                        <code>bot = ShalterBot(...)</code>
+                        <code>bot.OnText(new[] &lbrace; &quot;price&quot; &rbrace;, ...);</code>
                       </p>
                       <p>
-                        <code>router.command(&quot;start&quot;)</code>, <code>ctx.reply(...)</code>
-                      </p>
-                      <p>
-                        <code>telegram.run(bot, router, mode=&quot;webhook&quot;)</code>
+                        <code>bot.OnRegex(@&quot;(bug|error)&quot;, ..., flags: &quot;i&quot;);</code>
                       </p>
                     </div>
                   </div>

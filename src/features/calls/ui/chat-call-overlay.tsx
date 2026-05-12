@@ -473,11 +473,15 @@ export function ChatCallOverlay({
   }, [])
 
   async function sendSignal(callId: string, toUserId: number, signal: CallSignalPayload) {
-    await fetch(`/api/calls/${callId}/signal`, {
+    const response = await fetch(`/api/calls/${callId}/signal`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ toUserId, signal }),
     })
+
+    if (!response.ok) {
+      throw new Error("Не удалось синхронизировать звонок")
+    }
   }
 
   const requestPeerNegotiation = useCallback(async (remoteUserId: number, state: PeerState) => {
@@ -556,7 +560,7 @@ export function ChatCallOverlay({
         void sendSignal(activeCallRef.current.id, remoteUserId, {
           type: "ice-candidate",
           payload: event.candidate.toJSON(),
-        })
+        }).catch(() => null)
       }
 
       pc.onnegotiationneeded = () => {

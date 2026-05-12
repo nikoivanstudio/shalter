@@ -51,43 +51,58 @@ type SuggestionContext = {
 
 const BOT_METHOD_NAMES = [
   "greeting",
+  "Greeting",
   "guard",
+  "Guard",
   "safety",
+  "Safety",
   "handoff",
+  "Handoff",
   "escalate",
+  "Escalate",
   "default",
+  "Default",
   "reply",
+  "Reply",
   "rule_contains",
+  "RuleContains",
   "rule_regex",
+  "RuleRegex",
   "command",
+  "Command",
   "on_command",
+  "OnCommand",
   "on_text",
+  "OnText",
   "on_regex",
+  "OnRegex",
   "hears",
+  "Hears",
   "matches",
+  "Matches",
 ] as const
 
 const TOKEN_PATTERN = new RegExp(
-  `(from|import)\\b|(ShalterBot|Bot)\\b|(\\b(?:bot)\\.(?:${BOT_METHOD_NAMES.join("|")})\\b)|("""[\\s\\S]*?"""|r?"[^"\\n]*")|(#.*$)|(\\b\\d+\\b)|(flags)\\b`,
+  `(using|from|import|var|new)\\b|(ShalterBot|Bot)\\b|(\\b(?:bot)\\.(?:${BOT_METHOD_NAMES.join("|")})\\b)|("""[\\s\\S]*?"""|@?"[^"\\n]*")|(#.*$|//.*$)|(\\b\\d+\\b)|(flags)\\b`,
   "gm"
 )
 
 const EDITOR_SUGGESTIONS: EditorSuggestion[] = [
   {
-    label: "from shalter import ShalterBot",
+    label: "using Shalter;",
     detail: "Import",
-    documentation: "Import the main Shalter bot class before declaring any rules.",
-    example: "from shalter import ShalterBot",
-    insertText: "from shalter import ShalterBot",
+    documentation: "Подключает DSL Shalter перед объявлением сценария.",
+    example: "using Shalter;",
+    insertText: "using Shalter;",
     kind: "import",
   },
   {
-    label: "bot = ShalterBot(...)",
+    label: "var bot = new ShalterBot(...)",
     detail: "Create bot",
-    documentation: "Create the bot object and define its identity, niche, goal, and tone.",
-    example: 'bot = ShalterBot(name="Support", niche="Help", goal="Answer questions")',
+    documentation: "Создает bot-объект и задает имя, нишу, цель и тон общения.",
+    example: 'var bot = new ShalterBot(name: "Support", niche: "Help", goal: "Answer questions");',
     insertText:
-      'bot = ShalterBot(\n    name="New bot",\n    niche="Support",\n    goal="Help the user clearly.",\n    tone="Calm and precise.",\n)',
+      'var bot = new ShalterBot(\n    name: "New bot",\n    niche: "Support",\n    goal: "Help the user clearly.",\n    tone: "Calm and precise."\n);',
     kind: "constructor",
   },
   {
@@ -269,7 +284,7 @@ const EDITOR_SUGGESTIONS: EditorSuggestion[] = [
     detail: "Starter program",
     documentation: "Insert a full working bot with constructor, greeting, guard, rules, and fallback.",
     insertText:
-      'from shalter import ShalterBot\n\nbot = ShalterBot(\n    name="New bot",\n    niche="Support",\n    goal="Help the user clearly.",\n    tone="Calm and precise.",\n)\n\nbot.greeting("""\nHello! How can I help?\n""")\n\nbot.guard("""\nDo not invent prices, deadlines, or legal guarantees.\n""")\n\nbot.hears(["price", "cost"], """\nPricing depends on the task.\n""")\n\nbot.default("""\nTell me a bit more and I will help.\n""")',
+      'using Shalter;\n\nvar bot = new ShalterBot(\n    name: "New bot",\n    niche: "Support",\n    goal: "Help the user clearly.",\n    tone: "Calm and precise."\n);\n\nbot.Greeting("""\nHello! How can I help?\n""");\n\nbot.Guard("""\nDo not invent prices, deadlines, or legal guarantees.\n""");\n\nbot.OnText(new[] { "price", "cost" }, """\nPricing depends on the task.\n""");\n\nbot.Default("""\nTell me a bit more and I will help.\n""");',
     kind: "snippet",
     searchTerms: ["template", "starter", "program"],
   },
@@ -556,7 +571,7 @@ export function BotCodeEditor({ value, onChange, className = "" }: BotCodeEditor
             </span>
           ))
         ) : (
-          <span className="text-slate-500">from shalter import ShalterBot</span>
+          <span className="text-slate-500">using Shalter;</span>
         )}
         {value.endsWith("\n") ? "\n" : null}
       </pre>

@@ -376,6 +376,7 @@ export function ChatsHome({
   const recordingPreviewRef = useRef<HTMLVideoElement | null>(null)
   const pendingRecordingKindRef = useRef<"VOICE" | "VIDEO_NOTE" | null>(null)
   const discardPendingRecordingRef = useRef(false)
+  const isSwitchingRecordingCameraRef = useRef(false)
   const typingResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isTypingSentRef = useRef(false)
   const lastDialogResyncAtRef = useRef(0)
@@ -618,6 +619,7 @@ export function ChatsHome({
     mediaRecorderRef.current = null
     pendingRecordingKindRef.current = null
     discardPendingRecordingRef.current = false
+    isSwitchingRecordingCameraRef.current = false
     setRecordingCameraFacing("user")
     setIsRecordingVoice(false)
     setIsRecordingVideoNote(false)
@@ -674,11 +676,16 @@ export function ChatsHome({
       }
 
       recorder.onerror = () => {
+        if (kind === "VIDEO_NOTE" && isSwitchingRecordingCameraRef.current) {
+          return
+        }
+
         resetRecordingState()
         toast.error(kind === "VOICE" ? "Не удалось записать голосовое" : "Не удалось записать кружок")
       }
 
       recorder.onstop = () => {
+        isSwitchingRecordingCameraRef.current = false
         const nextKind = pendingRecordingKindRef.current
         const shouldDiscard = discardPendingRecordingRef.current
         const finalMimeType = recorder.mimeType || mimeType
@@ -741,6 +748,7 @@ export function ChatsHome({
 
     try {
       const currentStream = recordingStreamRef.current
+      isSwitchingRecordingCameraRef.current = true
       const nextMedia = await switchCameraInMediaStream({
         currentStream,
         nextFacing,
@@ -748,16 +756,22 @@ export function ChatsHome({
         height: 480,
         preserveAudio: true,
         enabled: true,
+        stopCurrentTrack: false,
       })
 
-      recordingStreamRef.current = nextMedia.stream
+      recordingStreamRef.current = currentStream
       setRecordingCameraFacing(nextMedia.facing)
 
       if (recordingPreviewRef.current) {
         recordingPreviewRef.current.srcObject = recordingStreamRef.current
         void recordingPreviewRef.current.play().catch(() => null)
       }
+
+      window.setTimeout(() => {
+        isSwitchingRecordingCameraRef.current = false
+      }, 400)
     } catch {
+      isSwitchingRecordingCameraRef.current = false
       toast.error("Не удалось переключить камеру")
     }
   }

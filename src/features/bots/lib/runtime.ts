@@ -124,17 +124,39 @@ function parsePythonStringLiteral(source: string) {
   return null
 }
 
-function splitPythonArguments(source: string) {
+function parseCSharpStringLiteral(source: string) {
+  const trimmed = source.trim()
+  const rawTripleMatch = trimmed.match(/^"""([\s\S]*)"""$/)
+  if (rawTripleMatch) {
+    return rawTripleMatch[1] ?? ""
+  }
+
+  const verbatimMatch = trimmed.match(/^@"([\s\S]*)"$/)
+  if (verbatimMatch) {
+    return (verbatimMatch[1] ?? "").replace(/""/g, '"')
+  }
+
+  const regularMatch = trimmed.match(/^"([^"]*)"$/)
+  if (regularMatch) {
+    return regularMatch[1] ?? ""
+  }
+
+  return null
+}
+
+function splitArguments(source: string) {
   const parts: string[] = []
   let current = ""
   let squareDepth = 0
   let parenDepth = 0
+  let curlyDepth = 0
   let inTriple = false
   let inDouble = false
 
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index] ?? ""
     const nextThree = source.slice(index, index + 3)
+    const previousChar = source[index - 1] ?? ""
 
     if (!inDouble && nextThree === '"""') {
       inTriple = !inTriple
@@ -143,7 +165,7 @@ function splitPythonArguments(source: string) {
       continue
     }
 
-    if (!inTriple && char === '"' && source[index - 1] !== "\\") {
+    if (!inTriple && char === '"' && previousChar !== "\\" && previousChar !== "@") {
       inDouble = !inDouble
       current += char
       continue
@@ -154,8 +176,10 @@ function splitPythonArguments(source: string) {
       if (char === "]") squareDepth -= 1
       if (char === "(") parenDepth += 1
       if (char === ")") parenDepth -= 1
+      if (char === "{") curlyDepth += 1
+      if (char === "}") curlyDepth -= 1
 
-      if (char === "," && squareDepth === 0 && parenDepth === 0) {
+      if (char === "," && squareDepth === 0 && parenDepth === 0 && curlyDepth === 0) {
         if (current.trim()) {
           parts.push(current.trim())
         }
@@ -183,6 +207,24 @@ function parsePythonPatternList(source: string) {
   return parseQuotedValues(trimmed.slice(1, -1))
 }
 
+function parseCSharpPatternList(source: string) {
+  const trimmed = source.trim()
+
+  if (trimmed.startsWith("new[]")) {
+    const braceStart = trimmed.indexOf("{")
+    const braceEnd = trimmed.lastIndexOf("}")
+    if (braceStart >= 0 && braceEnd > braceStart) {
+      return parseQuotedValues(trimmed.slice(braceStart + 1, braceEnd))
+    }
+  }
+
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    return parseQuotedValues(trimmed.slice(1, -1))
+  }
+
+  return []
+}
+
 function extractNamedArgument(args: string[], name: string) {
   const item = args.find((part) => part.startsWith(`${name}=`)) ?? ""
   if (!item) {
@@ -190,6 +232,177 @@ function extractNamedArgument(args: string[], name: string) {
   }
 
   return parsePythonStringLiteral(item.replace(new RegExp(`^${name}\\s*=\\s*`), ""))
+}
+
+function compileCSharpLibraryBotScript(script: string): BotScriptProgram | null {
+  if (
+    !/new\s+(?:ShalterBot|Bot)\s*\(/.test(script) &&
+    !/bot\.(Greeting|Guard|Safety|Handoff|Escalate|Default|Reply|RuleContains|OnText|Hears|RuleRegex|OnRegex|Matches|Command|OnCommand)/.test(
+      script
+    )
+  ) {
+    return null
+  }
+
+  const errors: string[] = []
+  const program: BotScriptProgram = {
+    name: "",
+    niche: "",
+    goal: "",
+    tone: "",
+    greeting: "",
+    fallback: "",
+    guard: "",
+    handoff: "",
+    rules: [],
+    errors,
+  }
+
+  const constructorMatch = script.match(
+    /(?:var\s+bot\s*=\s*)?new\s+(?:ShalterBot|Bot)\s*\(([\s\S]*?)\)\s*;?/
+  )
+  if (constructorMatch) {
+    const constructorArgs = constructorMatch[1] ?? ""
+    const metaPatterns = [
+      ["name", /name\s*:\s*"([^"]+)"/],
+      ["niche", /niche\s*:\s*"([^"]+)"/],
+      ["goal", /goal\s*:\s*"([^"]+)"/],
+      ["tone", /tone\s*:\s*"([^"]+)"/],
+    ] as const
+
+    for (const [key, pattern] of metaPatterns) {
+      const match = constructorArgs.match(pattern)
+      const value = match?.[1]?.trim() ?? ""
+      if (key === "name") program.name = value
+      if (key === "niche") program.niche = value
+      if (key === "goal") program.goal = value
+      if (key === "tone") program.tone = value
+    }
+  }
+
+  const singleBlockMethods = [
+    ["Greeting", "greeting"],
+    ["Guard", "guard"],
+    ["Safety", "guard"],
+    ["Handoff", "handoff"],
+    ["Escalate", "handoff"],
+    ["Default", "fallback"],
+    ["Reply", "fallback"],
+  ] as const
+
+  for (const [methodName, targetKey] of singleBlockMethods) {
+    const methodMatch = script.match(
+      new RegExp(`bot\\.${methodName}\\(\\s*("""[\\s\\S]*?"""|@"[\\s\\S]*?"|"[^"]*")\\s*\\)\\s*;`, "m")
+    )
+    const rawValue = methodMatch?.[1]
+    const parsedValue = rawValue ? parseCSharpStringLiteral(rawValue) : null
+    if (typeof parsedValue === "string") {
+      if (targetKey === "greeting") program.greeting = parsedValue.trim()
+      if (targetKey === "guard") program.guard = parsedValue.trim()
+      if (targetKey === "handoff") program.handoff = parsedValue.trim()
+      if (targetKey === "fallback") program.fallback = parsedValue.trim()
+    }
+  }
+
+  const textRuleMatches = Array.from(
+    script.matchAll(
+      /bot\.(?:RuleContains|OnText|Hears)\(\s*(new\[\]\s*\{[\s\S]*?\}|\[[\s\S]*?\]|@"[\s\S]*?"|"[^"]*")\s*,\s*("""[\s\S]*?"""|@"[\s\S]*?"|"[^"]*")\s*\)\s*;/g
+    )
+  )
+
+  for (const match of textRuleMatches) {
+    const patternsArg = match[1] ?? ""
+    const patterns =
+      parseCSharpPatternList(patternsArg).length > 0
+        ? parseCSharpPatternList(patternsArg)
+        : parseQuotedValues(patternsArg)
+    const reply = parseCSharpStringLiteral(match[2] ?? "") ?? ""
+
+    if (patterns.length === 0) {
+      errors.push("У правила bot.OnText() должен быть список шаблонов.")
+    }
+
+    program.rules.push({
+      id: `rule-${program.rules.length + 1}`,
+      kind: "includes",
+      patterns,
+      reply: reply.trim(),
+    })
+  }
+
+  const regexMatches = Array.from(
+    script.matchAll(
+      /bot\.(?:RuleRegex|OnRegex|Matches)\(\s*("""[\s\S]*?"""|@"[\s\S]*?"|"[^"]*")\s*,\s*("""[\s\S]*?"""|@"[\s\S]*?"|"[^"]*")\s*(?:,\s*flags\s*:\s*("([^"]*)"))?\s*\)\s*;/g
+    )
+  )
+
+  for (const match of regexMatches) {
+    const rawPattern = parseCSharpStringLiteral(match[1] ?? "")
+    const reply = parseCSharpStringLiteral(match[2] ?? "") ?? ""
+    const flags = parseCSharpStringLiteral(match[3] ?? "") ?? ""
+
+    if (!rawPattern) {
+      errors.push("У правила bot.OnRegex() нет шаблона.")
+    }
+
+    program.rules.push({
+      id: `rule-${program.rules.length + 1}`,
+      kind: "regex",
+      pattern: (rawPattern ?? "").replace(/^\/|\/[a-z]*$/gi, ""),
+      flags,
+      reply: reply.trim(),
+    })
+  }
+
+  const commandMatches = Array.from(
+    script.matchAll(/bot\.(?:Command|OnCommand)\(([\s\S]*?)\)\s*;/g)
+  )
+
+  for (const match of commandMatches) {
+    const args = splitArguments(match[1] ?? "")
+    const command = parseCSharpStringLiteral(args[0] ?? "")?.trim().replace(/^\/+/, "") ?? ""
+    const reply = parseCSharpStringLiteral(args[1] ?? "") ?? ""
+
+    if (!command) {
+      errors.push("У правила bot.Command() нет имени команды.")
+    }
+
+    program.rules.push({
+      id: `rule-${program.rules.length + 1}`,
+      kind: "regex",
+      pattern: `^/?${command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+      flags: "i",
+      reply: reply.trim(),
+    })
+  }
+
+  if (!program.greeting) {
+    errors.push('Добавьте bot.Greeting("""...""");')
+  }
+
+  if (!program.fallback) {
+    errors.push('Добавьте bot.Default("""...""");')
+  }
+
+  if (program.rules.length === 0) {
+    errors.push("Добавьте хотя бы одно правило bot.OnText(...) или bot.OnRegex(...)")
+  }
+
+  for (const rule of program.rules) {
+    if (!rule.reply.trim()) {
+      errors.push(`Пустой ответ у правила ${rule.id}.`)
+    }
+
+    if (rule.kind === "regex" && rule.pattern) {
+      try {
+        new RegExp(rule.pattern, rule.flags)
+      } catch {
+        errors.push(`Некорректное регулярное выражение в ${rule.id}.`)
+      }
+    }
+  }
+
+  return program
 }
 
 function compilePythonLibraryBotScript(script: string): BotScriptProgram | null {
@@ -281,7 +494,7 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
   )
 
   for (const match of ruleRegexMatches) {
-    const args = splitPythonArguments(match[1] ?? "")
+    const args = splitArguments(match[1] ?? "")
     const patternArg = args[0] ?? ""
     const replyArg = args[1] ?? ""
     const flagsArg = args.find((item) => item.startsWith("flags=")) ?? ""
@@ -307,7 +520,7 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
   )
 
   for (const match of commandMatches) {
-    const args = splitPythonArguments(match[1] ?? "")
+    const args = splitArguments(match[1] ?? "")
     const commandArg = args[0] ?? ""
     const replyArg = args[1] ?? ""
     const command = parsePythonStringLiteral(commandArg)?.trim().replace(/^\/+/, "") ?? ""
@@ -329,7 +542,7 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
   const textAliasMatches = Array.from(script.matchAll(/bot\.on_text\(([\s\S]*?)\)/g))
 
   for (const match of textAliasMatches) {
-    const args = splitPythonArguments(match[1] ?? "")
+    const args = splitArguments(match[1] ?? "")
     const patternsArg = args[0] ?? ""
     const replyArg = args[1] ?? ""
     const patterns =
@@ -353,7 +566,7 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
   const hearsMatches = Array.from(script.matchAll(/bot\.hears\(([\s\S]*?)\)/g))
 
   for (const match of hearsMatches) {
-    const args = splitPythonArguments(match[1] ?? "")
+    const args = splitArguments(match[1] ?? "")
     const patternsArg = args[0] ?? ""
     const replyArg = args[1] ?? ""
     const patterns =
@@ -377,7 +590,7 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
   const regexAliasMatches = Array.from(script.matchAll(/bot\.on_regex\(([\s\S]*?)\)/g))
 
   for (const match of regexAliasMatches) {
-    const args = splitPythonArguments(match[1] ?? "")
+    const args = splitArguments(match[1] ?? "")
     const rawPattern = parsePythonStringLiteral(args[0] ?? "")
     const reply = parsePythonStringLiteral(args[1] ?? "") ?? ""
     const flags = extractNamedArgument(args, "flags") ?? ""
@@ -398,7 +611,7 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
   const matchesAliasMatches = Array.from(script.matchAll(/bot\.matches\(([\s\S]*?)\)/g))
 
   for (const match of matchesAliasMatches) {
-    const args = splitPythonArguments(match[1] ?? "")
+    const args = splitArguments(match[1] ?? "")
     const rawPattern = parsePythonStringLiteral(args[0] ?? "")
     const reply = parsePythonStringLiteral(args[1] ?? "") ?? ""
     const flags = extractNamedArgument(args, "flags") ?? ""
@@ -446,6 +659,11 @@ function compilePythonLibraryBotScript(script: string): BotScriptProgram | null 
 }
 
 export function compileBotScript(script: string): BotScriptProgram {
+  const csharpProgram = compileCSharpLibraryBotScript(script)
+  if (csharpProgram) {
+    return csharpProgram
+  }
+
   const pythonProgram = compilePythonLibraryBotScript(script)
   if (pythonProgram) {
     return pythonProgram
