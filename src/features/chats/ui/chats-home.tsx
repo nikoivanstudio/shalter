@@ -123,6 +123,7 @@ export type ChatsHomeProps = {
     name: string
     username?: string | null
     niche: string | null
+    avatarUrl?: string | null
     config: BotConfig
   }>
   initialDialogId: number | null
@@ -1838,7 +1839,12 @@ export function ChatsHome({
                           className="relative flex w-full items-start gap-3 rounded-[1.3rem] border border-border/60 bg-background/88 p-3.5 text-left transition-colors hover:bg-accent/45"
                           onClick={() => openBot(bot.id)}
                         >
-                          <BotAvatar className="size-11 shrink-0" iconClassName="size-5" />
+                          <BotAvatar
+                            avatarUrl={bot.avatarUrl}
+                            alt={bot.name}
+                            className="size-11 shrink-0"
+                            iconClassName="size-5"
+                          />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium">{bot.name}</p>
                             <p className="truncate text-xs text-muted-foreground">

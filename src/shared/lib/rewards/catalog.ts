@@ -26,6 +26,13 @@ export const giftCatalog = [
     imageUrl: "/gifts/ton-comet.svg",
   },
   {
+    key: "sad-token",
+    name: "SAD Token",
+    cost: 140,
+    description: "House crypto for stars with a live market vibe, chart swings, and a moody premium aura.",
+    imageUrl: "/gifts/sad-token.svg",
+  },
+  {
     key: "coffee",
     name: "Кофе-бонус",
     cost: 15,
@@ -99,7 +106,7 @@ export const giftCatalog = [
 
 export type GiftKey = (typeof giftCatalog)[number]["key"]
 
-export const cryptoGiftKeys = ["bitcoin-vault", "ethereum-orbit", "ton-comet"] as const
+export const cryptoGiftKeys = ["bitcoin-vault", "ethereum-orbit", "ton-comet", "sad-token"] as const
 
 export const cryptoGiftCatalog = giftCatalog.filter((gift) =>
   (cryptoGiftKeys as readonly string[]).includes(gift.key)

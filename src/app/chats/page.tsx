@@ -242,11 +242,15 @@ export default async function ChatsPage({
       take: 10,
     }),
     prisma.botPublication.findMany({
+      where: {
+        isBlocked: false,
+      },
       select: {
         id: true,
         name: true,
         username: true,
         niche: true,
+        avatarUrl: true,
         config: true,
       },
       orderBy: { publishedAt: "desc" },

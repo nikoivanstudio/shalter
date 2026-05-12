@@ -1,6 +1,6 @@
 "use client"
 
-import { CoinsIcon, GemIcon, SendIcon } from "lucide-react"
+import { CoinsIcon, GemIcon, SendIcon, TrendingUpIcon } from "lucide-react"
 import Image from "next/image"
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -95,6 +95,10 @@ export function RewardsHome({
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" onClick={() => router.push("/")}>
                   Back to profile
+                </Button>
+                <Button type="button" variant="outline" onClick={() => router.push("/rewards/sad")}>
+                  <TrendingUpIcon className="size-4" />
+                  Open SAD market
                 </Button>
                 <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
                   <CoinsIcon className="mr-2 size-4" />

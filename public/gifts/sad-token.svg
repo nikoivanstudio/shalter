@@ -1,0 +1,68 @@
+<svg width="1200" height="900" viewBox="0 0 1200 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="900" rx="88" fill="#07111F"/>
+  <rect width="1200" height="900" rx="88" fill="url(#bg)"/>
+  <circle cx="957" cy="180" r="168" fill="url(#glowTop)" fill-opacity="0.78"/>
+  <circle cx="285" cy="710" r="226" fill="url(#glowBottom)" fill-opacity="0.58"/>
+  <path d="M118 668C220 579 328 623 417 569C499 519 560 403 678 395C799 387 865 506 970 518C1030 526 1087 502 1138 458V770H118V668Z" fill="url(#mountain)" fill-opacity="0.9"/>
+  <path d="M128 620C211 544 326 598 413 538C486 487 537 360 664 350C790 340 877 462 975 476C1039 485 1092 457 1142 412" stroke="url(#line)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <g filter="url(#glass)">
+    <rect x="146" y="132" width="364" height="160" rx="38" fill="white" fill-opacity="0.08"/>
+    <rect x="146.5" y="132.5" width="363" height="159" rx="37.5" stroke="white" stroke-opacity="0.15"/>
+  </g>
+  <text x="186" y="198" fill="#B8C7D9" font-family="Arial, sans-serif" font-size="34" letter-spacing="7">SAD TOKEN</text>
+  <text x="184" y="254" fill="#F8FBFF" font-family="Arial, sans-serif" font-size="84" font-weight="700">$SAD</text>
+  <g filter="url(#coinShadow)">
+    <circle cx="858" cy="430" r="170" fill="url(#coin)"/>
+    <circle cx="858" cy="430" r="143" stroke="white" stroke-opacity="0.26" stroke-width="3"/>
+  </g>
+  <path d="M812 351C812 327 831 308 855 308H861C909 308 948 347 948 395C948 430 927 461 895 474L840 497C819 506 806 528 806 551C806 584 832 610 865 610H868C897 610 920 587 920 558V545" stroke="#07111F" stroke-width="30" stroke-linecap="round"/>
+  <circle cx="794" cy="429" r="18" fill="#07111F"/>
+  <circle cx="928" cy="429" r="18" fill="#07111F"/>
+  <path d="M816 662H1034" stroke="white" stroke-opacity="0.26" stroke-width="10" stroke-linecap="round"/>
+  <text x="816" y="720" fill="#E5EEF9" font-family="Arial, sans-serif" font-size="54" font-weight="700">140 stars</text>
+  <text x="817" y="769" fill="#B4C5D8" font-family="Arial, sans-serif" font-size="26" letter-spacing="3.2">UP / DOWN / REPEAT</text>
+  <defs>
+    <linearGradient id="bg" x1="91" y1="36" x2="1101" y2="882" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#112238"/>
+      <stop offset="0.5" stop-color="#091521"/>
+      <stop offset="1" stop-color="#02060D"/>
+    </linearGradient>
+    <radialGradient id="glowTop" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(957 180) rotate(90) scale(168)">
+      <stop stop-color="#F97316"/>
+      <stop offset="1" stop-color="#F97316" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowBottom" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(285 710) rotate(90) scale(226)">
+      <stop stop-color="#22C55E"/>
+      <stop offset="1" stop-color="#22C55E" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mountain" x1="628" y1="395" x2="628" y2="770" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#163253"/>
+      <stop offset="1" stop-color="#091421" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="line" x1="128" y1="455" x2="1142" y2="455" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316"/>
+      <stop offset="0.5" stop-color="#FACC15"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="723" y1="299" x2="1001" y2="567" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F59E0B"/>
+      <stop offset="0.55" stop-color="#FB7185"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+    <filter id="glass" x="112" y="104" width="432" height="228" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="17" result="effect1_foregroundBlur_1_1"/>
+    </filter>
+    <filter id="coinShadow" x="642" y="228" width="432" height="432" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="14"/>
+      <feGaussianBlur stdDeviation="23"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0196078 0 0 0 0 0.0627451 0 0 0 0 0.129412 0 0 0 0.42 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_1" result="shape"/>
+    </filter>
+  </defs>
+</svg>

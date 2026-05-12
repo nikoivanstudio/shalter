@@ -24,6 +24,9 @@ export default async function BotsPage({
     Number.isInteger(parsedBotId) && parsedBotId > 0 ? parsedBotId : null
 
   const publications = await prisma.botPublication.findMany({
+    where: {
+      OR: [{ isBlocked: false }, { ownerId: user.id }],
+    },
     orderBy: { publishedAt: "desc" },
     include: {
       owner: {
@@ -55,6 +58,8 @@ export default async function BotsPage({
           username: bot.username,
           niche: bot.niche,
           audience: bot.audience as "client" | "user",
+          avatarUrl: bot.avatarUrl,
+          isBlocked: bot.isBlocked,
           publishedAt: bot.publishedAt.toISOString(),
           config: bot.config as BotConfig,
           ownerId: bot.ownerId,

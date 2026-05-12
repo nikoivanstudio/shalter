@@ -1,7 +1,7 @@
 "use client"
 
-import { BotIcon, CopyIcon, MessageCircleIcon, SendIcon } from "lucide-react"
-import { useMemo, useState, useTransition } from "react"
+import { BotIcon, CopyIcon, FileImageIcon, MessageCircleIcon, SendIcon, ShieldIcon, Trash2Icon } from "lucide-react"
+import { useMemo, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,7 @@ import {
 import { BotCodeEditor } from "@/features/bots/ui/bot-code-editor"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
 import { hasAdministrativeAccess } from "@/shared/lib/auth/roles"
+import { BotAvatar } from "@/shared/ui/bot-avatar"
 
 type BotUser = {
   id: number
@@ -38,6 +39,8 @@ type PublishedBot = {
   username?: string
   niche: string | null
   audience: "client" | "user"
+  avatarUrl?: string | null
+  isBlocked?: boolean
   publishedAt: string
   config: BotConfig
   ownerId?: number
@@ -139,9 +142,13 @@ export function BotsHome({
     LANGUAGE_DOCS[0]?.id ?? "spec"
   )
   const [botDraft, setBotDraft] = useState("")
+  const [publishAvatarFile, setPublishAvatarFile] = useState<File | null>(null)
   const [botMessagesById, setBotMessagesById] = useState<Record<number, BotChatMessage[]>>({})
   const [isPublishing, startPublishing] = useTransition()
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null)
+  const [isUpdatingId, setIsUpdatingId] = useState<number | null>(null)
+  const botAvatarInputRef = useRef<HTMLInputElement | null>(null)
+  const [avatarTargetBotId, setAvatarTargetBotId] = useState<number | null>(null)
 
   const normalizedUsername = username.trim().toLowerCase()
   const scriptProgram = useMemo(() => compileBotScript(script), [script])
@@ -152,6 +159,10 @@ export function BotsHome({
   const selectedBot = items.find((item) => item.id === selectedBotId) ?? items[0] ?? null
   const selectedDocSection =
     LANGUAGE_DOCS.find((section) => section.id === selectedDocSectionId) ?? LANGUAGE_DOCS[0]
+
+  function getBotById(botId: number) {
+    return items.find((item) => item.id === botId) ?? null
+  }
 
   async function copyConfig() {
     try {
@@ -173,13 +184,26 @@ export function BotsHome({
 
   function publishBot() {
     startPublishing(async () => {
+      const payload = {
+        audience,
+        config: previewConfig,
+      }
+      const requestBody =
+        publishAvatarFile === null
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            }
+          : (() => {
+              const formData = new FormData()
+              formData.set("payload", JSON.stringify(payload))
+              formData.set("avatarFile", publishAvatarFile)
+              return { body: formData }
+            })()
+
       const response = await fetch("/api/bots", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audience,
-          config: previewConfig,
-        }),
+        ...requestBody,
       })
 
       const data = await response.json().catch(() => null)
@@ -209,7 +233,11 @@ export function BotsHome({
           return
         }
 
-        setItems((prev) => prev.filter((item) => item.id !== botId))
+        setItems((prev) => {
+          const nextItems = prev.filter((item) => item.id !== botId)
+          setSelectedBotId((current) => (current === botId ? nextItems[0]?.id ?? null : current))
+          return nextItems
+        })
         setBotMessagesById((prev) => {
           const next = { ...prev }
           delete next[botId]
@@ -223,6 +251,57 @@ export function BotsHome({
       .finally(() => {
         setIsDeletingId(null)
       })
+  }
+
+  function updatePublication(
+    botId: number,
+    options: {
+      isBlocked?: boolean
+      avatarFile?: File | null
+      removeAvatar?: boolean
+      successMessage: string
+    }
+  ) {
+    const currentBot = getBotById(botId)
+    if (!currentBot) {
+      return
+    }
+
+    setIsUpdatingId(botId)
+
+    const formData = new FormData()
+    formData.set("isBlocked", String(options.isBlocked ?? currentBot.isBlocked ?? false))
+    formData.set("removeAvatar", String(options.removeAvatar ?? false))
+    if (options.avatarFile) {
+      formData.set("avatarFile", options.avatarFile)
+    }
+
+    void fetch(`/api/bots/${botId}`, {
+      method: "PATCH",
+      body: formData,
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => null)
+        if (!response.ok) {
+          toast.error(data?.message ?? "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ Р±РѕС‚Р°")
+          return
+        }
+
+        const updatedBot = data.bot as PublishedBot
+        setItems((prev) => prev.map((item) => (item.id === botId ? { ...item, ...updatedBot } : item)))
+        toast.success(options.successMessage)
+      })
+      .catch(() => {
+        toast.error("РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ Р±РѕС‚Р°")
+      })
+      .finally(() => {
+        setIsUpdatingId(null)
+      })
+  }
+
+  function triggerAvatarUpload(botId: number) {
+    setAvatarTargetBotId(botId)
+    botAvatarInputRef.current?.click()
   }
 
   function openBot(botId: number) {
@@ -312,6 +391,32 @@ export function BotsHome({
                         Пользователи
                       </Button>
                     </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-3">
+                    <p className="text-sm font-medium">РђРІР°С‚Р°СЂ Р±РѕС‚Р°</p>
+                    <div className="flex items-center gap-3">
+                      <BotAvatar
+                        alt={previewConfig.name}
+                        className="size-14 shrink-0"
+                        iconClassName="size-6"
+                      />
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          className="sr-only"
+                          onChange={(event) => setPublishAvatarFile(event.target.files?.[0] ?? null)}
+                        />
+                        <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-2 text-sm hover:bg-accent">
+                          <FileImageIcon className="size-4" />
+                          {publishAvatarFile ? "РЎРјРµРЅРёС‚СЊ Р°РІР°С‚Р°СЂ" : "Р—Р°РіСЂСѓР·РёС‚СЊ Р°РІР°С‚Р°СЂ"}
+                        </span>
+                      </label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {publishAvatarFile ? publishAvatarFile.name : "PNG, JPG, WEBP РёР»Рё GIF"}
+                    </p>
                   </div>
 
                   <div className="rounded-2xl border border-border/70 bg-muted/20 p-3 text-sm">
@@ -502,13 +607,32 @@ export function BotsHome({
                     items.map((bot) => (
                       <div
                         key={bot.id}
-                        className={`rounded-2xl border p-3 transition ${
+                        onClick={() => setSelectedBotId(bot.id)}
+                        className={`cursor-pointer rounded-2xl border p-3 transition ${
                           selectedBotId === bot.id ? "border-primary bg-primary/5" : "border-border/70"
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 space-y-1">
-                            <p className="truncate text-sm font-medium">{bot.name}</p>
+                        <div className="flex items-start gap-3">
+                          <BotAvatar
+                            avatarUrl={bot.avatarUrl}
+                            alt={bot.name}
+                            className="size-12 shrink-0"
+                            iconClassName="size-5"
+                          />
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate text-sm font-medium">{bot.name}</p>
+                              {bot.isMine ? (
+                                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                  my bot
+                                </span>
+                              ) : null}
+                              {bot.isBlocked ? (
+                                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                  blocked
+                                </span>
+                              ) : null}
+                            </div>
                             {bot.username ? (
                               <p className="truncate text-xs text-muted-foreground">
                                 @{bot.username}
@@ -530,7 +654,12 @@ export function BotsHome({
                           </Button>
                         </div>
                         <div className="mt-3 flex gap-2">
-                          <Button type="button" size="sm" onClick={() => openBot(bot.id)}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={Boolean(bot.isBlocked)}
+                            onClick={() => openBot(bot.id)}
+                          >
                             <MessageCircleIcon className="size-4" />
                             Открыть
                           </Button>
@@ -557,6 +686,90 @@ export function BotsHome({
                 <CardContent className="space-y-4">
                   {selectedBot ? (
                     <>
+                      {selectedBot.isMine ? (
+                        <div className="rounded-2xl border border-border/70 bg-muted/20 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <BotAvatar
+                                avatarUrl={selectedBot.avatarUrl}
+                                alt={selectedBot.name}
+                                className="size-12 shrink-0"
+                                iconClassName="size-5"
+                              />
+                              <div>
+                                <p className="text-sm font-medium">{selectedBot.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {selectedBot.isBlocked ? "Р‘РѕС‚ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ" : "Р‘РѕС‚ Р°РєС‚РёРІРµРЅ"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={isUpdatingId === selectedBot.id}
+                                onClick={() => triggerAvatarUpload(selectedBot.id)}
+                              >
+                                <FileImageIcon className="size-4" />
+                                {selectedBot.avatarUrl ? "РЎРјРµРЅРёС‚СЊ Р°РІР°С‚Р°СЂ" : "Р”РѕР±Р°РІРёС‚СЊ Р°РІР°С‚Р°СЂ"}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={isUpdatingId === selectedBot.id}
+                                onClick={() =>
+                                  updatePublication(selectedBot.id, {
+                                    isBlocked: !selectedBot.isBlocked,
+                                    successMessage: selectedBot.isBlocked ? "Р‘РѕС‚ СЂР°Р·Р±Р»РѕРєРёСЂРѕРІР°РЅ" : "Р‘РѕС‚ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅ",
+                                  })
+                                }
+                              >
+                                <ShieldIcon className="size-4" />
+                                {selectedBot.isBlocked ? "Р Р°Р·Р±Р»РѕРєРёСЂРѕРІР°С‚СЊ" : "Р—Р°Р±Р»РѕРєРёСЂРѕРІР°С‚СЊ"}
+                              </Button>
+                              {selectedBot.avatarUrl ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={isUpdatingId === selectedBot.id}
+                                  onClick={() =>
+                                    updatePublication(selectedBot.id, {
+                                      removeAvatar: true,
+                                      successMessage: "РђРІР°С‚Р°СЂ Р±РѕС‚Р° СѓРґР°Р»С‘РЅ",
+                                    })
+                                  }
+                                >
+                                  <Trash2Icon className="size-4" />
+                                  РЈР±СЂР°С‚СЊ Р°РІР°С‚Р°СЂ
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
+                          <input
+                            ref={botAvatarInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            className="sr-only"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0] ?? null
+                              const botId = avatarTargetBotId
+                              event.currentTarget.value = ""
+                              if (!file || !botId) {
+                                return
+                              }
+
+                              updatePublication(botId, {
+                                avatarFile: file,
+                                successMessage: "РђРІР°С‚Р°СЂ Р±РѕС‚Р° РѕР±РЅРѕРІР»С‘РЅ",
+                              })
+                            }}
+                          />
+                        </div>
+                      ) : null}
+
                       <div className="max-h-[28rem] space-y-3 overflow-y-auto rounded-2xl border border-border/70 bg-muted/20 p-3">
                         {(botMessagesById[selectedBot.id] ??
                           createInitialBotMessages(selectedBot.config)).map((message) => (
