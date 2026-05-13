@@ -2,6 +2,7 @@
 
 import {
   BotIcon,
+  Gamepad2Icon,
   HardDriveIcon,
   MessageCircleIcon,
   NewspaperIcon,
@@ -14,7 +15,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 
-type NavSection = "settings" | "contacts" | "chats" | "channels" | "feed" | "bots" | "server"
+type NavSection = "settings" | "contacts" | "chats" | "feed" | "game" | "bots" | "server"
 
 type BottomNavProps = {
   active?: NavSection
@@ -132,6 +133,17 @@ export function BottomNav({
         </Button>
 
         <Button
+          variant={active === "game" ? "default" : "ghost"}
+          className={buildItemClassName(active === "game")}
+          onClick={() => router.push("/game")}
+        >
+          <NavIconFrame>
+            <Gamepad2Icon className="size-4 sm:size-4.5" />
+          </NavIconFrame>
+          <span className={buildLabelClassName(active === "game")}>{tr("Игра")}</span>
+        </Button>
+
+        <Button
           variant={active === "bots" ? "default" : "ghost"}
           className={buildItemClassName(active === "bots")}
           onClick={() => router.push("/bots")}
@@ -151,7 +163,7 @@ export function BottomNav({
             <NavIconFrame>
               <HardDriveIcon className="size-4 sm:size-4.5" />
             </NavIconFrame>
-            <span className={buildLabelClassName(active === "server")}>Сервер</span>
+            <span className={buildLabelClassName(active === "server")}>{tr("Сервер")}</span>
           </Button>
         ) : null}
       </div>

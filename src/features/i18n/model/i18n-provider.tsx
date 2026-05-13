@@ -21,7 +21,12 @@ type I18nContextValue = {
 
 const STORAGE_KEY = "language"
 
-const EN_TRANSLATIONS: Record<string, string> = {
+const RAW_EN_TRANSLATIONS: Record<string, string> = {
+  "Русский": "Russian",
+  "Системный язык": "System language",
+  "Переключить язык": "Switch language",
+  "Игра": "Game",
+  "Сервер": "Server",
   "Русский": "Russian",
   "Английский": "English",
   "Переключить язык": "Switch language",
@@ -232,6 +237,31 @@ const EN_TRANSLATIONS: Record<string, string> = {
   "Снять админа": "Remove admin",
 }
 
+function decodePossiblyBrokenText(text: string) {
+  let current = text
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (!/[ÐÑРСЃ]/.test(current)) {
+      break
+    }
+
+    const bytes = Uint8Array.from(Array.from(current), (char) => char.charCodeAt(0) & 0xff)
+    const decoded = new TextDecoder("utf-8").decode(bytes)
+
+    if (decoded === current || decoded.includes("\u0000")) {
+      break
+    }
+
+    current = decoded
+  }
+
+  return current
+}
+
+const EN_TRANSLATIONS = Object.fromEntries(
+  Object.entries(RAW_EN_TRANSLATIONS).map(([key, value]) => [decodePossiblyBrokenText(key), value])
+)
+
 const defaultContextValue: I18nContextValue = {
   language: "ru",
   languagePreference: "system",
@@ -278,11 +308,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       languagePreference,
       setLanguage,
       tr: (text: string) => {
+        const normalizedText = decodePossiblyBrokenText(text)
+
         if (language === "ru") {
-          return text
+          return normalizedText
         }
 
-        return EN_TRANSLATIONS[text] ?? text
+        return EN_TRANSLATIONS[normalizedText] ?? normalizedText
       },
     }),
     [language, languagePreference]

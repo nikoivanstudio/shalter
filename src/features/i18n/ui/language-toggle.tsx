@@ -12,7 +12,7 @@ import {
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 
 export function LanguageToggle() {
-  const { language, languagePreference, setLanguage, tr } = useI18n()
+  const { languagePreference, setLanguage, tr } = useI18n()
 
   return (
     <DropdownMenu>
@@ -21,8 +21,8 @@ export function LanguageToggle() {
           <Button
             variant="outline"
             size="icon-sm"
-            aria-label={tr("РџРµСЂРµРєР»СЋС‡РёС‚СЊ СЏР·С‹Рє")}
-            title={tr("РџРµСЂРµРєР»СЋС‡РёС‚СЊ СЏР·С‹Рє")}
+            aria-label={tr("Переключить язык")}
+            title={tr("Переключить язык")}
           />
         }
       >
@@ -33,13 +33,13 @@ export function LanguageToggle() {
           onClick={() => setLanguage("system")}
           data-active={languagePreference === "system" ? "" : undefined}
         >
-          {language === "ru" ? "Системный язык" : "System language"}
+          {tr("Системный язык")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => setLanguage("ru")}
           data-active={languagePreference === "ru" ? "" : undefined}
         >
-          Русский
+          {tr("Русский")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => setLanguage("en")}
