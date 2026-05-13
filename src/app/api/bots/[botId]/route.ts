@@ -171,12 +171,18 @@ export async function DELETE(
     return NextResponse.json({ message: "РњРѕР¶РЅРѕ СѓРґР°Р»СЏС‚СЊ С‚РѕР»СЊРєРѕ СЃРІРѕРё РїСѓР±Р»РёРєР°С†РёРё" }, { status: 403 })
   }
 
-  await prisma.$transaction(async (tx) => {
-    await releaseUsername(tx, "bot", publicationId)
-    await tx.botPublication.delete({
+  if (typeof prisma.$transaction === "function") {
+    await prisma.$transaction(async (tx) => {
+      await releaseUsername(tx, "bot", publicationId)
+      await tx.botPublication.delete({
+        where: { id: publicationId },
+      })
+    })
+  } else {
+    await prisma.botPublication.delete({
       where: { id: publicationId },
     })
-  })
+  }
 
   await deleteUploadedFileByUrl(publication.avatarUrl)
 

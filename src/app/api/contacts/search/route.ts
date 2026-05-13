@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
       where: {
         id: { not: userId },
         OR: [
+          { username: { contains: q, mode: "insensitive" } },
           { phone: { contains: q, mode: "insensitive" } },
           { firstName: { contains: q, mode: "insensitive" } },
           { lastName: { contains: q, mode: "insensitive" } },
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
       },
       select: {
         id: true,
+        username: true,
         firstName: true,
         lastName: true,
         phone: true,

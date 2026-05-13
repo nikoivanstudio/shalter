@@ -124,6 +124,16 @@ function getRuleCount(config: BotConfig) {
   return config.flow.length
 }
 
+function buildBotUsernameSeed(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+
+  return normalized.slice(0, 32)
+}
+
 export function BotsHome({
   user,
   publishedBots = [],
@@ -132,6 +142,7 @@ export function BotsHome({
   const [username, setUsername] = useState("")
   const [audience, setAudience] = useState<PublishedBot["audience"]>("client")
   const [script, setScript] = useState(LANGUAGE_DOCS[LANGUAGE_DOCS.length - 1]?.code ?? starterScript)
+  const [botName, setBotName] = useState("Новый бот")
   const [items, setItems] = useState<PublishedBot[]>(publishedBots)
   const [selectedBotId, setSelectedBotId] = useState<number | null>(
     initialSelectedBotId && publishedBots.some((bot) => bot.id === initialSelectedBotId)
@@ -151,10 +162,20 @@ export function BotsHome({
   const [avatarTargetBotId, setAvatarTargetBotId] = useState<number | null>(null)
 
   const normalizedUsername = username.trim().toLowerCase()
+  const generatedUsername = buildBotUsernameSeed(botName)
+  const effectiveUsername =
+    normalizedUsername.length >= 4 ? normalizedUsername : generatedUsername
   const scriptProgram = useMemo(() => compileBotScript(script), [script])
+  const derivedPreviewConfig = useMemo(
+    () => createBotConfigFromScript(script, effectiveUsername),
+    [effectiveUsername, script]
+  )
   const previewConfig = useMemo(
-    () => createBotConfigFromScript(script, normalizedUsername),
-    [normalizedUsername, script]
+    () => ({
+      ...derivedPreviewConfig,
+      name: botName.trim() || derivedPreviewConfig.name || "Новый бот",
+    }),
+    [botName, derivedPreviewConfig]
   )
   const selectedBot = items.find((item) => item.id === selectedBotId) ?? items[0] ?? null
   const selectedDocSection =
@@ -358,6 +379,18 @@ export function BotsHome({
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="bot-name">
+                      Имя бота
+                    </label>
+                    <Input
+                      id="bot-name"
+                      value={botName}
+                      onChange={(event) => setBotName(event.target.value)}
+                      placeholder="Sales Copilot"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <label className="text-sm font-medium" htmlFor="bot-username">
                       Username
                     </label>
@@ -467,7 +500,7 @@ export function BotsHome({
                     onClick={publishBot}
                     disabled={
                       isPublishing ||
-                      normalizedUsername.length < 4 ||
+                      effectiveUsername.length < 4 ||
                       scriptProgram.errors.length > 0 ||
                       previewConfig.name.trim().length < 2
                     }
@@ -686,6 +719,10 @@ export function BotsHome({
                 <CardContent className="space-y-4">
                   {selectedBot ? (
                     <>
+                      <div className="rounded-2xl border border-border/70 bg-background/70 p-3 text-sm">
+                        <p className="font-medium">{`Тестовый чат с ботом ${selectedBot.name}`}</p>
+                      </div>
+
                       {selectedBot.isMine ? (
                         <div className="rounded-2xl border border-border/70 bg-muted/20 p-3">
                           <div className="flex flex-wrap items-center justify-between gap-3">

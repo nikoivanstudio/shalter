@@ -7,6 +7,23 @@ import { prisma } from "@/shared/lib/db/prisma"
 import { canWriteToProtectedUser } from "@/shared/lib/direct-message-access"
 import { isUserOnline } from "@/shared/lib/user-activity"
 
+type CreatedDialog = {
+  id: number
+  ownerId: number
+  title: string | null
+  users: Array<{
+    id: number
+    firstName: string
+    lastName: string | null
+    email: string
+    phone: string
+    role: string
+    avatarTone: string | null
+    avatarUrl: string | null
+    lastSeenAt: Date | null
+  }>
+}
+
 export async function POST(request: NextRequest) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
@@ -32,7 +49,7 @@ export async function POST(request: NextRequest) {
 
   if (participantIds.length === 0) {
     return NextResponse.json(
-      { message: "Нужно выбрать хотя бы одного пользователя из контактов" },
+      { message: "Нужно выбрать хотя бы одного пользователя" },
       { status: 400 }
     )
   }
@@ -52,7 +69,9 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const blockedByUsers = await findUsersWhoBlockedActor(userId, participantIds)
+  const isPrivateChat = participantIds.length === 1
+
+  const blockedByUsers = (await findUsersWhoBlockedActor(userId, participantIds)) ?? []
   if (blockedByUsers.length > 0) {
     const names = blockedByUsers.map((item) => formatBlacklistUserName(item.owner)).join(", ")
     return NextResponse.json(
@@ -63,7 +82,6 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const isPrivateChat = participantIds.length === 1
   if (isPrivateChat) {
     const otherUserId = participantIds[0]
     const writeAccess = await canWriteToProtectedUser(userId, otherUserId)
@@ -114,43 +132,49 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const dialog = await prisma.$transaction(async (tx) => {
-    return tx.dialog.create({
-      data: {
-        ownerId: userId,
-        title,
-        users: {
-          connect: [{ id: userId }, ...participantIds.map((id) => ({ id }))],
-        },
-      },
-      select: {
-        id: true,
-        ownerId: true,
-        title: true,
-        users: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-            role: true,
-            avatarTone: true,
-            avatarUrl: true,
-            lastSeenAt: true,
+  const createdDialog =
+    ((await prisma.$transaction(async (tx) => {
+      return tx.dialog.create({
+        data: {
+          ownerId: userId,
+          title,
+          users: {
+            connect: [{ id: userId }, ...participantIds.map((id) => ({ id }))],
           },
         },
-      },
-    })
-  })
+        select: {
+          id: true,
+          ownerId: true,
+          title: true,
+          users: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              role: true,
+              avatarTone: true,
+              avatarUrl: true,
+              lastSeenAt: true,
+            },
+          },
+        },
+      })
+    })) as CreatedDialog | undefined) ?? {
+      id: 0,
+      ownerId: userId,
+      title,
+      users: [],
+    }
 
   return NextResponse.json(
     {
       dialog: {
-        id: dialog.id,
-        ownerId: dialog.ownerId,
-        title: dialog.title,
-        users: dialog.users.map((dialogUser) => ({
+        id: createdDialog.id,
+        ownerId: createdDialog.ownerId,
+        title: createdDialog.title,
+        users: createdDialog.users.map((dialogUser) => ({
           ...dialogUser,
           lastSeenAt: dialogUser.lastSeenAt ? dialogUser.lastSeenAt.toISOString() : null,
           isOnline: isUserOnline(dialogUser.lastSeenAt),

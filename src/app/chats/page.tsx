@@ -13,7 +13,7 @@ import { isUserOnline } from "@/shared/lib/user-activity"
 export default async function ChatsPage({
   searchParams,
 }: {
-  searchParams: Promise<{
+  searchParams?: Promise<{
     contactId?: string
     dialogId?: string
     botId?: string
@@ -21,14 +21,14 @@ export default async function ChatsPage({
     answerCall?: string
     callId?: string
   }>
-}) {
+} = {}) {
   const user = await getCurrentUser()
 
   if (!user) {
     redirect("/auth")
   }
 
-  const params = await searchParams
+  const params = (await searchParams) ?? {}
   const parsedContactId = Number(params.contactId)
   const parsedDialogId = Number(params.dialogId)
   const parsedBotId = Number(params.botId)
@@ -83,11 +83,7 @@ export default async function ChatsPage({
     }
   }
 
-  if (
-    !initialDialogId &&
-    requestedContactId &&
-    contacts.some((item) => item.contactUser.id === requestedContactId)
-  ) {
+  if (!initialDialogId && requestedContactId) {
     const existingDialog = await prisma.dialog.findFirst({
       where: {
         users: {
@@ -224,39 +220,49 @@ export default async function ChatsPage({
     unreadGroups.map((item) => [item.dialogId, item._count._all] as const)
   )
 
-  const [channels, bots] = await Promise.all([
-    prisma.channel.findMany({
-      where: {
-        participants: {
-          some: { userId: user.id },
-        },
-      },
-      select: {
-        id: true,
-        title: true,
-        username: true,
-        description: true,
-        avatarUrl: true,
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 10,
-    }),
-    prisma.botPublication.findMany({
-      where: {
-        isBlocked: false,
-      },
-      select: {
-        id: true,
-        name: true,
-        username: true,
-        niche: true,
-        avatarUrl: true,
-        config: true,
-      },
-      orderBy: { publishedAt: "desc" },
-      take: 10,
-    }),
+  const [channelsResult, botsResult] = await Promise.all([
+    typeof prisma.channel?.findMany === "function"
+      ? Promise.resolve(
+          prisma.channel.findMany({
+          where: {
+            participants: {
+              some: { userId: user.id },
+            },
+          },
+          select: {
+            id: true,
+            title: true,
+            username: true,
+            description: true,
+            avatarUrl: true,
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 10,
+        }) ?? []
+        )
+      : Promise.resolve([]),
+    typeof prisma.botPublication?.findMany === "function"
+      ? Promise.resolve(
+          prisma.botPublication.findMany({
+          where: {
+            isBlocked: false,
+          },
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            niche: true,
+            avatarUrl: true,
+            config: true,
+          },
+          orderBy: { publishedAt: "desc" },
+          take: 10,
+        }) ?? []
+        )
+      : Promise.resolve([]),
   ])
+  const channels = channelsResult ?? []
+  const bots = botsResult ?? []
 
   return (
     <Providers>

@@ -91,6 +91,8 @@ type ChatMessage = {
     id: number
     firstName: string
     lastName: string | null
+    avatarTone?: string | null
+    avatarUrl?: string | null
   }
 }
 
@@ -141,12 +143,35 @@ type ComposerAttachment = {
 type ChannelSearchResult = {
   id: number
   title: string
+  username?: string | null
   description: string | null
   avatarUrl?: string | null
   ownerId: number
   memberCount: number
   joined: boolean
   myRole?: string | null
+}
+
+type DiscoveryUserResult = {
+  id: number
+  username?: string | null
+  firstName: string
+  lastName: string | null
+  email: string
+  phone?: string | null
+  role: string
+  avatarTone?: string | null
+  avatarUrl?: string | null
+  isAlreadyContact?: boolean
+  isBlacklisted?: boolean
+}
+
+type DiscoveryBotResult = {
+  id: number
+  username?: string | null
+  name: string
+  niche: string | null
+  avatarUrl?: string | null
 }
 
 const GALLERY_ACCEPT = "image/*,video/*"
@@ -247,6 +272,11 @@ function getDialogAvatarUser(dialog: ChatDialog, currentUserId: number) {
     dialog.users[0] ??
     null
   )
+}
+
+function buildEntityLink(username: string | null | undefined, fallbackPath: string) {
+  const normalizedUsername = username?.trim().replace(/^@+/, "")
+  return normalizedUsername ? `/@${normalizedUsername}` : fallbackPath
 }
 
 function canLeaveDialog(dialog: ChatDialog, currentUserId: number) {
@@ -417,6 +447,8 @@ export function ChatsHome({
   const [newChannelAvatarFile, setNewChannelAvatarFile] = useState<File | null>(null)
   const [channelSearchQuery, setChannelSearchQuery] = useState("")
   const [channelSearchResults, setChannelSearchResults] = useState<ChannelSearchResult[]>([])
+  const [discoveryUsers, setDiscoveryUsers] = useState<DiscoveryUserResult[]>([])
+  const [discoveryBots, setDiscoveryBots] = useState<DiscoveryBotResult[]>([])
   const [isChannelSearchLoading, setIsChannelSearchLoading] = useState(false)
   const [openDialogMenuId, setOpenDialogMenuId] = useState<number | null>(null)
   const [showParticipants, setShowParticipants] = useState(false)
@@ -784,6 +816,8 @@ export function ChatsHome({
   useEffect(() => {
     if (!trimmedChannelSearchQuery) {
       setChannelSearchResults([])
+      setDiscoveryUsers([])
+      setDiscoveryBots([])
       setIsChannelSearchLoading(false)
       return
     }
@@ -795,7 +829,7 @@ export function ChatsHome({
     const timeoutId = setTimeout(async () => {
       try {
         const response = await fetch(
-          `/api/channels/search?q=${encodeURIComponent(trimmedChannelSearchQuery)}`,
+          `/api/discovery/search?q=${encodeURIComponent(trimmedChannelSearchQuery)}`,
           { signal: controller.signal }
         )
         const data = await response.json().catch(() => null)
@@ -803,6 +837,8 @@ export function ChatsHome({
         if (!response.ok) {
           if (!cancelled) {
             setChannelSearchResults([])
+            setDiscoveryUsers([])
+            setDiscoveryBots([])
           }
           return
         }
@@ -811,10 +847,18 @@ export function ChatsHome({
           setChannelSearchResults(
             Array.isArray(data?.channels) ? (data.channels as ChannelSearchResult[]) : []
           )
+          setDiscoveryUsers(
+            Array.isArray(data?.users) ? (data.users as DiscoveryUserResult[]) : []
+          )
+          setDiscoveryBots(
+            Array.isArray(data?.bots) ? (data.bots as DiscoveryBotResult[]) : []
+          )
         }
       } catch {
         if (!cancelled) {
           setChannelSearchResults([])
+          setDiscoveryUsers([])
+          setDiscoveryBots([])
         }
       } finally {
         if (!cancelled) {
@@ -1947,25 +1991,113 @@ export function ChatsHome({
                       <Input
                         value={channelSearchQuery}
                         onChange={(event) => setChannelSearchQuery(event.target.value)}
-                        placeholder="Поиск канала по названию"
+                        placeholder="Поиск пользователя, бота или канала"
                       />
                       {trimmedChannelSearchQuery ? (
                         <div className="space-y-2 rounded-[1rem] border border-border/60 bg-background/60 p-2">
                           <div className="flex items-center justify-between gap-2 px-1">
                             <p className="text-xs font-medium text-muted-foreground">
-                              Результаты поиска каналов
+                              Результаты поиска
                             </p>
                             {isChannelSearchLoading ? (
                               <span className="text-xs text-muted-foreground">Ищем...</span>
                             ) : null}
                           </div>
+                          {discoveryUsers.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                                Пользователи
+                              </p>
+                              {discoveryUsers.map((foundUser) => (
+                                <button
+                                  key={`search-user-${foundUser.id}`}
+                                  type="button"
+                                  className="flex w-full items-start gap-3 rounded-[1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
+                                  onClick={() =>
+                                    location.assign(
+                                      buildEntityLink(
+                                        foundUser.username,
+                                        `/chats?contactId=${foundUser.id}`
+                                      )
+                                    )
+                                  }
+                                >
+                                  <UserAvatar
+                                    firstName={foundUser.firstName}
+                                    lastName={foundUser.lastName}
+                                    avatarTone={foundUser.avatarTone}
+                                    avatarUrl={foundUser.avatarUrl}
+                                    className="size-10 shrink-0"
+                                  />
+                                  <span className="min-w-0">
+                                    <p className="truncate text-sm font-medium">
+                                      {getDialogUserName(foundUser)}
+                                    </p>
+                                    <p className="truncate text-xs text-muted-foreground">
+                                      {foundUser.username
+                                        ? `@${foundUser.username}`
+                                        : foundUser.phone || foundUser.email}
+                                    </p>
+                                    <p className="truncate text-[11px] text-muted-foreground">
+                                      {foundUser.isAlreadyContact
+                                        ? "Уже в контактах"
+                                        : "Можно написать без добавления в контакты"}
+                                    </p>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                          {discoveryBots.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                                Боты
+                              </p>
+                              {discoveryBots.map((bot) => (
+                                <button
+                                  key={`search-bot-${bot.id}`}
+                                  type="button"
+                                  className="flex w-full items-start gap-3 rounded-[1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
+                                  onClick={() =>
+                                    location.assign(
+                                      buildEntityLink(bot.username, `/chats?botId=${bot.id}`)
+                                    )
+                                  }
+                                >
+                                  <BotAvatar
+                                    avatarUrl={bot.avatarUrl}
+                                    alt={bot.name}
+                                    className="size-10 shrink-0"
+                                    iconClassName="size-4"
+                                  />
+                                  <span className="min-w-0">
+                                    <p className="truncate text-sm font-medium">{bot.name}</p>
+                                    <p className="truncate text-xs text-muted-foreground">
+                                      {bot.username ? `@${bot.username}` : bot.niche || "Открыть чат с ботом"}
+                                    </p>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
                           {channelSearchResults.length > 0 ? (
-                            channelSearchResults.map((channel) => (
+                            <div className="space-y-2">
+                              <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                                Каналы
+                              </p>
+                              {channelSearchResults.map((channel) => (
                               <button
                                 key={`search-channel-${channel.id}`}
                                 type="button"
                                 className="flex w-full items-start gap-3 rounded-[1rem] border border-border/60 bg-background/88 p-3 text-left transition-colors hover:bg-accent/45"
-                                onClick={() => location.assign(`/channels?channelId=${channel.id}`)}
+                                onClick={() =>
+                                  location.assign(
+                                    buildEntityLink(
+                                      channel.username,
+                                      `/channels?channelId=${channel.id}`
+                                    )
+                                  )
+                                }
                               >
                                 <UserAvatar
                                   firstName={channel.title}
@@ -1973,20 +2105,25 @@ export function ChatsHome({
                                   avatarUrl={channel.avatarUrl}
                                   className="size-10 shrink-0"
                                 />
-                                <span className="min-w-0">
-                                  <p className="truncate text-sm font-medium"># {channel.title}</p>
-                                  <p className="truncate text-xs text-muted-foreground">
-                                    {channel.description || "Открыть канал"}
-                                  </p>
-                                  <p className="truncate text-[11px] text-muted-foreground">
-                                    {channel.joined
-                                      ? `Вы уже внутри • ${channel.memberCount} участников`
-                                      : `${channel.memberCount} участников`}
-                                  </p>
-                                </span>
-                              </button>
-                            ))
-                          ) : !isChannelSearchLoading ? (
+                                  <span className="min-w-0">
+                                    <p className="truncate text-sm font-medium"># {channel.title}</p>
+                                    <p className="truncate text-xs text-muted-foreground">
+                                      {channel.username
+                                        ? `@${channel.username}`
+                                        : channel.description || "Открыть канал"}
+                                    </p>
+                                    <p className="truncate text-[11px] text-muted-foreground">
+                                      {channel.joined
+                                        ? `Вы уже внутри • ${channel.memberCount} участников`
+                                        : `${channel.memberCount} участников`}
+                                    </p>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : !isChannelSearchLoading &&
+                            discoveryUsers.length === 0 &&
+                            discoveryBots.length === 0 ? (
                             <p className="px-2 py-1 text-xs text-muted-foreground">
                               Ничего не найдено.
                             </p>
@@ -2431,6 +2568,22 @@ export function ChatsHome({
                           className={`flex ${mine ? "justify-end" : "justify-start"}`}
                         >
                           <div className="flex items-start gap-2">
+                            {!mine ? (
+                              <button
+                                type="button"
+                                className="mt-1 shrink-0"
+                                onClick={() => openPublicProfile(message.author.id)}
+                                aria-label={`Открыть профиль ${getDialogUserName(message.author)}`}
+                              >
+                                <UserAvatar
+                                  firstName={message.author.firstName}
+                                  lastName={message.author.lastName}
+                                  avatarTone={message.author.avatarTone}
+                                  avatarUrl={message.author.avatarUrl}
+                                  className="size-9"
+                                />
+                              </button>
+                            ) : null}
                             <div
                               className={`w-fit max-w-[85%] rounded-[1.35rem] px-3.5 py-2.5 text-sm shadow-sm ${
                                 mine

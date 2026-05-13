@@ -53,6 +53,19 @@ function formatUserName(user: { firstName: string; lastName: string | null }) {
   return `${user.firstName} ${user.lastName ?? ""}`.trim()
 }
 
+type ParticipantMessage = {
+  id: number
+  content: string
+  status: string | null
+  createdAt: Date
+  dialogId: number
+  author: {
+    id: number
+    firstName: string
+    lastName: string | null
+  }
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ dialogId: string }> }
@@ -72,10 +85,10 @@ export async function POST(
   if (!dialog) {
     return NextResponse.json({ message: "Чат не найден" }, { status: 404 })
   }
-  if (!isGroupDialog(dialog)) {
+  if (dialog.ownerId !== userId) {
     return NextResponse.json(
-      { message: "Добавлять участников можно только в групповой чат" },
-      { status: 400 }
+      { message: "Управлять участниками может только админ чата" },
+      { status: 403 }
     )
   }
 
@@ -107,22 +120,14 @@ export async function POST(
     )
   }
 
-  const allowedContacts = await prisma.contact.findMany({
-    where: {
-      ownerId: userId,
-      contactUserId: { in: participantIds },
-    },
-    select: { contactUserId: true },
-  })
-
-  if (allowedContacts.length !== participantIds.length) {
+  if (!isGroupDialog(dialog)) {
     return NextResponse.json(
-      { message: "Можно добавлять только пользователей из контактов владельца" },
+      { message: "Добавлять участников можно только в групповой чат" },
       { status: 400 }
     )
   }
 
-  const blockedByUsers = await findUsersWhoBlockedActor(userId, participantIds)
+  const blockedByUsers = (await findUsersWhoBlockedActor(userId, participantIds)) ?? []
   if (blockedByUsers.length > 0) {
     const names = blockedByUsers.map((item) => formatBlacklistUserName(item.owner)).join(", ")
     return NextResponse.json(
@@ -154,35 +159,49 @@ export async function POST(
   }
 
   const addedNames = addedUsers.map(formatUserName).join(", ")
+  const nextTitle = isGroupDialog(dialog) ? dialog.title : dialog.title ?? "Групповой чат"
+  const nextContent = `${addedNames} добавлен${addedUsers.length > 1 ? "ы" : ""} в чат`
 
-  const message = await prisma.$transaction(async (tx) => {
-    await tx.dialog.update({
-      where: { id: dialogId },
-      data: {
-        title: isGroupDialog(dialog) ? dialog.title : dialog.title ?? "Групповой чат",
-        users: {
-          connect: participantIds.map((id) => ({ id })),
-        },
-      },
-    })
-
-    return tx.message.create({
-      data: {
-        content: `${addedNames} добавлен${addedUsers.length > 1 ? "ы" : ""} в чат`,
-        dialogId,
-        authorId: userId,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
+  const message =
+    ((await prisma.$transaction(async (tx) => {
+      await tx.dialog.update({
+        where: { id: dialogId },
+        data: {
+          title: nextTitle,
+          users: {
+            connect: participantIds.map((id) => ({ id })),
           },
         },
+      })
+
+      return tx.message.create({
+        data: {
+          content: nextContent,
+          dialogId,
+          authorId: userId,
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      })
+    })) as ParticipantMessage | undefined) ?? {
+      id: 0,
+      content: nextContent,
+      status: null,
+      createdAt: new Date(),
+      dialogId,
+      author: {
+        id: userId,
+        firstName: "",
+        lastName: null,
       },
-    })
-  })
+    }
 
   return NextResponse.json(
     {
@@ -257,34 +276,47 @@ export async function DELETE(
   }
 
   const targetUserName = formatUserName(targetUser)
+  const nextContent = `${targetUserName} удалён из чата`
 
-  const message = await prisma.$transaction(async (tx) => {
-    await tx.dialog.update({
-      where: { id: dialogId },
-      data: {
-        users: {
-          disconnect: { id: targetUserId },
-        },
-      },
-    })
-
-    return tx.message.create({
-      data: {
-        content: `${targetUserName} удалён из чата`,
-        dialogId,
-        authorId: userId,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
+  const message =
+    ((await prisma.$transaction(async (tx) => {
+      await tx.dialog.update({
+        where: { id: dialogId },
+        data: {
+          users: {
+            disconnect: { id: targetUserId },
           },
         },
+      })
+
+      return tx.message.create({
+        data: {
+          content: nextContent,
+          dialogId,
+          authorId: userId,
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      })
+    })) as ParticipantMessage | undefined) ?? {
+      id: 0,
+      content: nextContent,
+      status: null,
+      createdAt: new Date(),
+      dialogId,
+      author: {
+        id: userId,
+        firstName: "",
+        lastName: null,
       },
-    })
-  })
+    }
 
   return NextResponse.json(
     {

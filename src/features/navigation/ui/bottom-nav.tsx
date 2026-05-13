@@ -87,7 +87,7 @@ export function BottomNav({
           <NavIconFrame>
             <SettingsIcon className="size-4 sm:size-4.5" />
           </NavIconFrame>
-          <span className={buildLabelClassName(active === "settings")}>{tr("РќР°СЃС‚СЂРѕР№РєРё")}</span>
+          <span className={buildLabelClassName(active === "settings")}>{tr("Настройки")}</span>
         </Button>
 
         <Button
@@ -98,7 +98,7 @@ export function BottomNav({
           <NavIconFrame>
             <UsersIcon className="size-4 sm:size-4.5" />
           </NavIconFrame>
-          <span className={buildLabelClassName(active === "contacts")}>{tr("РљРѕРЅС‚Р°РєС‚С‹")}</span>
+          <span className={buildLabelClassName(active === "contacts")}>{tr("Контакты")}</span>
         </Button>
 
         <Button
@@ -112,7 +112,7 @@ export function BottomNav({
           <NavIconFrame>
             <MessageCircleIcon className="size-4 sm:size-4.5" />
           </NavIconFrame>
-          <span className={buildLabelClassName(active === "chats")}>{tr("Р§Р°С‚С‹")}</span>
+          <span className={buildLabelClassName(active === "chats")}>{tr("Чаты")}</span>
           {effectiveChatsBadgeCount > 0 ? (
             <span className="absolute top-0.5 right-0.5 inline-flex min-w-4.5 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground shadow-sm sm:right-1 sm:min-w-5 sm:px-1.5 sm:text-[10px] lg:-top-1 lg:-right-1">
               {effectiveChatsBadgeCount > 99 ? "99+" : effectiveChatsBadgeCount}
@@ -128,7 +128,7 @@ export function BottomNav({
           <NavIconFrame>
             <NewspaperIcon className="size-4 sm:size-4.5" />
           </NavIconFrame>
-          <span className={buildLabelClassName(active === "feed")}>{tr("Р›РµРЅС‚Р°")}</span>
+          <span className={buildLabelClassName(active === "feed")}>{tr("Лента")}</span>
         </Button>
 
         <Button
@@ -139,7 +139,7 @@ export function BottomNav({
           <NavIconFrame>
             <BotIcon className="size-4 sm:size-4.5" />
           </NavIconFrame>
-          <span className={buildLabelClassName(active === "bots")}>{tr("Р‘РѕС‚С‹")}</span>
+          <span className={buildLabelClassName(active === "bots")}>{tr("Боты")}</span>
         </Button>
 
         {showServerTab ? (
@@ -151,7 +151,7 @@ export function BottomNav({
             <NavIconFrame>
               <HardDriveIcon className="size-4 sm:size-4.5" />
             </NavIconFrame>
-            <span className={buildLabelClassName(active === "server")}>РЎРµСЂРІРµСЂ</span>
+            <span className={buildLabelClassName(active === "server")}>Сервер</span>
           </Button>
         ) : null}
       </div>

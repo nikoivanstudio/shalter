@@ -24,14 +24,26 @@ async function isAuthorized(request: NextRequest) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  if (/^\/@[a-z0-9_]{4,32}$/i.test(pathname)) {
+    const nextUrl = request.nextUrl.clone()
+    nextUrl.pathname = `/resolve/${pathname.slice(2)}`
+    return NextResponse.rewrite(nextUrl)
+  }
+
   const authorized = await isAuthorized(request)
-  const protectedRoutes = ["/", "/contacts", "/chats", "/channels"]
+  const protectedRoutes = ["/", "/contacts", "/chats", "/channels", "/resolve"]
 
   if (pathname === "/auth" && authorized) {
     return NextResponse.redirect(new URL("/", request.url))
   }
 
-  if (protectedRoutes.includes(pathname) && !authorized) {
+  if (
+    (protectedRoutes.includes(pathname) ||
+      pathname.startsWith("/resolve/") ||
+      pathname.startsWith("/chat/")) &&
+    !authorized
+  ) {
     return NextResponse.redirect(new URL("/auth", request.url))
   }
 
@@ -39,5 +51,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/auth", "/contacts", "/chats", "/channels"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)"],
 }

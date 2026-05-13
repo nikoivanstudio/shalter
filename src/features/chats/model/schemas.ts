@@ -1,12 +1,16 @@
 import { z } from "zod"
 
 export const createChatSchema = z.object({
-  participantIds: z.array(z.number().int().positive()).min(1, "Выберите хотя бы один контакт"),
+  participantIds: z
+    .array(z.number().int().positive())
+    .min(1, "Выберите хотя бы одного пользователя"),
   title: z.string().trim().max(80, "Название слишком длинное").optional().or(z.literal("")),
 })
 
 export const updateDialogParticipantsSchema = z.object({
-  participantIds: z.array(z.number().int().positive()).min(1, "Выберите хотя бы одного пользователя"),
+  participantIds: z
+    .array(z.number().int().positive())
+    .min(1, "Выберите хотя бы одного пользователя"),
 })
 
 export const sendMessageSchema = z.object({

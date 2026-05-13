@@ -16,14 +16,25 @@ export async function GET(request: NextRequest) {
 
   const channels = await prisma.channel.findMany({
     where: {
-      title: {
-        contains: q,
-        mode: "insensitive",
-      },
+      OR: [
+        {
+          title: {
+            contains: q,
+            mode: "insensitive",
+          },
+        },
+        {
+          username: {
+            contains: q.startsWith("@") ? q.slice(1) : q,
+            mode: "insensitive",
+          },
+        },
+      ],
     },
     select: {
       id: true,
       title: true,
+      username: true,
       description: true,
       avatarUrl: true,
       ownerId: true,
@@ -49,6 +60,7 @@ export async function GET(request: NextRequest) {
       channels: channels.map((channel) => ({
         id: channel.id,
         title: channel.title,
+        username: channel.username,
         description: channel.description,
         avatarUrl: channel.avatarUrl,
         ownerId: channel.ownerId,

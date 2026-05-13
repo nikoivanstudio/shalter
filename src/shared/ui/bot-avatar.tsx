@@ -3,6 +3,28 @@
 import { BotIcon } from "lucide-react"
 import { useState } from "react"
 
+function normalizeAvatarUrl(avatarUrl?: string | null) {
+  const value = avatarUrl?.trim()
+
+  if (!value) {
+    return null
+  }
+
+  if (/^https?:\/\//i.test(value) || value.startsWith("/")) {
+    return value
+  }
+
+  if (value.startsWith("api/uploads/") || value.startsWith("uploads/")) {
+    return `/${value}`
+  }
+
+  if (value.startsWith("storage/uploads/")) {
+    return `/api/uploads/${value.slice("storage/uploads/".length)}`
+  }
+
+  return `/${value}`
+}
+
 export function BotAvatar({
   avatarUrl,
   alt = "Bot avatar",
@@ -15,15 +37,16 @@ export function BotAvatar({
   iconClassName?: string
 }) {
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null)
+  const normalizedAvatarUrl = normalizeAvatarUrl(avatarUrl)
 
-  if (avatarUrl && failedAvatarUrl !== avatarUrl) {
+  if (normalizedAvatarUrl && failedAvatarUrl !== normalizedAvatarUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={avatarUrl}
+        src={normalizedAvatarUrl}
         alt={alt}
         className={`rounded-full object-cover ${className}`.trim()}
-        onError={() => setFailedAvatarUrl(avatarUrl)}
+        onError={() => setFailedAvatarUrl(normalizedAvatarUrl)}
       />
     )
   }

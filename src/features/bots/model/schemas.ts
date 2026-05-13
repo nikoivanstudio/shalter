@@ -14,7 +14,7 @@ export const publishBotSchema = z.object({
   audience: botAudienceSchema,
   config: z.object({
     name: z.string().trim().min(2, "Укажите имя бота").max(120, "Имя бота слишком длинное"),
-    username: usernameSchema,
+    username: usernameSchema.optional(),
     niche: z.string().trim().max(120, "Ниша слишком длинная"),
     goal: z.string().trim().min(1, "Укажите цель бота").max(2000, "Цель слишком длинная"),
     tone: z.string().trim().max(500, "Описание стиля слишком длинное"),

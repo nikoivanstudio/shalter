@@ -130,6 +130,8 @@ export async function PATCH(
           id: true,
           firstName: true,
           lastName: true,
+          avatarTone: true,
+          avatarUrl: true,
         },
       },
     },

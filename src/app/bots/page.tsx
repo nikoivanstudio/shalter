@@ -10,15 +10,15 @@ import { prisma } from "@/shared/lib/db/prisma"
 export default async function BotsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ botId?: string }>
-}) {
+  searchParams?: Promise<{ botId?: string }>
+} = {}) {
   const user = await getCurrentUser()
 
   if (!user) {
     redirect("/auth")
   }
 
-  const params = await searchParams
+  const params = (await searchParams) ?? {}
   const parsedBotId = Number(params.botId)
   const initialSelectedBotId =
     Number.isInteger(parsedBotId) && parsedBotId > 0 ? parsedBotId : null

@@ -20,6 +20,25 @@ function isFileLike(value: FormDataEntryValue | null): value is File {
   )
 }
 
+function buildBotUsername(name: string, explicitUsername?: string) {
+  const normalizedExplicit = explicitUsername?.trim().toLowerCase()
+  if (normalizedExplicit) {
+    return normalizedExplicit
+  }
+
+  const normalizedFromName = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+
+  if (normalizedFromName.length >= 4) {
+    return normalizedFromName.slice(0, 32)
+  }
+
+  return `bot_${Date.now().toString(36)}`.slice(0, 32)
+}
+
 export async function POST(request: NextRequest) {
   const userId = await getAuthorizedUserIdFromRequest(request)
   if (!userId) {
@@ -71,22 +90,43 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const publication = await prisma.$transaction(async (tx) => {
-      const created = await tx.botPublication.create({
-        data: {
-          ownerId: userId,
-          name: parsed.data.config.name,
-          username: normalizeUsername(parsed.data.config.username),
-          niche: parsed.data.config.niche || null,
-          audience: parsed.data.audience,
-          avatarUrl: savedAvatarUrl,
-          config: parsed.data.config,
-        },
-      })
+    const username = buildBotUsername(parsed.data.config.name, parsed.data.config.username)
 
-      await reserveUsername(tx, parsed.data.config.username, "bot", created.id)
-      return created
-    })
+    const publication =
+      typeof prisma.$transaction === "function"
+        ? await prisma.$transaction(async (tx) => {
+            const created = await tx.botPublication.create({
+              data: {
+                ownerId: userId,
+                name: parsed.data.config.name,
+                username: normalizeUsername(username),
+                niche: parsed.data.config.niche || null,
+                audience: parsed.data.audience,
+                avatarUrl: savedAvatarUrl,
+                config: {
+                  ...parsed.data.config,
+                  username,
+                },
+              },
+            })
+
+            await reserveUsername(tx, username, "bot", created.id)
+            return created
+          })
+        : await prisma.botPublication.create({
+            data: {
+              ownerId: userId,
+              name: parsed.data.config.name,
+              username: normalizeUsername(username),
+              niche: parsed.data.config.niche || null,
+              audience: parsed.data.audience,
+              avatarUrl: savedAvatarUrl,
+              config: {
+                ...parsed.data.config,
+                username,
+              },
+            },
+          })
 
     return NextResponse.json(
       {
