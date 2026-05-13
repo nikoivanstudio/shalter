@@ -22,9 +22,7 @@ type I18nContextValue = {
 const STORAGE_KEY = "language"
 
 const RAW_EN_TRANSLATIONS: Record<string, string> = {
-  "Русский": "Russian",
   "Системный язык": "System language",
-  "Переключить язык": "Switch language",
   "Игра": "Game",
   "Сервер": "Server",
   "Русский": "Russian",

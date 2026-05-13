@@ -17,10 +17,11 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
+import { cn } from "@/lib/utils"
 
 type GameHomeProps = {
   playerId: string
@@ -913,12 +914,16 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white">
-                    <Link href="/game/tanks">
-                      <JoystickIcon className="size-4" />
-                      Танковый бой
-                    </Link>
-                  </Button>
+                  <Link
+                    href="/game/tanks"
+                    className={cn(
+                      buttonVariants({ variant: "outline" }),
+                      "border-white/15 bg-white/5 text-white"
+                    )}
+                  >
+                    <JoystickIcon className="size-4" />
+                    Танковый бой
+                  </Link>
                   <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-cyan-100">
                     Игрок: {displayName}
                   </span>

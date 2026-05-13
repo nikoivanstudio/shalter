@@ -16,10 +16,11 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { BottomNav } from "@/features/navigation/ui/bottom-nav"
+import { cn } from "@/lib/utils"
 
 type TankGameHomeProps = {
   playerId: string
@@ -687,12 +688,16 @@ export function TankGameHome({ playerId, displayName }: TankGameHomeProps) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white">
-                    <Link href="/game">
-                      <ChevronLeftIcon className="size-4" />
-                      К арене героев
-                    </Link>
-                  </Button>
+                  <Link
+                    href="/game"
+                    className={cn(
+                      buttonVariants({ variant: "outline" }),
+                      "inline-flex border-white/15 bg-white/5 text-white"
+                    )}
+                  >
+                    <ChevronLeftIcon className="size-4" />
+                    К арене героев
+                  </Link>
                   <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-xs text-emerald-100">
                     Онлайн: {remotePlayers.length + 1}
                   </span>

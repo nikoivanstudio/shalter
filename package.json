@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "next dev",
     "build": "next build",
     "db:ensure-dialog-title": "prisma db execute --file prisma/migrations/20260408013000_add_dialog_title/migration.sql",

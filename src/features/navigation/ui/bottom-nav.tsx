@@ -15,7 +15,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/features/i18n/model/i18n-provider"
 
-type NavSection = "settings" | "contacts" | "chats" | "feed" | "game" | "bots" | "server"
+type NavSection = "settings" | "contacts" | "chats" | "channels" | "feed" | "game" | "bots" | "server"
 
 type BottomNavProps = {
   active?: NavSection
