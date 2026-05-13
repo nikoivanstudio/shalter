@@ -1,7 +1,18 @@
 "use client"
 
-import { CrownIcon, Move3DIcon, RadioTowerIcon, ShieldIcon, SparklesIcon, SwordsIcon } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  BoxIcon,
+  CrownIcon,
+  MapIcon,
+  Move3DIcon,
+  RadioTowerIcon,
+  ShieldIcon,
+  ShoppingBagIcon,
+  SparklesIcon,
+  SwordsIcon,
+  TrophyIcon,
+} from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -29,6 +40,42 @@ type FighterDefinition = {
   description: string
 }
 
+type GameMode = {
+  id: string
+  name: string
+  description: string
+  botCount: number
+  scoreToWin: number
+  scorePerBot: number
+  playerPenaltyOnDeath: number
+  superGainPerHit: number
+}
+
+type ArenaMap = {
+  id: string
+  name: string
+  description: string
+  tint: string
+  obstacles: Array<{
+    id: string
+    x: number
+    y: number
+    width: number
+    height: number
+    height3d: number
+  }>
+  spawns: Array<{ x: number; y: number }>
+}
+
+type ShopItem = {
+  id: string
+  name: string
+  price: number
+  description: string
+  effect: "coins" | "heal" | "damage" | "unlock"
+  value: number
+}
+
 type ActorState = {
   id: string
   name: string
@@ -39,7 +86,6 @@ type ActorState = {
   color: string
   angle: number
   fighterId: string
-  isLocal?: boolean
 }
 
 type BotState = ActorState & {
@@ -152,15 +198,152 @@ const fighters: FighterDefinition[] = [
   },
 ]
 
-const arenaObstacles = [
-  { id: "o1", x: 180, y: 120, width: 110, height: 56, height3d: 44 },
-  { id: "o2", x: 520, y: 110, width: 140, height: 62, height3d: 56 },
-  { id: "o3", x: 312, y: 280, width: 96, height: 86, height3d: 52 },
-  { id: "o4", x: 660, y: 314, width: 132, height: 54, height3d: 46 },
+const modes: GameMode[] = [
+  {
+    id: "solo",
+    name: "Соло бой",
+    description: "Классический режим против ботов. Победа по фрагам.",
+    botCount: 4,
+    scoreToWin: 10,
+    scorePerBot: 1,
+    playerPenaltyOnDeath: 1,
+    superGainPerHit: 16,
+  },
+  {
+    id: "survival",
+    name: "Выживание",
+    description: "Больше врагов, меньше права на ошибку, быстрый темп матча.",
+    botCount: 6,
+    scoreToWin: 16,
+    scorePerBot: 2,
+    playerPenaltyOnDeath: 2,
+    superGainPerHit: 14,
+  },
+  {
+    id: "bossrush",
+    name: "Босс раш",
+    description: "Меньше врагов, но они толще и стреляют больнее.",
+    botCount: 3,
+    scoreToWin: 12,
+    scorePerBot: 3,
+    playerPenaltyOnDeath: 1,
+    superGainPerHit: 20,
+  },
+]
+
+const maps: ArenaMap[] = [
+  {
+    id: "neon-dunes",
+    name: "Неоновые дюны",
+    description: "Открытая карта с дальними прострелами и быстрыми разворотами.",
+    tint: "linear-gradient(180deg,rgba(14,165,233,0.16),rgba(15,23,42,0.96))",
+    spawns: [
+      { x: 100, y: 100 },
+      { x: 760, y: 110 },
+      { x: 150, y: 420 },
+      { x: 748, y: 410 },
+      { x: 445, y: 80 },
+      { x: 448, y: 452 },
+    ],
+    obstacles: [
+      { id: "o1", x: 180, y: 120, width: 110, height: 56, height3d: 44 },
+      { id: "o2", x: 520, y: 110, width: 140, height: 62, height3d: 56 },
+      { id: "o3", x: 312, y: 280, width: 96, height: 86, height3d: 52 },
+      { id: "o4", x: 660, y: 314, width: 132, height: 54, height3d: 46 },
+    ],
+  },
+  {
+    id: "crystal-port",
+    name: "Кристальный порт",
+    description: "Более плотная карта, где важны углы, укрытия и фланги.",
+    tint: "linear-gradient(180deg,rgba(16,185,129,0.18),rgba(15,23,42,0.96))",
+    spawns: [
+      { x: 120, y: 90 },
+      { x: 760, y: 92 },
+      { x: 130, y: 446 },
+      { x: 740, y: 430 },
+      { x: 445, y: 120 },
+      { x: 448, y: 430 },
+    ],
+    obstacles: [
+      { id: "c1", x: 150, y: 150, width: 148, height: 48, height3d: 46 },
+      { id: "c2", x: 582, y: 150, width: 148, height: 48, height3d: 46 },
+      { id: "c3", x: 348, y: 120, width: 120, height: 54, height3d: 54 },
+      { id: "c4", x: 348, y: 342, width: 120, height: 54, height3d: 54 },
+      { id: "c5", x: 220, y: 306, width: 92, height: 70, height3d: 46 },
+      { id: "c6", x: 568, y: 306, width: 92, height: 70, height3d: 46 },
+    ],
+  },
+  {
+    id: "volcano-core",
+    name: "Ядро вулкана",
+    description: "Компактная карта для плотных заруб и постоянных стычек.",
+    tint: "linear-gradient(180deg,rgba(239,68,68,0.16),rgba(15,23,42,0.96))",
+    spawns: [
+      { x: 140, y: 150 },
+      { x: 730, y: 150 },
+      { x: 160, y: 392 },
+      { x: 720, y: 386 },
+      { x: 436, y: 84 },
+      { x: 440, y: 456 },
+    ],
+    obstacles: [
+      { id: "v1", x: 246, y: 110, width: 108, height: 58, height3d: 48 },
+      { id: "v2", x: 520, y: 110, width: 108, height: 58, height3d: 48 },
+      { id: "v3", x: 246, y: 352, width: 108, height: 58, height3d: 48 },
+      { id: "v4", x: 520, y: 352, width: 108, height: 58, height3d: 48 },
+      { id: "v5", x: 380, y: 210, width: 118, height: 116, height3d: 60 },
+    ],
+  },
+]
+
+const shopItems: ShopItem[] = [
+  {
+    id: "coin-pack",
+    name: "Пакет монет",
+    price: 40,
+    description: "Мгновенно даёт +120 монет для покупок и боксов.",
+    effect: "coins",
+    value: 120,
+  },
+  {
+    id: "med-stim",
+    name: "Мед-стим",
+    price: 60,
+    description: "Полностью лечит бойца в текущем матче.",
+    effect: "heal",
+    value: 999,
+  },
+  {
+    id: "damage-chip",
+    name: "Чип урона",
+    price: 90,
+    description: "Даёт +2 к урону текущему бойцу до смены режима.",
+    effect: "damage",
+    value: 2,
+  },
+  {
+    id: "unlock-token",
+    name: "Токен разблокировки",
+    price: 180,
+    description: "Открывает случайного закрытого бойца.",
+    effect: "unlock",
+    value: 1,
+  },
 ]
 
 function normalizePhone(phone: string) {
   return phone.replace(/\D/g, "")
+}
+
+function randomFraction() {
+  const bytes = new Uint32Array(1)
+  crypto.getRandomValues(bytes)
+  return bytes[0] / 4294967295
+}
+
+function randomInt(maxExclusive: number) {
+  return Math.floor(randomFraction() * maxExclusive)
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -171,38 +354,30 @@ function distance(leftX: number, leftY: number, rightX: number, rightY: number) 
   return Math.hypot(leftX - rightX, leftY - rightY)
 }
 
-function collidesWithObstacle(x: number, y: number, radius: number) {
-  return arenaObstacles.some((obstacle) => {
+function collidesWithObstacle(x: number, y: number, radius: number, currentMap: ArenaMap) {
+  return currentMap.obstacles.some((obstacle) => {
     const closestX = clamp(x, obstacle.x, obstacle.x + obstacle.width)
     const closestY = clamp(y, obstacle.y, obstacle.y + obstacle.height)
     return distance(x, y, closestX, closestY) < radius
   })
 }
 
-function randomSpawn(index = 0) {
-  const positions = [
-    { x: 100, y: 100 },
-    { x: 760, y: 110 },
-    { x: 150, y: 420 },
-    { x: 748, y: 410 },
-    { x: 445, y: 80 },
-    { x: 448, y: 452 },
-  ]
-
-  return positions[index % positions.length]
+function randomSpawn(currentMap: ArenaMap, index = 0) {
+  return currentMap.spawns[index % currentMap.spawns.length]
 }
 
-function createBot(index: number): BotState {
+function createBot(index: number, currentMap: ArenaMap, currentMode: GameMode): BotState {
   const definition = fighters[(index + 1) % fighters.length]
-  const spawn = randomSpawn(index + 1)
+  const spawn = randomSpawn(currentMap, index + 1)
+  const hpBoost = currentMode.id === "bossrush" ? 1.45 : 1
 
   return {
     id: `bot-${index + 1}`,
     name: `${definition.name} ${index + 1}`,
     x: spawn.x,
     y: spawn.y,
-    hp: definition.maxHp,
-    maxHp: definition.maxHp,
+    hp: Math.round(definition.maxHp * hpBoost),
+    maxHp: Math.round(definition.maxHp * hpBoost),
     color: definition.color,
     angle: 0,
     fighterId: definition.id,
@@ -211,21 +386,22 @@ function createBot(index: number): BotState {
   }
 }
 
-function createInitialWorld(fighter: FighterDefinition): WorldView {
+function createInitialWorld(fighter: FighterDefinition, currentMap: ArenaMap, currentMode: GameMode): WorldView {
+  const spawn = randomSpawn(currentMap, 0)
+
   return {
     localPlayer: {
       id: "local",
       name: "Вы",
-      x: 120,
-      y: 270,
+      x: spawn.x,
+      y: spawn.y,
       hp: fighter.maxHp,
       maxHp: fighter.maxHp,
       color: fighter.color,
       angle: 0,
       fighterId: fighter.id,
-      isLocal: true,
     },
-    bots: Array.from({ length: 4 }, (_, index) => createBot(index)),
+    bots: Array.from({ length: currentMode.botCount }, (_, index) => createBot(index, currentMap, currentMode)),
     projectiles: [],
     remotePlayers: [],
     score: 0,
@@ -262,12 +438,32 @@ function ControlButton({
 
 export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
   const isSpecialAccount = normalizePhone(phone) === SPECIAL_PHONE
-  const availableFighters = isSpecialAccount ? fighters : fighters.slice(0, 1)
-  const [selectedFighterId, setSelectedFighterId] = useState(availableFighters[0]?.id ?? fighters[0].id)
+  const [modeId, setModeId] = useState(modes[0].id)
+  const [mapId, setMapId] = useState(maps[0].id)
   const [roomId, setRoomId] = useState("arena")
   const [joinedRoomId, setJoinedRoomId] = useState("arena")
+  const [coins, setCoins] = useState(isSpecialAccount ? 900 : 220)
+  const [boxes, setBoxes] = useState(isSpecialAccount ? 6 : 2)
+  const [damageBoost, setDamageBoost] = useState(0)
+  const [unlockedFighterIds, setUnlockedFighterIds] = useState<string[]>(
+    isSpecialAccount ? fighters.map((item) => item.id) : [fighters[0].id]
+  )
+  const [selectedFighterId, setSelectedFighterId] = useState(fighters[0].id)
   const [remotePlayers, setRemotePlayers] = useState<RemoteSnapshot[]>([])
-  const [view, setView] = useState<WorldView>(() => createInitialWorld(availableFighters[0] ?? fighters[0]))
+
+  const currentMode = useMemo(
+    () => modes.find((item) => item.id === modeId) ?? modes[0],
+    [modeId]
+  )
+  const currentMap = useMemo(
+    () => maps.find((item) => item.id === mapId) ?? maps[0],
+    [mapId]
+  )
+  const fighter = useMemo(
+    () => fighters.find((item) => item.id === selectedFighterId) ?? fighters[0],
+    [selectedFighterId]
+  )
+  const [view, setView] = useState<WorldView>(() => createInitialWorld(fighter, currentMap, currentMode))
 
   const viewRef = useRef(view)
   const controlsRef = useRef<ControlState>({ up: false, down: false, left: false, right: false, fire: false })
@@ -277,22 +473,113 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
   const superReadyRef = useRef(false)
   const syncTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const fighter = useMemo(
-    () => fighters.find((item) => item.id === selectedFighterId) ?? fighters[0],
-    [selectedFighterId]
-  )
-
-  function applyFighterSelection(nextFighterId: string) {
+  const resetArena = useCallback((nextFighterId = selectedFighterId, nextModeId = modeId, nextMapId = mapId) => {
     const nextFighter = fighters.find((item) => item.id === nextFighterId) ?? fighters[0]
-    const nextWorld = createInitialWorld(nextFighter)
+    const nextMode = modes.find((item) => item.id === nextModeId) ?? modes[0]
+    const nextMap = maps.find((item) => item.id === nextMapId) ?? maps[0]
+    const nextWorld = createInitialWorld(nextFighter, nextMap, nextMode)
     nextWorld.remotePlayers = viewRef.current.remotePlayers
 
-    setSelectedFighterId(nextFighterId)
     setView(nextWorld)
     viewRef.current = nextWorld
     nextShotAtRef.current = 0
     dashReadyAtRef.current = 0
     superReadyRef.current = false
+    setDamageBoost(0)
+  }, [mapId, modeId, selectedFighterId])
+
+  function applyFighterSelection(nextFighterId: string) {
+    setSelectedFighterId(nextFighterId)
+    resetArena(nextFighterId, modeId, mapId)
+  }
+
+  function applyModeSelection(nextModeId: string) {
+    setModeId(nextModeId)
+    resetArena(selectedFighterId, nextModeId, mapId)
+  }
+
+  function applyMapSelection(nextMapId: string) {
+    setMapId(nextMapId)
+    resetArena(selectedFighterId, modeId, nextMapId)
+  }
+
+  function unlockRandomFighter() {
+    const locked = fighters.filter((item) => !unlockedFighterIds.includes(item.id))
+    if (locked.length === 0) {
+      setCoins((current) => current + 50)
+      toast.success("Все бойцы уже открыты. Получено 50 монет компенсации.")
+      return
+    }
+
+    const reward = locked[randomInt(locked.length)]
+    setUnlockedFighterIds((current) => [...current, reward.id])
+    toast.success(`Открыт новый боец: ${reward.name}`)
+  }
+
+  function openBox() {
+    if (boxes <= 0 && coins < 80) {
+      toast.error("Нужен хотя бы один бокс или 80 монет для покупки.")
+      return
+    }
+
+    if (boxes > 0) {
+      setBoxes((current) => current - 1)
+    } else {
+      setCoins((current) => current - 80)
+    }
+
+    const roll = randomFraction()
+    if (roll < 0.34) {
+      const reward = 60 + randomInt(90)
+      setCoins((current) => current + reward)
+      toast.success(`Из бокса выпало ${reward} монет`)
+      return
+    }
+
+    if (roll < 0.68) {
+      unlockRandomFighter()
+      return
+    }
+
+    const rewardBoxes = 1 + randomInt(2)
+    setBoxes((current) => current + rewardBoxes)
+    toast.success(`Бонусные боксы: +${rewardBoxes}`)
+  }
+
+  function buyShopItem(item: ShopItem) {
+    if (coins < item.price) {
+      toast.error("Не хватает монет для покупки.")
+      return
+    }
+
+    setCoins((current) => current - item.price)
+
+    if (item.effect === "coins") {
+      setCoins((current) => current + item.value)
+      toast.success(`Куплено: ${item.name}`)
+      return
+    }
+
+    if (item.effect === "heal") {
+      setView((current) => {
+        const next = {
+          ...current,
+          localPlayer: { ...current.localPlayer, hp: current.localPlayer.maxHp },
+        }
+        viewRef.current = next
+        return next
+      })
+      toast.success("Здоровье восстановлено полностью.")
+      return
+    }
+
+    if (item.effect === "damage") {
+      setDamageBoost((current) => current + item.value)
+      toast.success("Урон бойца увеличен.")
+      return
+    }
+
+    unlockRandomFighter()
   }
 
   useEffect(() => {
@@ -321,7 +608,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
           const dy = Math.sin(current.localPlayer.angle) * boost
           const nextX = clamp(current.localPlayer.x + dx, PLAYER_RADIUS, ARENA_WIDTH - PLAYER_RADIUS)
           const nextY = clamp(current.localPlayer.y + dy, PLAYER_RADIUS, ARENA_HEIGHT - PLAYER_RADIUS)
-          if (!collidesWithObstacle(nextX, nextY, PLAYER_RADIUS)) {
+          if (!collidesWithObstacle(nextX, nextY, PLAYER_RADIUS, currentMap)) {
             current.localPlayer.x = nextX
             current.localPlayer.y = nextY
           }
@@ -345,7 +632,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [fighter])
+  }, [fighter, currentMap])
 
   useEffect(() => {
     let disposed = false
@@ -415,9 +702,12 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
 
   useEffect(() => {
     let frameId = 0
-    let previousAt = performance.now()
+    let previousAt = 0
 
     const tick = (now: number) => {
+      if (previousAt === 0) {
+        previousAt = now
+      }
       const delta = Math.min(32, now - previousAt)
       previousAt = now
 
@@ -447,7 +737,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
         const nextX = clamp(current.localPlayer.x + moveX * moveSpeed, PLAYER_RADIUS, ARENA_WIDTH - PLAYER_RADIUS)
         const nextY = clamp(current.localPlayer.y + moveY * moveSpeed, PLAYER_RADIUS, ARENA_HEIGHT - PLAYER_RADIUS)
 
-        if (!collidesWithObstacle(nextX, nextY, PLAYER_RADIUS)) {
+        if (!collidesWithObstacle(nextX, nextY, PLAYER_RADIUS, currentMap)) {
           current.localPlayer.x = nextX
           current.localPlayer.y = nextY
         }
@@ -468,7 +758,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
           y: current.localPlayer.y,
           vx: Math.cos(current.localPlayer.angle) * projectileSpeed,
           vy: Math.sin(current.localPlayer.angle) * projectileSpeed,
-          damage: fighter.damage * (current.superActiveUntil > Date.now() ? 1.2 : 1),
+          damage: (fighter.damage + damageBoost) * (current.superActiveUntil > Date.now() ? 1.2 : 1),
           color: fighter.color,
         })
         nextShotAtRef.current = Date.now() + fighter.fireDelayMs
@@ -479,7 +769,8 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
 
         if (bot.hp <= 0) {
           if (bot.respawnAt > 0 && bot.respawnAt <= Date.now()) {
-            const spawn = randomSpawn(Number(bot.id.replace("bot-", "")) + 2)
+            const spawnIndex = Number(bot.id.replace("bot-", "")) + 1
+            const spawn = randomSpawn(currentMap, spawnIndex)
             bot.x = spawn.x
             bot.y = spawn.y
             bot.hp = bot.maxHp
@@ -496,15 +787,17 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
         bot.angle = Math.atan2(directionY, directionX)
 
         if (distanceToPlayer > 160) {
-          const nextX = clamp(bot.x + (directionX / magnitude) * botFighter.speed * 2.6, BOT_RADIUS, ARENA_WIDTH - BOT_RADIUS)
-          const nextY = clamp(bot.y + (directionY / magnitude) * botFighter.speed * 2.6, BOT_RADIUS, ARENA_HEIGHT - BOT_RADIUS)
-          if (!collidesWithObstacle(nextX, nextY, BOT_RADIUS)) {
+          const rushMultiplier = currentMode.id === "survival" ? 3.3 : 2.6
+          const nextX = clamp(bot.x + (directionX / magnitude) * botFighter.speed * rushMultiplier, BOT_RADIUS, ARENA_WIDTH - BOT_RADIUS)
+          const nextY = clamp(bot.y + (directionY / magnitude) * botFighter.speed * rushMultiplier, BOT_RADIUS, ARENA_HEIGHT - BOT_RADIUS)
+          if (!collidesWithObstacle(nextX, nextY, BOT_RADIUS, currentMap)) {
             bot.x = nextX
             bot.y = nextY
           }
         }
 
-        if (distanceToPlayer < 310 && bot.nextShotAt <= Date.now()) {
+        if (distanceToPlayer < 320 && bot.nextShotAt <= Date.now()) {
+          const damageMultiplier = currentMode.id === "bossrush" ? 1.25 : 0.9
           current.projectiles.push({
             id: `${bot.id}-${Date.now()}`,
             ownerId: bot.id,
@@ -512,10 +805,10 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
             y: bot.y,
             vx: Math.cos(bot.angle) * botFighter.projectileSpeed * 0.9,
             vy: Math.sin(bot.angle) * botFighter.projectileSpeed * 0.9,
-            damage: botFighter.damage * 0.9,
+            damage: botFighter.damage * damageMultiplier,
             color: bot.color,
           })
-          bot.nextShotAt = Date.now() + botFighter.fireDelayMs + 250
+          bot.nextShotAt = Date.now() + botFighter.fireDelayMs + (currentMode.id === "survival" ? 120 : 250)
         }
       }
 
@@ -528,7 +821,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
           projectile.x > ARENA_WIDTH + 20 ||
           projectile.y < -20 ||
           projectile.y > ARENA_HEIGHT + 20 ||
-          collidesWithObstacle(projectile.x, projectile.y, PROJECTILE_RADIUS)
+          collidesWithObstacle(projectile.x, projectile.y, PROJECTILE_RADIUS, currentMap)
         ) {
           return false
         }
@@ -538,10 +831,11 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
           if (hitLocal) {
             current.localPlayer.hp = Math.max(0, current.localPlayer.hp - projectile.damage)
             if (current.localPlayer.hp === 0) {
-              current.score = Math.max(0, current.score - 1)
+              current.score = Math.max(0, current.score - currentMode.playerPenaltyOnDeath)
+              const spawn = randomSpawn(currentMap, 0)
               current.localPlayer.hp = current.localPlayer.maxHp
-              current.localPlayer.x = 120
-              current.localPlayer.y = 270
+              current.localPlayer.x = spawn.x
+              current.localPlayer.y = spawn.y
             }
             return false
           }
@@ -554,11 +848,12 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
 
           if (distance(projectile.x, projectile.y, bot.x, bot.y) < BOT_RADIUS) {
             bot.hp = Math.max(0, bot.hp - projectile.damage)
-            current.superCharge = clamp(current.superCharge + 16, 0, 100)
+            current.superCharge = clamp(current.superCharge + currentMode.superGainPerHit, 0, 100)
             if (bot.hp === 0) {
-              bot.respawnAt = Date.now() + 2200
-              current.score += 1
+              bot.respawnAt = Date.now() + (currentMode.id === "survival" ? 1500 : 2200)
+              current.score += currentMode.scorePerBot
               current.superCharge = clamp(current.superCharge + 28, 0, 100)
+              setCoins((value) => value + 15)
             }
             return false
           }
@@ -566,6 +861,15 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
 
         return true
       })
+
+      if (current.score >= currentMode.scoreToWin) {
+        setCoins((value) => value + 60)
+        setBoxes((value) => value + 1)
+        toast.success(`Победа в режиме «${currentMode.name}». Получено 60 монет и 1 бокс.`)
+        resetArena(selectedFighterId, modeId, mapId)
+        frameId = window.requestAnimationFrame(tick)
+        return
+      }
 
       superReadyRef.current = current.superCharge >= 100
 
@@ -587,7 +891,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [fighter, remotePlayers])
+  }, [fighter, currentMap, currentMode, remotePlayers, damageBoost, mapId, modeId, resetArena, selectedFighterId])
 
   const healthPercent = (view.localPlayer.hp / view.localPlayer.maxHp) * 100
   const superPercent = clamp(view.superCharge, 0, 100)
@@ -603,7 +907,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                   <p className="text-xs uppercase tracking-[0.32em] text-cyan-200/75">Shalter Arena</p>
                   <h1 className="mt-1 text-2xl font-black sm:text-3xl">Игра</h1>
                   <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                    Быстрая 3D-арена в духе hero shooter: движение, рывок, супер, охота на ботов и онлайн-комната для живых игроков.
+                    Теперь внутри вкладки есть режимы, карты, магазин и боксы. Всё это влияет на матч, а не просто висит отдельным меню.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -613,18 +917,20 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                   <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-emerald-100">
                     Онлайн: {remotePlayers.length + 1}
                   </span>
-                  {isSpecialAccount ? (
-                    <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-amber-100">
-                      Все бойцы открыты для {phone}
-                    </span>
-                  ) : null}
+                  <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-amber-100">
+                    Монеты: {coins}
+                  </span>
+                  <span className="rounded-full border border-fuchsia-300/30 bg-fuchsia-300/10 px-3 py-1 text-fuchsia-100">
+                    Боксы: {boxes}
+                  </span>
                 </div>
               </div>
             </div>
 
             <div className="p-3 sm:p-4">
               <div
-                className="relative mx-auto aspect-[16/10] w-full overflow-hidden rounded-[2rem] border border-white/12 bg-[linear-gradient(180deg,rgba(14,165,233,0.16),rgba(15,23,42,0.96))] shadow-[0_32px_120px_-48px_rgba(34,211,238,0.45)]"
+                className="relative mx-auto aspect-[16/10] w-full overflow-hidden rounded-[2rem] border border-white/12 shadow-[0_32px_120px_-48px_rgba(34,211,238,0.45)]"
+                style={{ background: currentMap.tint }}
                 onPointerMove={(event) => {
                   const rect = event.currentTarget.getBoundingClientRect()
                   aimRef.current = {
@@ -650,7 +956,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                     transformStyle: "preserve-3d",
                   }}
                 >
-                  {arenaObstacles.map((obstacle) => (
+                  {currentMap.obstacles.map((obstacle) => (
                     <div
                       key={obstacle.id}
                       className="absolute rounded-[1rem] border border-white/12 bg-[linear-gradient(180deg,rgba(248,250,252,0.22),rgba(15,23,42,0.75))] shadow-[0_12px_20px_rgba(2,6,23,0.45)]"
@@ -747,7 +1053,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-black/28 px-3 py-2 text-sm font-semibold backdrop-blur">
-                    Счёт: {view.score}
+                    Счёт: {view.score}/{currentMode.scoreToWin}
                   </div>
                 </div>
 
@@ -783,7 +1089,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                         const current = viewRef.current
                         const nextX = clamp(current.localPlayer.x + Math.cos(current.localPlayer.angle) * fighter.speed * 16, PLAYER_RADIUS, ARENA_WIDTH - PLAYER_RADIUS)
                         const nextY = clamp(current.localPlayer.y + Math.sin(current.localPlayer.angle) * fighter.speed * 16, PLAYER_RADIUS, ARENA_HEIGHT - PLAYER_RADIUS)
-                        if (!collidesWithObstacle(nextX, nextY, PLAYER_RADIUS)) {
+                        if (!collidesWithObstacle(nextX, nextY, PLAYER_RADIUS, currentMap)) {
                           current.localPlayer.x = nextX
                           current.localPlayer.y = nextY
                         }
@@ -806,13 +1112,53 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
           <div className="grid gap-4">
             <Card className="border-white/10 bg-white/5 p-4 backdrop-blur">
               <div className="flex items-center gap-2 text-lg font-bold">
-                <Move3DIcon className="size-5 text-cyan-300" />
-                Управление
+                <TrophyIcon className="size-5 text-amber-300" />
+                Режимы
               </div>
-              <div className="mt-3 space-y-2 text-sm text-slate-300">
-                <p>`WASD` или стрелки для движения.</p>
-                <p>`Space` или тап по арене для стрельбы.</p>
-                <p>`Shift`/`K` для рывка, `Q` для супера.</p>
+              <div className="mt-3 grid gap-3">
+                {modes.map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => applyModeSelection(mode.id)}
+                    className={[
+                      "rounded-[1.4rem] border px-4 py-3 text-left transition",
+                      mode.id === modeId ? "border-white/40 bg-white/14" : "border-white/10 bg-white/6 hover:bg-white/10",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold">{mode.name}</span>
+                      <span className="text-xs text-slate-400">{mode.scoreToWin} очков</span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-300">{mode.description}</p>
+                  </button>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="border-white/10 bg-white/5 p-4 backdrop-blur">
+              <div className="flex items-center gap-2 text-lg font-bold">
+                <MapIcon className="size-5 text-cyan-300" />
+                Карты
+              </div>
+              <div className="mt-3 grid gap-3">
+                {maps.map((map) => (
+                  <button
+                    key={map.id}
+                    type="button"
+                    onClick={() => applyMapSelection(map.id)}
+                    className={[
+                      "rounded-[1.4rem] border px-4 py-3 text-left transition",
+                      map.id === mapId ? "border-white/40 bg-white/14" : "border-white/10 bg-white/6 hover:bg-white/10",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold">{map.name}</span>
+                      <span className="text-xs text-slate-400">{map.obstacles.length} укрытий</span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-300">{map.description}</p>
+                  </button>
+                ))}
               </div>
             </Card>
 
@@ -823,7 +1169,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
               </div>
               <div className="mt-3 grid gap-3">
                 {fighters.map((item) => {
-                  const unlocked = availableFighters.some((fighterItem) => fighterItem.id === item.id)
+                  const unlocked = unlockedFighterIds.includes(item.id)
                   const active = selectedFighterId === item.id
 
                   return (
@@ -857,6 +1203,60 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                     </button>
                   )
                 })}
+                {isSpecialAccount ? (
+                  <p className="text-sm text-amber-200">Для номера {phone} все бойцы уже открыты.</p>
+                ) : null}
+              </div>
+            </Card>
+
+            <Card className="border-white/10 bg-white/5 p-4 backdrop-blur">
+              <div className="flex items-center gap-2 text-lg font-bold">
+                <ShoppingBagIcon className="size-5 text-emerald-300" />
+                Магазин
+              </div>
+              <div className="mt-3 grid gap-3">
+                {shopItems.map((item) => (
+                  <div key={item.id} className="rounded-[1.4rem] border border-white/10 bg-white/6 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold">{item.name}</span>
+                      <span className="text-xs text-amber-200">{item.price} монет</span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-300">{item.description}</p>
+                    <Button className="mt-3 w-full" onClick={() => buyShopItem(item)}>
+                      Купить
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="border-white/10 bg-white/5 p-4 backdrop-blur">
+              <div className="flex items-center gap-2 text-lg font-bold">
+                <BoxIcon className="size-5 text-fuchsia-300" />
+                Боксы
+              </div>
+              <p className="mt-3 text-sm text-slate-300">
+                Бокс может дать монеты, бонусные боксы или нового бойца. Если боксов нет, можно открыть за 80 монет.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <Button className="flex-1" onClick={openBox}>
+                  Открыть бокс
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-white/15 bg-white/5 text-white"
+                  onClick={() => {
+                    if (coins < 80) {
+                      toast.error("Не хватает монет на покупку бокса.")
+                      return
+                    }
+                    setCoins((current) => current - 80)
+                    setBoxes((current) => current + 1)
+                    toast.success("Куплен 1 бокс.")
+                  }}
+                >
+                  Купить бокс
+                </Button>
               </div>
             </Card>
 
@@ -874,7 +1274,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                 />
                 <Button
                   onClick={() => {
-                    const nextRoomId = roomId.trim() || "arena"
+                    const nextRoomId = (roomId.trim() || "arena") + `-${modeId}-${mapId}`
                     setRoomId(nextRoomId)
                     setJoinedRoomId(nextRoomId)
                     toast.success(`Подключено к комнате ${nextRoomId}`)
@@ -888,7 +1288,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
               </p>
               <div className="mt-4 space-y-2">
                 {remotePlayers.length === 0 ? (
-                  <p className="text-sm text-slate-400">Пока вы один в комнате. Откройте игру на другом аккаунте и войдите в ту же комнату.</p>
+                  <p className="text-sm text-slate-400">Пока вы один в комнате. Откройте игру на другом аккаунте и войдите в тот же режим и ту же карту.</p>
                 ) : (
                   remotePlayers.map((player) => (
                     <div key={player.playerId} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
@@ -910,13 +1310,25 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
 
             <Card className="border-white/10 bg-white/5 p-4 backdrop-blur">
               <div className="flex items-center gap-2 text-lg font-bold">
+                <Move3DIcon className="size-5 text-cyan-300" />
+                Управление
+              </div>
+              <div className="mt-3 space-y-2 text-sm text-slate-300">
+                <p>`WASD` или стрелки для движения.</p>
+                <p>`Space` или тап по арене для стрельбы.</p>
+                <p>`Shift`/`K` для рывка, `Q` для супера.</p>
+              </div>
+            </Card>
+
+            <Card className="border-white/10 bg-white/5 p-4 backdrop-blur">
+              <div className="flex items-center gap-2 text-lg font-bold">
                 <SparklesIcon className="size-5 text-amber-300" />
                 Что уже работает
               </div>
               <div className="mt-3 space-y-2 text-sm text-slate-300">
-                <p>3D-арена с перспективой, препятствиями, стрельбой и ИИ-противниками.</p>
-                <p>Онлайн-присутствие игроков в одной комнате через realtime SSE.</p>
-                <p>Моментальная разблокировка всех бойцов для номера +7 9781827502.</p>
+                <p>Режимы меняют количество врагов, темп матча и награды.</p>
+                <p>Карты реально меняют спавны, укрытия и визуальный тон арены.</p>
+                <p>Магазин усиливает текущего бойца, а боксы развивают аккаунт.</p>
               </div>
             </Card>
           </div>
