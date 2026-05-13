@@ -3,6 +3,7 @@
 import {
   BoxIcon,
   CrownIcon,
+  JoystickIcon,
   MapIcon,
   Move3DIcon,
   RadioTowerIcon,
@@ -12,6 +13,7 @@ import {
   SwordsIcon,
   TrophyIcon,
 } from "lucide-react"
+import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -911,6 +913,12 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white">
+                    <Link href="/game/tanks">
+                      <JoystickIcon className="size-4" />
+                      Танковый бой
+                    </Link>
+                  </Button>
                   <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-cyan-100">
                     Игрок: {displayName}
                   </span>
