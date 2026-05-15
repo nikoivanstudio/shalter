@@ -1,6 +1,17 @@
 "use client"
 
-import { BotIcon, CopyIcon, FileImageIcon, MessageCircleIcon, SendIcon, ShieldIcon, Trash2Icon } from "lucide-react"
+import {
+  BotIcon,
+  CopyIcon,
+  FileImageIcon,
+  LayoutTemplateIcon,
+  MessageCircleIcon,
+  SendIcon,
+  ShieldIcon,
+  SparklesIcon,
+  Trash2Icon,
+  WandSparklesIcon,
+} from "lucide-react"
 import { useMemo, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 
@@ -47,6 +58,8 @@ type PublishedBot = {
   ownerName?: string
   isMine?: boolean
 }
+
+type BuilderWorkspace = "studio" | "showcase"
 
 export type BotsHomeProps = {
   user: BotUser
