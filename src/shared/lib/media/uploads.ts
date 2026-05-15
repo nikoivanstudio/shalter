@@ -11,11 +11,16 @@ type SavedUpload = {
   size: number
 }
 
-const PUBLIC_DIR = path.join(process.cwd(), "public")
+const PROJECT_ROOT = process.cwd()
+const PUBLIC_DIR = path.join(PROJECT_ROOT, "public")
 const LEGACY_UPLOADS_DIR = path.join(PUBLIC_DIR, "uploads")
-const SERVER_UPLOADS_DIR = path.resolve(
-  process.env.UPLOADS_STORAGE_DIR?.trim() || path.join(process.cwd(), "storage", "uploads")
-)
+const DEFAULT_SERVER_UPLOADS_DIR = path.join(PROJECT_ROOT, "storage", "uploads")
+const configuredUploadsDir = process.env.UPLOADS_STORAGE_DIR?.trim()
+const SERVER_UPLOADS_DIR = configuredUploadsDir
+  ? path.isAbsolute(configuredUploadsDir)
+    ? configuredUploadsDir
+    : path.join(PROJECT_ROOT, "storage", configuredUploadsDir)
+  : DEFAULT_SERVER_UPLOADS_DIR
 const SERVER_UPLOADS_PREFIX = "/api/uploads/"
 const LEGACY_UPLOADS_PREFIX = "/uploads/"
 

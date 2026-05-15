@@ -65,6 +65,7 @@ describe("auth/profile/navigation components", () => {
     await user.type(screen.getByLabelText(/РРјСЏ|Р ВР СРЎРЏ/), "Ivan")
     await user.type(screen.getByLabelText(/Р¤Р°РјРёР»РёСЏ \(РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ\)|Р В¤Р В°Р СР С‘Р В»Р С‘РЎРЏ/), "Petrov")
     await user.type(screen.getByLabelText("Email"), "user@example.com")
+    await user.type(screen.getByLabelText("Username"), "ivan_test")
     await user.type(screen.getByLabelText(/РўРµР»РµС„РѕРЅ|Р СћР ВµР В»Р ВµРЎвЂћР С•Р Р…/), "12345678")
     await user.click(screen.getByRole("button", { name: "Turnstile" }))
     await user.type(screen.getByLabelText(/РџР°СЂРѕР»СЊ|Р СџР В°РЎР‚Р С•Р В»РЎРЉ/), "password123")
@@ -191,8 +192,13 @@ describe("auth/profile/navigation components", () => {
           email: "user@example.com",
           firstName: "Ivan",
           lastName: null,
+          username: "ivan_test",
           phone: "12345678",
           role: "user",
+          profileVisibility: "everyone",
+          showEmailInProfile: true,
+          showPhoneInProfile: true,
+          showGiftsInProfile: true,
         }}
       />
     )
@@ -247,8 +253,13 @@ describe("auth/profile/navigation components", () => {
           email: "user@example.com",
           firstName: "Ivan",
           lastName: null,
+          username: "ivan_test",
           phone: "12345678",
           role: "user",
+          profileVisibility: "everyone",
+          showEmailInProfile: true,
+          showPhoneInProfile: true,
+          showGiftsInProfile: true,
         }}
       />
     )

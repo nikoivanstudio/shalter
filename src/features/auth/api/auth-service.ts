@@ -1,13 +1,14 @@
 import bcrypt from "bcryptjs"
 
-import { prisma } from "@/shared/lib/db/prisma"
 import { env } from "@/shared/config/env"
 import { ADMIN_ROLE, USER_ROLE } from "@/shared/lib/auth/roles"
 import {
   extendPremiumUntilByDays,
   resolveRoleAfterPremiumPurchase,
 } from "@/shared/lib/billing/premium"
+import { prisma } from "@/shared/lib/db/prisma"
 import { isPrismaKnownRequestError } from "@/shared/lib/db/prisma-errors"
+import { sendRecoveryCodeEmail } from "@/shared/lib/mail"
 import {
   PARTNER_REWARD_PREMIUM_DAYS,
   PARTNER_REWARD_STARS,
@@ -42,6 +43,10 @@ type AuthResult =
       message: string
       fieldErrors?: Record<string, string[]>
     }
+
+function createRecoveryCode() {
+  return Math.floor(100_000 + Math.random() * 900_000)
+}
 
 async function clearUserAccountData(userId: number) {
   const user = await prisma.user.findUnique({
@@ -90,8 +95,7 @@ async function clearUserAccountData(userId: number) {
         continue
       }
 
-      const nextOwnerId =
-        dialog.ownerId === user.id ? remainingUserIds[0] : dialog.ownerId
+      const nextOwnerId = dialog.ownerId === user.id ? remainingUserIds[0] : dialog.ownerId
 
       await tx.dialog.update({
         where: { id: dialog.id },
@@ -222,13 +226,13 @@ export async function registerUser(input: {
 
       if (referrer) {
         await prisma.user.update({
-        where: { id: input.referrerId },
-        data: {
-          role: resolveRoleAfterPremiumPurchase(referrer.role),
-          premiumUntil: extendPremiumUntilByDays(
-            referrer.premiumUntil,
-            PARTNER_REWARD_PREMIUM_DAYS
-          ),
+          where: { id: input.referrerId },
+          data: {
+            role: resolveRoleAfterPremiumPurchase(referrer.role),
+            premiumUntil: extendPremiumUntilByDays(
+              referrer.premiumUntil,
+              PARTNER_REWARD_PREMIUM_DAYS
+            ),
             starsBalance: {
               increment: PARTNER_REWARD_STARS,
             },
@@ -318,10 +322,70 @@ export async function loginUser(input: {
   }
 }
 
+export async function requestRecoveryCode(input: {
+  phone: string
+}): Promise<{ ok: true } | AuthResult> {
+  const phone = input.phone.trim()
+  const user = await prisma.user.findUnique({
+    where: { phone },
+    select: {
+      id: true,
+      email: true,
+      phone: true,
+    },
+  })
+
+  if (!user) {
+    return { ok: false, status: 404, message: "Аккаунт не найден" }
+  }
+
+  const code = createRecoveryCode()
+  const expiredAt = Date.now() + 10 * 60 * 1000
+
+  await prisma.$transaction(async (tx) => {
+    await tx.otp.deleteMany({
+      where: {
+        OR: [{ phone }, { email: user.email }],
+      },
+    })
+
+    await tx.otp.create({
+      data: {
+        code,
+        email: user.email,
+        phone,
+        expiredAt,
+      },
+    })
+  })
+
+  await sendRecoveryCodeEmail({
+    to: user.email,
+    code: code.toString(),
+  })
+
+  return { ok: true }
+}
+
 export async function recoverUserAccount(input: {
   phone: string
+  code: string
 }): Promise<AuthResult> {
   const phone = input.phone.trim()
+  const otp = await prisma.otp.findFirst({
+    where: { phone },
+    orderBy: { id: "desc" },
+    select: {
+      id: true,
+      code: true,
+      expiredAt: true,
+    },
+  })
+
+  if (!otp || otp.expiredAt < Date.now() || otp.code !== Number(input.code.trim())) {
+    return { ok: false, status: 401, message: "Неверный код подтверждения" }
+  }
+
   const user = await prisma.user.findUnique({
     where: { phone },
     select: {
@@ -338,6 +402,12 @@ export async function recoverUserAccount(input: {
   if (!cleared) {
     return { ok: false, status: 404, message: "Аккаунт не найден" }
   }
+
+  await prisma.otp.deleteMany({
+    where: {
+      OR: [{ phone }, { email: user.email }],
+    },
+  })
 
   return {
     ok: true,

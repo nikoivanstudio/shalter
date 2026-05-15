@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { recoverUserAccount } from "@/features/auth/api/auth-service"
-import { recoveryPhoneSchema } from "@/features/auth/model/schemas"
+import { recoveryCodeSchema } from "@/features/auth/model/schemas"
 import {
   createAuthToken,
   createSessionId,
@@ -12,7 +12,7 @@ import { touchUserActivity } from "@/shared/lib/user-activity"
 export async function POST(request: Request) {
   try {
     const json = await request.json()
-    const parsed = recoveryPhoneSchema.safeParse(json)
+    const parsed = recoveryCodeSchema.safeParse(json)
 
     if (!parsed.success) {
       return NextResponse.json(

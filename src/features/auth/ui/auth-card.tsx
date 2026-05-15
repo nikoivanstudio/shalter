@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   loginSchema,
+  recoveryCodeSchema,
   recoveryPhoneSchema,
   registerSchema,
 } from "@/features/auth/model/schemas"
@@ -37,6 +38,7 @@ type RegisterForm = {
 
 type RecoveryForm = {
   phone: string
+  code: string
 }
 
 type FieldErrors = Record<string, string[] | undefined>
@@ -70,6 +72,7 @@ export function AuthCard() {
   const [turnstileResetKey, setTurnstileResetKey] = useState(0)
   const [isRecoveryConfirmOpen, setIsRecoveryConfirmOpen] = useState(false)
   const [recoveryMessage, setRecoveryMessage] = useState("")
+  const [isRecoveryCodeSent, setIsRecoveryCodeSent] = useState(false)
 
   const [loginForm, setLoginForm] = useState<LoginForm>({
     email: "",
@@ -89,6 +92,7 @@ export function AuthCard() {
 
   const [recoveryForm, setRecoveryForm] = useState<RecoveryForm>({
     phone: "",
+    code: "",
   })
 
   const isLoginDisabled = useMemo(
@@ -148,9 +152,35 @@ export function AuthCard() {
         return
       }
 
-      toast.success(tr("Вход выполнен"))
       router.replace("/")
       router.refresh()
+      toast.success(tr("Вход выполнен"))
+    })
+  }
+
+  function requestRecoveryCode() {
+    setRecoveryErrors({})
+    setRecoveryMessage("")
+
+    const parsed = recoveryPhoneSchema.safeParse(recoveryForm)
+    if (!parsed.success) {
+      setRecoveryErrors(parsed.error.flatten().fieldErrors)
+      return
+    }
+
+    startTransition(async () => {
+      const { response, data } = await sendAuthRequest("/api/auth/recover/request-code", parsed.data)
+      if (!response.ok) {
+        setRecoveryErrors((data?.fieldErrors ?? {}) as FieldErrors)
+        setRecoveryMessage(tr(data?.message ?? "Ошибка восстановления аккаунта"))
+        return
+      }
+
+      setIsRecoveryCodeSent(true)
+      setRecoveryMessage(
+        tr("Мы отправили 6-значный код на email, привязанный к этому номеру.")
+      )
+      toast.success(tr("Аккаунт восстановлен"))
     })
   }
 
@@ -158,7 +188,7 @@ export function AuthCard() {
     setRecoveryErrors({})
     setRecoveryMessage("")
 
-    const parsed = recoveryPhoneSchema.safeParse(recoveryForm)
+    const parsed = recoveryCodeSchema.safeParse(recoveryForm)
     if (!parsed.success) {
       setRecoveryErrors(parsed.error.flatten().fieldErrors)
       return
@@ -173,7 +203,8 @@ export function AuthCard() {
       }
 
       setIsRecoveryConfirmOpen(false)
-      setRecoveryForm({ phone: "" })
+      setIsRecoveryCodeSent(false)
+      setRecoveryForm({ phone: "", code: "" })
       toast.success(tr("Аккаунт восстановлен"))
       router.replace("/")
       router.refresh()
@@ -270,7 +301,8 @@ export function AuthCard() {
                       setLoginErrors({})
                       setRecoveryErrors({})
                       setRecoveryMessage("")
-                      setRecoveryForm({ phone: "" })
+                      setRecoveryForm({ phone: "", code: "" })
+                      setIsRecoveryCodeSent(false)
                       setIsRecoveryConfirmOpen(true)
                     }}
                     disabled={isPending}
@@ -466,7 +498,7 @@ export function AuthCard() {
                 <PhoneInput
                   id="recovery-phone"
                   value={recoveryForm.phone}
-                  onChange={(phone) => setRecoveryForm({ phone })}
+                  onChange={(phone) => setRecoveryForm((prev) => ({ ...prev, phone }))}
                 />
                 {getFieldError(recoveryErrors, "phone") ? (
                   <p className="text-sm text-destructive">
@@ -474,6 +506,24 @@ export function AuthCard() {
                   </p>
                 ) : null}
               </div>
+
+              {isRecoveryCodeSent ? (
+                <div className="space-y-2">
+                  <Label htmlFor="recovery-code">Код подтверждения</Label>
+                  <Input
+                    id="recovery-code"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={recoveryForm.code}
+                    onChange={(event) =>
+                      setRecoveryForm((prev) => ({ ...prev, code: event.target.value }))
+                    }
+                  />
+                  {getFieldError(recoveryErrors, "code") ? (
+                    <p className="text-sm text-destructive">{getFieldError(recoveryErrors, "code")}</p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <p className="text-sm text-muted-foreground">
                 {tr("После подтверждения контакты, чёрный список и все чаты будут очищены.")}
@@ -492,6 +542,7 @@ export function AuthCard() {
                   setIsRecoveryConfirmOpen(false)
                   setRecoveryErrors({})
                   setRecoveryMessage("")
+                  setIsRecoveryCodeSent(false)
                 }}
                 disabled={isPending}
               >
@@ -500,10 +551,16 @@ export function AuthCard() {
               <Button
                 type="button"
                 variant="destructive"
-                onClick={recoverAccount}
+                onClick={isRecoveryCodeSent ? recoverAccount : requestRecoveryCode}
                 disabled={isPending}
               >
-                {isPending ? tr("Сбрасываем...") : "Восстановить"}
+                {isPending
+                  ? isRecoveryCodeSent
+                    ? tr("\u0421\u0431\u0440\u0430\u0441\u044b\u0432\u0430\u0435\u043c...")
+                    : tr("\u041e\u0442\u043f\u0440\u0430\u0432\u043b\u044f\u0435\u043c \u043a\u043e\u0434...")
+                  : isRecoveryCodeSent
+                    ? "\u0412\u043e\u0441\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c"
+                    : tr("\u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c")}
               </Button>
             </div>
           </div>

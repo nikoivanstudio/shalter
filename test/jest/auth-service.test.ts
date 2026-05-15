@@ -134,6 +134,7 @@ describe("auth-service", () => {
         email: "USER@example.com",
         password: "password123",
         firstName: "Ivan",
+        username: "ivan_test",
         phone: "12345678",
       })
     ).resolves.toMatchObject({
@@ -152,6 +153,7 @@ describe("auth-service", () => {
         email: "new@example.com",
         password: "password123",
         firstName: "Ivan",
+        username: "ivan_new",
         phone: "12345679",
         referrerId: 999,
       })
@@ -181,6 +183,7 @@ describe("auth-service", () => {
         password: "password123",
         firstName: "Ivan",
         lastName: "Petrov",
+        username: "ivan_partner",
         phone: "12345678",
         referrerId: 7,
       })
@@ -196,6 +199,7 @@ describe("auth-service", () => {
         email: "other@example.com",
         password: "password123",
         firstName: "Ivan",
+        username: "ivan_other",
         phone: "12345679",
       })
     ).resolves.toMatchObject({
@@ -237,6 +241,7 @@ describe("auth-service", () => {
 
     mockPrisma.otp.findFirst.mockResolvedValueOnce({
       id: 10,
+      code: 123456,
       expiredAt: Date.now() + 60_000,
     })
     mockPrisma.user.findUnique

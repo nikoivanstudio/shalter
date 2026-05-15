@@ -205,6 +205,7 @@ describe("auth and notification routes", () => {
         confirmPassword: "password123",
         firstName: "Ivan",
         lastName: "",
+        username: "ivan_test",
         phone: "12345678",
         turnstileToken: "token",
       })
@@ -225,6 +226,7 @@ describe("auth and notification routes", () => {
         confirmPassword: "password123",
         firstName: "Ivan",
         lastName: "",
+        username: "ivan_test",
         phone: "12345678",
         turnstileToken: "token",
       })
@@ -245,6 +247,7 @@ describe("auth and notification routes", () => {
         confirmPassword: "password123",
         firstName: "Ivan",
         lastName: "",
+        username: "ivan_test",
         phone: "12345678",
         turnstileToken: "token",
       })
@@ -260,6 +263,7 @@ describe("auth and notification routes", () => {
         confirmPassword: "password123",
         firstName: "Ivan",
         lastName: "",
+        username: "ivan_test",
         phone: "12345678",
         turnstileToken: "token",
       })
