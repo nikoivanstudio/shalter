@@ -172,9 +172,20 @@ describe("auth-service", () => {
     mockPrisma.user.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null)
     mockPrisma.user.count.mockResolvedValue(0)
     bcrypt.hash.mockResolvedValue("hash")
-    mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 7, isBlocked: false })
-    mockPrisma.user.create
-      .mockResolvedValueOnce({ id: 1, email: "user@example.com" })
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({ id: 7, isBlocked: false })
+      .mockResolvedValueOnce({ id: 7, role: "user", premiumUntil: null })
+    mockPrisma.$transaction
+      .mockImplementationOnce(async (callback: any) =>
+        callback({
+          user: {
+            create: jest.fn().mockResolvedValue({ id: 1, email: "user@example.com" }),
+          },
+          usernameRegistry: {
+            create: jest.fn().mockResolvedValue({}),
+          },
+        })
+      )
       .mockRejectedValueOnce(new MockPrismaClientKnownRequestError("P2002", { target: ["email"] }))
 
     await expect(

@@ -29,8 +29,13 @@ describe("profile partner program", () => {
           email: "user@example.com",
           firstName: "Ivan",
           lastName: null,
+          username: "ivan_test",
           phone: "12345678",
           role: "user",
+          profileVisibility: "everyone",
+          showEmailInProfile: true,
+          showPhoneInProfile: true,
+          showGiftsInProfile: true,
         }}
       />
     )

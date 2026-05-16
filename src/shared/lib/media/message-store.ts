@@ -72,8 +72,8 @@ export async function getDialogMessages(dialogId: number) {
     dialogId: row.dialogId,
     author: row.author,
     attachment:
-      row.attachments.length > 0
-        ? row.attachments.map(mapAttachment)
+      (row.attachments ?? []).length > 0
+        ? (row.attachments ?? []).map(mapAttachment)
         : mapLegacyAttachment(row),
   }))
 }
@@ -127,7 +127,7 @@ export async function createDialogMessage(input: {
     createdAt: toIsoString(created.createdAt),
     dialogId: created.dialogId,
     author: created.author,
-    attachment: created.attachments.map(mapAttachment),
+    attachment: (created.attachments ?? []).map(mapAttachment),
   }
 }
 
@@ -236,6 +236,6 @@ export async function createChannelMessage(input: {
     channelId: created.channelId,
     createdAt: toIsoString(created.createdAt),
     author: created.author,
-    attachment: created.attachments.map(mapAttachment),
+    attachment: (created.attachments ?? []).map(mapAttachment),
   }
 }

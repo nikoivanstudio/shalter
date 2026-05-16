@@ -147,6 +147,146 @@ function buildBotUsernameSeed(value: string) {
   return normalized.slice(0, 32)
 }
 
+const showcaseIdeas = [
+  {
+    title: "Лендинг услуги",
+    text: "Яркая первая секция, выгоды в три экрана и сценарий захвата заявки без тяжёлого текста.",
+  },
+  {
+    title: "Микро-магазин",
+    text: "Карточки, быстрый CTA, доверительные маркеры и чистый путь от просмотра до оплаты.",
+  },
+  {
+    title: "Портфолио-страница",
+    text: "Крупные кейсы, ритмичная типографика и аккуратное раскрытие результатов проекта.",
+  },
+]
+
+const showcaseSteps = [
+  "Выберите настроение страницы: спокойный бренд, продажа, журнал или витрина продукта.",
+  "Соберите структуру: hero, оффер, блоки доверия, тарифы, FAQ и финальный CTA.",
+  "Привяжите сценарий бота, чтобы страница не просто рассказывала, а вела пользователя дальше.",
+]
+
+function BuilderShowcase({
+  previewName,
+  previewGoal,
+}: {
+  previewName: string
+  previewGoal: string
+}) {
+  return (
+    <div className="space-y-4">
+      <Card className="overflow-hidden border-border/70 bg-[radial-gradient(circle_at_top_left,_rgba(34,197,94,0.18),_transparent_35%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(30,41,59,0.92))] text-slate-50">
+        <CardContent className="grid gap-6 px-5 py-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-7 lg:py-7">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-3 py-1 text-xs uppercase tracking-[0.2em] text-emerald-200/90">
+              <SparklesIcon className="size-3.5" />
+              New Tab
+            </div>
+            <div className="space-y-3">
+              <h2 className="max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
+                Красивая витрина для конструктора сайтов внутри studio
+              </h2>
+              <p className="max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+                Этот режим показывает, как оформить будущий сайт визуально: крупный оффер, понятная
+                композиция, блоки доверия и мягкая связка с ботом.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <ShowcaseStat label="Тон" value="смелый и чистый" />
+              <ShowcaseStat label="Фокус" value="конверсия + стиль" />
+              <ShowcaseStat label="Сценарий" value="сайт -> бот -> диалог" />
+            </div>
+          </div>
+
+          <div className="rounded-[1.6rem] border border-white/10 bg-white/8 p-4 shadow-[0_24px_60px_-40px_rgba(16,185,129,0.7)] backdrop-blur">
+            <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/60 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{previewName}</p>
+                  <p className="mt-1 text-xs text-slate-400">Концепт страницы для запуска</p>
+                </div>
+                <WandSparklesIcon className="size-5 text-emerald-300" />
+              </div>
+              <div className="mt-4 space-y-3">
+                <div className="rounded-2xl bg-white/6 p-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Hero idea</p>
+                  <p className="mt-2 text-sm text-slate-100">
+                    Крупный заголовок, подзаголовок на 2 строки и одна доминирующая кнопка.
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-emerald-400/10 p-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-emerald-200/80">Goal</p>
+                  <p className="mt-2 text-sm text-emerald-50">{previewGoal}</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="h-16 rounded-2xl bg-white/6" />
+                  <div className="h-16 rounded-2xl bg-white/6" />
+                  <div className="h-16 rounded-2xl bg-white/6" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <Card className="border-border/70">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <LayoutTemplateIcon className="size-4" />
+              Идеи для новой вкладки
+            </CardTitle>
+            <CardDescription>
+              Быстрые направления, которые хорошо выглядят как внутри конструктора, так и на готовой странице.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {showcaseIdeas.map((idea) => (
+              <div
+                key={idea.title}
+                className="rounded-[1.3rem] border border-border/70 bg-linear-to-br from-background via-background to-muted/30 p-4"
+              >
+                <p className="font-medium">{idea.title}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{idea.text}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70">
+          <CardHeader>
+            <CardTitle className="text-base">Как это выглядит красиво</CardTitle>
+            <CardDescription>
+              Принцип оформления вкладки, чтобы она ощущалась отдельным продуктовым режимом.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {showcaseSteps.map((step, index) => (
+              <div key={step} className="flex gap-3 rounded-[1.2rem] border border-border/70 bg-muted/20 p-4">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                  {index + 1}
+                </div>
+                <p className="text-sm leading-6 text-muted-foreground">{step}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function ShowcaseStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.2rem] border border-white/10 bg-white/6 px-4 py-3">
+      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</p>
+      <p className="mt-1 text-sm font-medium text-white">{value}</p>
+    </div>
+  )
+}
+
 export function BotsHome({
   user,
   publishedBots = [],
@@ -165,6 +305,7 @@ export function BotsHome({
   const [selectedDocSectionId, setSelectedDocSectionId] = useState<string>(
     LANGUAGE_DOCS[0]?.id ?? "spec"
   )
+  const [workspace, setWorkspace] = useState<BuilderWorkspace>("studio")
   const [botDraft, setBotDraft] = useState("")
   const [publishAvatarFile, setPublishAvatarFile] = useState<File | null>(null)
   const [botMessagesById, setBotMessagesById] = useState<Record<number, BotChatMessage[]>>({})
@@ -381,7 +522,32 @@ export function BotsHome({
           </CardHeader>
 
           <CardContent className="grid gap-4 xl:grid-cols-[0.92fr_1.18fr_1fr]">
-            <div className="space-y-4">
+            <div className="xl:col-span-3 space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={workspace === "studio" ? "default" : "outline"}
+                  onClick={() => setWorkspace("studio")}
+                >
+                  <BotIcon className="size-4" />
+                  Конструктор
+                </Button>
+                <Button
+                  type="button"
+                  variant={workspace === "showcase" ? "default" : "outline"}
+                  onClick={() => setWorkspace("showcase")}
+                >
+                  <SparklesIcon className="size-4" />
+                  Новая вкладка
+                </Button>
+              </div>
+
+              {workspace === "showcase" ? (
+                <BuilderShowcase previewName={previewConfig.name} previewGoal={previewConfig.goal} />
+              ) : null}
+            </div>
+
+            <div className={workspace === "showcase" ? "hidden" : "space-y-4"}>
               <Card className="border-border/70">
                 <CardHeader>
                   <CardTitle className="text-base">Публикация</CardTitle>
@@ -524,7 +690,7 @@ export function BotsHome({
               </Card>
             </div>
 
-            <div className="space-y-4">
+            <div className={workspace === "showcase" ? "hidden" : "space-y-4"}>
               <Card className="border-border/70">
                 <CardHeader>
                   <CardTitle className="text-base">Встроенный редактор</CardTitle>
@@ -568,7 +734,7 @@ export function BotsHome({
               </Card>
             </div>
 
-            <div className="space-y-4">
+            <div className={workspace === "showcase" ? "hidden" : "space-y-4"}>
               <Card className="border-border/70 xl:sticky xl:top-4">
                 <CardHeader>
                   <CardTitle className="text-base">{LANGUAGE_NAME}: документация</CardTitle>
@@ -637,7 +803,7 @@ export function BotsHome({
               </Card>
             </div>
 
-            <div className="xl:col-span-3 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className={workspace === "showcase" ? "hidden" : "xl:col-span-3 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]"}>
               <Card className="border-border/70">
                 <CardHeader>
                   <CardTitle className="text-base">Опубликованные боты</CardTitle>

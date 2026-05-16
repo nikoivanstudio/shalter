@@ -103,6 +103,7 @@ describe("utils and schemas", () => {
         email: "user@example.com",
         firstName: "Ivan",
         lastName: "",
+        username: "ivan_test",
         phone: "12345678",
         avatarTone: null,
       }).lastName

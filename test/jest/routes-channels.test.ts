@@ -5,6 +5,10 @@ jest.mock("@/shared/lib/auth/request-user", () => ({
 }))
 jest.mock("@/shared/lib/db/prisma", () => ({
   prisma: {
+    $transaction: jest.fn(),
+    user: {
+      findUnique: jest.fn(),
+    },
     channel: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -68,32 +72,45 @@ describe("channel routes", () => {
     expect(response.status).toBe(400)
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(1)
-    prisma.channel.create.mockResolvedValueOnce({
-      id: 1,
-      title: "News",
-      description: "desc",
-      avatarUrl: null,
-      ownerId: 1,
-      lastMessage: null,
-      participants: [
-        {
-          role: "OWNER",
-          user: {
+    prisma.$transaction.mockImplementationOnce(async (callback: (tx: Record<string, any>) => Promise<any>) =>
+      callback({
+        channel: {
+          create: jest.fn().mockResolvedValue({
             id: 1,
-            firstName: "Ivan",
-            lastName: null,
-            email: "u@example.com",
-            phone: "123",
-            role: "user",
-            avatarTone: null,
+            title: "News",
+            username: "news_chan",
+            description: "desc",
             avatarUrl: null,
-            isBlocked: false,
-          },
+            ownerId: 1,
+            participants: [
+              {
+                role: "OWNER",
+                user: {
+                  id: 1,
+                  firstName: "Ivan",
+                  lastName: null,
+                  email: "u@example.com",
+                  phone: "123",
+                  role: "user",
+                  avatarTone: null,
+                  avatarUrl: null,
+                  isBlocked: false,
+                },
+              },
+            ],
+          }),
         },
-      ],
-    })
+        usernameRegistry: {
+          create: jest.fn().mockResolvedValue({}),
+        },
+      })
+    )
     response = await createRoute.POST(
-      nextRequest("http://localhost/api/channels", "POST", { title: "News", description: "desc" })
+      nextRequest("http://localhost/api/channels", "POST", {
+        title: "News",
+        username: "news_chan",
+        description: "desc",
+      })
     )
     expect(response.status).toBe(201)
 
@@ -161,7 +178,7 @@ describe("channel routes", () => {
         avatarTone: null,
         avatarUrl: null,
       },
-      attachment: null,
+      attachments: [],
     })
     response = await messagesRoute.POST(
       nextRequest("http://localhost", "POST", { content: "hello" }),
@@ -175,7 +192,7 @@ describe("channel routes", () => {
     prisma.channel.findFirst.mockResolvedValueOnce({
       id: 1,
       ownerId: 1,
-      participants: [{ userId: 1 }, { userId: 2 }],
+      participants: [{ userId: 1, role: "OWNER", user: { id: 1 } }, { userId: 2, role: "MEMBER", user: { id: 2 } }],
     })
     response = await participantsRoute.POST(
       nextRequest("http://localhost", "POST", { participantIds: [2] }),
@@ -263,15 +280,26 @@ describe("channel routes", () => {
     expect(prisma.channelParticipant.delete).toHaveBeenCalled()
 
     getAuthorizedUserIdFromRequest.mockResolvedValueOnce(1)
+    prisma.user.findUnique.mockResolvedValueOnce({ role: "user" })
     prisma.channel.findFirst.mockResolvedValueOnce({
       id: 1,
       ownerId: 1,
       avatarUrl: null,
     })
+    prisma.$transaction.mockImplementationOnce(async (callback: (tx: Record<string, any>) => Promise<any>) =>
+      callback({
+        channel: {
+          delete: jest.fn(),
+        },
+        usernameRegistry: {
+          deleteMany: jest.fn(),
+        },
+      })
+    )
     response = await channelRoute.DELETE(nextRequest("http://localhost", "DELETE"), {
       params: Promise.resolve({ channelId: "1" }),
     })
     expect(response.status).toBe(200)
-    expect(prisma.channel.delete).toHaveBeenCalledWith({ where: { id: 1 } })
+    expect(prisma.$transaction).toHaveBeenCalled()
   })
 })

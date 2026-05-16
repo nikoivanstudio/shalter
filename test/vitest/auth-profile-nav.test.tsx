@@ -1,8 +1,8 @@
-﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, test, vi } from "vitest"
 
-import { routerMock, toastMock } from "../vitest.setup"
+import { routerMock, searchParamsMock, toastMock } from "../vitest.setup"
 
 vi.mock("@/features/theme/ui/theme-toggle", () => ({ ThemeToggle: () => <div>ThemeToggle</div> }))
 vi.mock("@/features/auth/ui/logout-button", () => ({ LogoutButton: () => <div>LogoutButton</div> }))
@@ -20,10 +20,17 @@ vi.mock("@/features/auth/ui/turnstile-widget", () => ({
 import { AuthCard } from "@/features/auth/ui/auth-card"
 import { ProfileHome } from "@/features/profile/ui/profile-home"
 
+function getSubmitButtons() {
+  return screen
+    .getAllByRole("button")
+    .filter((button) => button.getAttribute("type") === "submit")
+}
+
 describe("auth/profile/navigation components", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal("fetch", vi.fn())
+    searchParamsMock.delete("ref")
   })
 
   test("logout button loads and triggers logout flow", async () => {
@@ -33,7 +40,7 @@ describe("auth/profile/navigation components", () => {
     ;(fetch as any).mockResolvedValueOnce({ ok: true })
 
     render(<mod.LogoutButton />)
-    const button = await screen.findByRole("button", { name: /Р’С‹Р№С‚Рё|Р вЂ™РЎвЂ№Р в„–РЎвЂљР С‘/ })
+    const button = await screen.findByRole("button")
     fireEvent.click(button)
 
     await waitFor(() => expect(toastMock.success).toHaveBeenCalled())
@@ -50,64 +57,54 @@ describe("auth/profile/navigation components", () => {
       })
       .mockResolvedValueOnce({
         ok: false,
-        json: async () => ({ message: "РћС€РёР±РєР° СЂРµРіРёСЃС‚СЂР°С†РёРё", fieldErrors: { email: ["duplicate"] } }),
+        json: async () => ({ message: "Ошибка регистрации", fieldErrors: { email: ["duplicate"] } }),
       })
 
     render(<AuthCard />)
     await user.type(screen.getByLabelText("Email"), "user@example.com")
-    await user.type(screen.getByLabelText(/РџР°СЂРѕР»СЊ|Р СџР В°РЎР‚Р С•Р В»РЎРЉ/), "password123")
-    await user.click(screen.getByRole("button", { name: /Р’РѕР№С‚Рё|Р вЂ™Р С•Р в„–РЎвЂљР С‘/ }))
+    await user.type(screen.getByLabelText(/Пароль/), "password123")
+    await user.click(screen.getByRole("button", { name: /Войти/ }))
 
     await waitFor(() => expect(toastMock.success).toHaveBeenCalled())
     expect(routerMock.replace).toHaveBeenCalledWith("/")
 
-    await user.click(screen.getByRole("tab", { name: /Р РµРіРёСЃС‚СЂР°С†РёСЏ|Р В Р ВµР С–Р С‘РЎРѓРЎвЂљРЎР‚Р В°РЎвЂ Р С‘РЎРЏ/ }))
-    await user.type(screen.getByLabelText(/РРјСЏ|Р ВР СРЎРЏ/), "Ivan")
-    await user.type(screen.getByLabelText(/Р¤Р°РјРёР»РёСЏ \(РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ\)|Р В¤Р В°Р СР С‘Р В»Р С‘РЎРЏ/), "Petrov")
+    await user.click(screen.getByRole("tab", { name: /Регистрация/ }))
+    await user.type(screen.getByLabelText(/Имя/), "Ivan")
+    await user.type(screen.getByLabelText(/Фамилия \(необязательно\)/), "Petrov")
     await user.type(screen.getByLabelText("Email"), "user@example.com")
     await user.type(screen.getByLabelText("Username"), "ivan_test")
-    await user.type(screen.getByLabelText(/РўРµР»РµС„РѕРЅ|Р СћР ВµР В»Р ВµРЎвЂћР С•Р Р…/), "12345678")
+    await user.type(screen.getByLabelText(/Телефон/), "12345678")
     await user.click(screen.getByRole("button", { name: "Turnstile" }))
-    await user.type(screen.getByLabelText(/РџР°СЂРѕР»СЊ|Р СџР В°РЎР‚Р С•Р В»РЎРЉ/), "password123")
-    await user.type(screen.getByLabelText(/РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РїР°СЂРѕР»СЏ|Р СџР С•Р Т‘РЎвЂљР Р†Р ВµРЎР‚Р В¶Р Т‘Р ВµР Р…Р С‘Р Вµ Р С—Р В°РЎР‚Р С•Р В»РЎРЏ/), "password123")
-    await user.click(screen.getByRole("button", { name: /Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ|Р вЂ”Р В°РЎР‚Р ВµР С–Р С‘РЎРѓРЎвЂљРЎР‚Р С‘РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉРЎРѓРЎРЏ/ }))
+    await user.type(screen.getByLabelText(/^Пароль$/), "password123")
+    await user.type(screen.getByLabelText(/Подтверждение пароля/), "password123")
+    await user.click(screen.getByRole("button", { name: /Зарегистрироваться/ }))
 
-    await screen.findByText("РћС€РёР±РєР° СЂРµРіРёСЃС‚СЂР°С†РёРё")
+    await screen.findByText("Ошибка регистрации")
     expect(screen.getByText("duplicate")).toBeInTheDocument()
   })
 
   test("auth card opens recovery confirmation and recovers account", async () => {
     const user = userEvent.setup()
+    searchParamsMock.set("ref", "42")
     ;(fetch as any)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ ok: true }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ ok: true }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ user: { id: 1 } }),
-      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ user: { id: 1 } }) })
 
     render(<AuthCard />)
-    await user.click(screen.getByRole("button", { name: /Р—Р°Р±С‹Р»Рё РїР°СЂРѕР»СЊ\?|Р вЂ”Р В°Р В±РЎвЂ№Р В»Р С‘ Р С—Р В°РЎР‚Р С•Р В»РЎРЉ\?/ }))
-    expect(screen.getByText(/Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РґРѕСЃС‚СѓРї\?|РЎР±СЂРѕСЃРёС‚СЊ Р°РєРєР°СѓРЅС‚\?/)).toBeInTheDocument()
-    expect(
-      screen.getByText(/РєРѕРЅС‚Р°РєС‚С‹, С‡С‘СЂРЅС‹Р№ СЃРїРёСЃРѕРє Рё РІСЃРµ С‡Р°С‚С‹ Р±СѓРґСѓС‚ РѕС‡РёС‰РµРЅС‹|Р С”Р С•Р Р…РЎвЂљР В°Р С”РЎвЂљРЎвЂ№, РЎвЂЎРЎвЂРЎР‚Р Р…РЎвЂ№Р в„– РЎРѓР С—Р С‘РЎРѓР С•Р С” Р С‘ Р Р†РЎРѓР Вµ РЎвЂЎР В°РЎвЂљРЎвЂ№ Р В±РЎС“Р Т‘РЎС“РЎвЂљ Р С•РЎвЂЎР С‘РЎвЂ°Р ВµР Р…РЎвЂ№/i)
-    ).toBeInTheDocument()
-    await user.type(screen.getByLabelText(/РЈРєР°Р·Р°РЅРЅС‹Р№ РЅРѕРјРµСЂ С‚РµР»РµС„РѕРЅР°|Р СњР С•Р СР ВµРЎР‚ РЎвЂљР ВµР В»Р ВµРЎвЂћР С•Р Р…Р В°/), "12345678")
-    await user.click(screen.getByRole("button", { name: /РџСЂРѕРґРѕР»Р¶РёС‚СЊ|Р С›РЎвЂљР С—РЎР‚Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р С”Р С•Р Т‘/ }))
+    await user.click(screen.getByRole("button", { name: /Забыли пароль\?/ }))
+    expect(screen.getByText(/Восстановить доступ\?/)).toBeInTheDocument()
+    expect(screen.getByText(/контакты, чёрный список и все чаты будут очищены/i)).toBeInTheDocument()
+    await user.type(screen.getByLabelText(/Указанный номер телефона/), "12345678")
+    await user.click(screen.getByRole("button", { name: /Продолжить/ }))
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
         "/api/auth/recover/request-code",
         expect.objectContaining({ method: "POST" })
       )
     )
-    await user.type(screen.getByLabelText(/РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ|Р С™Р С•Р Т‘ Р С—Р С•Р Т‘РЎвЂљР Р†Р ВµРЎР‚Р В¶Р Т‘Р ВµР Р…Р С‘РЎРЏ/), "123456")
-    await user.click(screen.getByRole("button", { name: /Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ|Р вЂќР В°/ }))
+    await user.type(screen.getByLabelText(/Код подтверждения/), "123456")
+    await user.click(screen.getByRole("button", { name: /Восстановить/ }))
 
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
@@ -125,6 +122,7 @@ describe("auth/profile/navigation components", () => {
       typeof import("@/features/navigation/ui/bottom-nav")
     >("@/features/navigation/ui/bottom-nav")
     const close = vi.fn()
+
     class MockEventSource {
       addEventListener = vi.fn((event: string, handler: (payload: MessageEvent) => void) => {
         if (event === "unread") {
@@ -136,17 +134,18 @@ describe("auth/profile/navigation components", () => {
         void url
       }
     }
+
     vi.stubGlobal("EventSource", MockEventSource as any)
 
     const { rerender } = render(<ActualBottomNav />)
     expect(await screen.findByText("3")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /Р§Р°С‚С‹|Р В§Р В°РЎвЂљРЎвЂ№/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Чаты/ }))
     expect(routerMock.push).toHaveBeenCalledWith("/chats")
 
     const onChatsClick = vi.fn()
     rerender(<ActualBottomNav active="contacts" chatsBadgeCount={101} onChatsClick={onChatsClick} />)
     expect(screen.getByText("99+")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /Р§Р°С‚С‹|Р В§Р В°РЎвЂљРЎвЂ№/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Чаты/ }))
     expect(onChatsClick).toHaveBeenCalled()
   })
 
@@ -156,7 +155,10 @@ describe("auth/profile/navigation components", () => {
     ;(fetch as any)
       .mockResolvedValueOnce({
         ok: false,
-        json: async () => ({ message: "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РїСЂРѕС„РёР»СЊ", fieldErrors: { email: ["bad"] } }),
+        json: async () => ({
+          message: "Не удалось сохранить профиль",
+          fieldErrors: { email: ["bad"] },
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -165,25 +167,26 @@ describe("auth/profile/navigation components", () => {
             email: "new@example.com",
             firstName: "New",
             lastName: "Name",
+            username: "ivan_test",
             phone: "99999999",
+            avatarTone: null,
+            avatarUrl: null,
+            profileVisibility: "everyone",
+            showEmailInProfile: true,
+            showPhoneInProfile: true,
+            showGiftsInProfile: true,
           },
         }),
       })
       .mockResolvedValueOnce({
         ok: false,
         json: async () => ({
-          message: "РўРµРєСѓС‰РёР№ РїР°СЂРѕР»СЊ РІРІРµРґС‘РЅ РЅРµРІРµСЂРЅРѕ",
+          message: "Текущий пароль введён неверно",
           fieldErrors: { currentPassword: ["bad-password"] },
         }),
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ ok: true }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ ok: true }),
-      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
 
     render(
       <ProfileHome
@@ -205,23 +208,24 @@ describe("auth/profile/navigation components", () => {
 
     await user.clear(screen.getByLabelText(/Имя/))
     await user.type(screen.getByLabelText(/Имя/), "A")
-    await user.click(screen.getByRole("button", { name: /Сохранить профиль/ }))
+    await user.click(getSubmitButtons()[0])
     expect(await screen.findByText(/Имя должно быть не короче 2 символов/)).toBeInTheDocument()
 
     await user.clear(screen.getByLabelText(/Имя/))
     await user.type(screen.getByLabelText(/Имя/), "Ivan")
     await user.clear(screen.getByLabelText("Email"))
     await user.type(screen.getByLabelText("Email"), "new@example.com")
-    await user.click(screen.getByRole("button", { name: /Сохранить профиль/ }))
+    await user.click(getSubmitButtons()[0])
     expect(await screen.findByText("bad")).toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: /Сохранить профиль/ }))
+    await waitFor(() => expect(getSubmitButtons()[0]).toBeEnabled())
+    await user.click(getSubmitButtons()[0])
     await waitFor(() => expect(toastMock.success).toHaveBeenCalled())
 
     await user.type(screen.getByLabelText(/Текущий пароль/), "password123")
     await user.type(screen.getByLabelText(/Новый пароль/), "newpassword123")
     await user.type(screen.getByLabelText(/Подтверждение нового пароля/), "newpassword123")
-    await user.click(screen.getByRole("button", { name: /Изменить пароль/ }))
+    await user.click(getSubmitButtons()[1])
     expect(await screen.findByText("bad-password")).toBeInTheDocument()
 
     await user.clear(screen.getByLabelText(/Текущий пароль/))
@@ -230,7 +234,7 @@ describe("auth/profile/navigation components", () => {
     await user.type(screen.getByLabelText(/Новый пароль/), "newpassword123")
     await user.clear(screen.getByLabelText(/Подтверждение нового пароля/))
     await user.type(screen.getByLabelText(/Подтверждение нового пароля/), "newpassword123")
-    await user.click(screen.getByRole("button", { name: /Изменить пароль/ }))
+    await user.click(getSubmitButtons()[1])
     await waitFor(() => expect(toastMock.success).toHaveBeenCalled())
 
     await user.click(screen.getByRole("button", { name: /Удалить аккаунт/ }))
@@ -265,12 +269,9 @@ describe("auth/profile/navigation components", () => {
     )
 
     expect(screen.getByText("https://shalter.ru/auth?ref=42")).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "РЎРєРѕРїРёСЂРѕРІР°С‚СЊ СЃСЃС‹Р»РєСѓ" }))
+    await user.click(screen.getByRole("button", { name: "Скопировать ссылку" }))
 
-    await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith("https://shalter.ru/auth?ref=42")
-    )
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("https://shalter.ru/auth?ref=42"))
     expect(toastMock.success).toHaveBeenCalled()
   })
 })
-

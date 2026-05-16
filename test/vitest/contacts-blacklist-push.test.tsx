@@ -6,7 +6,9 @@ import { routerMock, toastMock } from "../vitest.setup"
 
 vi.mock("@/features/theme/ui/theme-toggle", () => ({ ThemeToggle: () => <div>ThemeToggle</div> }))
 vi.mock("@/features/auth/ui/logout-button", () => ({ LogoutButton: () => <div>LogoutButton</div> }))
-vi.mock("@/features/navigation/ui/bottom-nav", () => ({ BottomNav: ({ active }: { active?: string }) => <div>BottomNav:{active}</div> }))
+vi.mock("@/features/navigation/ui/bottom-nav", () => ({
+  BottomNav: ({ active }: { active?: string }) => <div>BottomNav:{active}</div>,
+}))
 
 import { BlacklistHome } from "@/features/contacts/ui/blacklist-home"
 import { ContactsHome } from "@/features/contacts/ui/contacts-home"
@@ -53,14 +55,44 @@ describe("contacts, blacklist and push components", () => {
           },
         }),
       })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ blockedUser: { id: 2, firstName: "Anna", lastName: null, phone: "123", email: "a@example.com", role: "user", isBlocked: false } }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          blockedUser: {
+            id: 2,
+            firstName: "Anna",
+            lastName: null,
+            phone: "123",
+            email: "a@example.com",
+            role: "user",
+            isBlocked: false,
+          },
+        }),
+      })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
 
     render(
       <ContactsHome
-        user={{ id: 1, email: "user@example.com", firstName: "Ivan", lastName: null, role: "user", avatarTone: null }}
-        contacts={[{ id: 2, email: "a@example.com", firstName: "Anna", lastName: null, phone: "123", role: "user", isBlocked: false }]}
+        user={{
+          id: 1,
+          email: "user@example.com",
+          firstName: "Ivan",
+          lastName: null,
+          role: "user",
+          avatarTone: null,
+        }}
+        contacts={[
+          {
+            id: 2,
+            email: "a@example.com",
+            firstName: "Anna",
+            lastName: null,
+            phone: "123",
+            role: "user",
+            isBlocked: false,
+          },
+        ]}
         blacklist={[]}
       />
     )
@@ -74,13 +106,15 @@ describe("contacts, blacklist and push components", () => {
 
     await user.click(screen.getAllByLabelText("Действия с контактом")[0])
     await user.click(screen.getByText("Добавить в ЧС"))
-    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Пользователь добавлен в чёрный список"))
+    await waitFor(() =>
+      expect(toastMock.success).toHaveBeenCalledWith("Пользователь добавлен в черный список")
+    )
 
     await user.click(screen.getAllByLabelText("Действия с контактом")[0])
     await user.click(screen.getByText("Удалить контакт"))
-    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Контакт удалён"))
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Контакт удален"))
 
-    fireEvent.click(screen.getByText("Открыть чёрный список"))
+    fireEvent.click(screen.getByText("Открыть черный список"))
     expect(routerMock.push).toHaveBeenCalledWith("/blacklist")
   })
 
@@ -123,8 +157,25 @@ describe("contacts, blacklist and push components", () => {
 
     render(
       <BlacklistHome
-        user={{ id: 1, email: "user@example.com", firstName: "Ivan", lastName: null, role: "user", avatarTone: null }}
-        blacklist={[{ id: 2, email: "a@example.com", firstName: "Anna", lastName: null, phone: "123", role: "user", isBlocked: false }]}
+        user={{
+          id: 1,
+          email: "user@example.com",
+          firstName: "Ivan",
+          lastName: null,
+          role: "user",
+          avatarTone: null,
+        }}
+        blacklist={[
+          {
+            id: 2,
+            email: "a@example.com",
+            firstName: "Anna",
+            lastName: null,
+            phone: "123",
+            role: "user",
+            isBlocked: false,
+          },
+        ]}
       />
     )
 
@@ -134,10 +185,14 @@ describe("contacts, blacklist and push components", () => {
     })
     expect(await screen.findByText("Petr")).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "В ЧС" }))
-    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Пользователь добавлен в чёрный список"))
+    await waitFor(() =>
+      expect(toastMock.success).toHaveBeenCalledWith("Пользователь добавлен в чёрный список")
+    )
 
     await user.click(screen.getAllByRole("button", { name: "Убрать" })[0])
-    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Пользователь удалён из чёрного списка"))
+    await waitFor(() =>
+      expect(toastMock.success).toHaveBeenCalledWith("Пользователь удалён из чёрного списка")
+    )
 
     fireEvent.click(screen.getByText("К контактам"))
     expect(routerMock.push).toHaveBeenCalledWith("/contacts")

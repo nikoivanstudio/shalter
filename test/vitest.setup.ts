@@ -53,6 +53,8 @@ export const routerMock = {
   refresh: vi.fn(),
 }
 
+export const searchParamsMock = new URLSearchParams()
+
 export const redirectMock = vi.fn((url: string) => {
   throw new Error(`redirect:${url}`)
 })
@@ -65,6 +67,8 @@ export const toastMock = {
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
   useRouter: () => routerMock,
+  useSearchParams: () => searchParamsMock,
+  usePathname: () => "/",
 }))
 
 vi.mock("next/font/google", () => ({
