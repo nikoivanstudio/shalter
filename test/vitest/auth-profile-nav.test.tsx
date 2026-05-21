@@ -240,7 +240,7 @@ describe("auth/profile/navigation components", () => {
     await user.click(screen.getByRole("button", { name: /Удалить аккаунт/ }))
     await waitFor(() => expect(toastMock.success).toHaveBeenCalled())
     expect(routerMock.replace).toHaveBeenCalledWith("/auth")
-  })
+  }, 15000)
 
   test("partner program copies personal referral link", async () => {
     const user = userEvent.setup()

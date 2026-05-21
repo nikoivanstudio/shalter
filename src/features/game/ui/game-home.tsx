@@ -59,6 +59,18 @@ type ArenaMap = {
   name: string
   description: string
   tint: string
+  bushPatches: Array<{
+    id: string
+    x: number
+    y: number
+    width: number
+    height: number
+  }>
+  capsuleSpawns: Array<{
+    id: string
+    x: number
+    y: number
+  }>
   obstacles: Array<{
     id: string
     x: number
@@ -107,6 +119,21 @@ type ProjectileState = {
   color: string
 }
 
+type EnergyCellState = {
+  id: string
+  x: number
+  y: number
+  value: number
+}
+
+type SupplyCrateState = {
+  id: string
+  x: number
+  y: number
+  hp: number
+  maxHp: number
+}
+
 type RemoteSnapshot = {
   playerId: string
   displayName: string
@@ -118,14 +145,18 @@ type RemoteSnapshot = {
   maxHp: number
   score: number
   superReady: boolean
+  powerLevel: number
 }
 
 type WorldView = {
   localPlayer: ActorState
   bots: BotState[]
   projectiles: ProjectileState[]
+  energyCells: EnergyCellState[]
+  supplyCrates: SupplyCrateState[]
   remotePlayers: RemoteSnapshot[]
   score: number
+  powerLevel: number
   superCharge: number
   superActiveUntil: number
 }
@@ -143,6 +174,8 @@ const ARENA_HEIGHT = 540
 const PLAYER_RADIUS = 22
 const BOT_RADIUS = 20
 const PROJECTILE_RADIUS = 7
+const SUPPLY_CRATE_RADIUS = 24
+const ENERGY_PICKUP_RADIUS = 26
 const SPECIAL_PHONE = "79781827502"
 const NETWORK_PUSH_MS = 180
 
@@ -240,6 +273,8 @@ const maps: ArenaMap[] = [
     name: "Неоновые дюны",
     description: "Открытая карта с дальними прострелами и быстрыми разворотами.",
     tint: "linear-gradient(180deg,rgba(14,165,233,0.16),rgba(15,23,42,0.96))",
+    bushPatches: [],
+    capsuleSpawns: [],
     spawns: [
       { x: 100, y: 100 },
       { x: 760, y: 110 },
@@ -260,6 +295,8 @@ const maps: ArenaMap[] = [
     name: "Кристальный порт",
     description: "Более плотная карта, где важны углы, укрытия и фланги.",
     tint: "linear-gradient(180deg,rgba(16,185,129,0.18),rgba(15,23,42,0.96))",
+    bushPatches: [],
+    capsuleSpawns: [],
     spawns: [
       { x: 120, y: 90 },
       { x: 760, y: 92 },
@@ -282,6 +319,8 @@ const maps: ArenaMap[] = [
     name: "Ядро вулкана",
     description: "Компактная карта для плотных заруб и постоянных стычек.",
     tint: "linear-gradient(180deg,rgba(239,68,68,0.16),rgba(15,23,42,0.96))",
+    bushPatches: [],
+    capsuleSpawns: [],
     spawns: [
       { x: 140, y: 150 },
       { x: 730, y: 150 },
@@ -406,8 +445,11 @@ function createInitialWorld(fighter: FighterDefinition, currentMap: ArenaMap, cu
     },
     bots: Array.from({ length: currentMode.botCount }, (_, index) => createBot(index, currentMap, currentMode)),
     projectiles: [],
+    energyCells: [],
+    supplyCrates: [],
     remotePlayers: [],
     score: 0,
+    powerLevel: 0,
     superCharge: 0,
     superActiveUntil: 0,
   }
@@ -984,17 +1026,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
                   ))}
                 </div>
 
-                {[view.localPlayer, ...view.bots, ...view.remotePlayers.map((player) => ({
-                  id: player.playerId,
-                  name: player.displayName,
-                  x: player.x,
-                  y: player.y,
-                  hp: player.hp,
-                  maxHp: player.maxHp,
-                  color: player.color,
-                  angle: 0,
-                  fighterId: player.fighterId,
-                }))].map((actor) => {
+                {[view.localPlayer, ...view.bots].map((actor) => {
                   const hpPercent = (actor.hp / actor.maxHp) * 100
                   return (
                     <div
@@ -1348,7 +1380,7 @@ export function GameHome({ playerId, displayName, phone }: GameHomeProps) {
         </section>
       </div>
 
-      <BottomNav active="game" />
+      <BottomNav active="bots" />
     </main>
   )
 }

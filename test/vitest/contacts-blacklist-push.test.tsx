@@ -57,20 +57,22 @@ describe("contacts, blacklist and push components", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
+        json: async () => ({ ok: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
         json: async () => ({
           blockedUser: {
-            id: 2,
-            firstName: "Anna",
+            id: 4,
+            firstName: "Bob",
             lastName: null,
-            phone: "123",
-            email: "a@example.com",
+            phone: "555",
+            email: "b@example.com",
             role: "user",
             isBlocked: false,
           },
         }),
       })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true }) })
 
     render(
       <ContactsHome
@@ -104,15 +106,16 @@ describe("contacts, blacklist and push components", () => {
     await user.click(screen.getByRole("button", { name: "Добавить" }))
     await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Контакт добавлен"))
 
+    await waitFor(() => expect(screen.getAllByLabelText("Действия с контактом")[0]).toBeEnabled())
     await user.click(screen.getAllByLabelText("Действия с контактом")[0])
-    await user.click(screen.getByText("Добавить в ЧС"))
+    await user.click(await screen.findByRole("button", { name: "Удалить контакт" }))
+    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Контакт удален"))
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "В ЧС" })).toBeEnabled())
+    await user.click(screen.getByRole("button", { name: "В ЧС" }))
     await waitFor(() =>
       expect(toastMock.success).toHaveBeenCalledWith("Пользователь добавлен в черный список")
     )
-
-    await user.click(screen.getAllByLabelText("Действия с контактом")[0])
-    await user.click(screen.getByText("Удалить контакт"))
-    await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Контакт удален"))
 
     fireEvent.click(screen.getByText("Открыть черный список"))
     expect(routerMock.push).toHaveBeenCalledWith("/blacklist")
@@ -208,7 +211,8 @@ describe("contacts, blacklist and push components", () => {
       toJSON: () => ({ endpoint: "endpoint", keys: { p256dh: "a", auth: "b" } }),
     }
     const subscribe = vi.fn().mockResolvedValue(subscription)
-    const getSubscription = vi.fn()
+    const getSubscription = vi
+      .fn()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(subscription)
@@ -245,7 +249,9 @@ describe("contacts, blacklist and push components", () => {
     await user.click(button)
     await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Уведомления включены"))
 
-    const enabledButton = await screen.findByRole("button", { name: "Отключить push-уведомления" })
+    const enabledButton = await screen.findByRole("button", {
+      name: "Отключить push-уведомления",
+    })
     await user.click(enabledButton)
     await waitFor(() => expect(toastMock.success).toHaveBeenCalledWith("Уведомления отключены"))
   })
