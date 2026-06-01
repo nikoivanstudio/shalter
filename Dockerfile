@@ -2,7 +2,8 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
-COPY package*.json ./
+COPY package*.json prisma.config.ts ./
+COPY prisma ./prisma
 RUN npm ci --legacy-peer-deps
 
 COPY . .

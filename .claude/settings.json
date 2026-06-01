@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma *)",
+      "Bash(PORT=3100 npm run start -- -p 3100 -H 0.0.0.0)",
+      "Bash(echo \"started pid $!\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3100/auth)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} -> %{redirect_url}\\\\n\" http://localhost:3100/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST http://localhost:3100/api/auth/login -H 'Content-Type: application/json' -d '{\"phone\":\"+10000000000\",\"password\":\"x\"}')",
+      "Bash(curl -s -X POST http://localhost:3100/api/auth/login -H 'Content-Type: application/json' -d '{\"phone\":\"+10000000000\",\"password\":\"wrongpass\"}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} -> %{redirect_url}\\\\n\" http://localhost:3100/feed)",
+      "Bash(kill 25842)",
+      "Bash(git rev-list *)",
+      "Bash(git reset *)",
+      "Bash(git pull *)",
+      "Bash(git fetch *)",
+      "Bash(npm run *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo \"pid $!\")",
+      "Bash(kill 28184)",
+      "Bash(PORT=3101 node .next/standalone/server.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3101/auth)",
+      "Bash(kill %1)",
+      "Bash(docker build *)"
+    ]
+  }
+}
